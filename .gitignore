@@ -137,3 +137,7 @@ neuropy/cscope.files
 neuropy/cscope.out
 neuropy/myproject.db
 neuropy/tags
+
+# auto backup files
+.DS_store
+*.DS_store

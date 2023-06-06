@@ -11,6 +11,7 @@ def plot_raster(
     color=None,
     marker="|",
     markersize=2,
+    markeredgewidth=1,
     add_vert_jitter=False,
 ):
     """creates raster plot using spiktrains in neurons
@@ -62,8 +63,10 @@ def plot_raster(
         )
 
     ax.set_xlim([neurons.t_start, neurons.t_stop])
+    # ax.ticklabel_format(axis="x", useOffset=False)
+    # ax.tick_params(axis="x", rotation=30)
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Units")
+    ax.set_ylabel("Neurons")
 
     return ax
 

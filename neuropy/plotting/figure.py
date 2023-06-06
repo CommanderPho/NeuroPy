@@ -4,12 +4,11 @@ from pathlib import Path
 
 import matplotlib as mpl
 import matplotlib.gridspec as gridspec
+from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 import numpy as np
 from cycler import cycler
-from matplotlib.collections import PatchCollection
 from matplotlib.colors import ListedColormap
-from matplotlib.patches import Rectangle
 
 
 class Colormap:
@@ -85,26 +84,44 @@ class Colormap:
 
 
 class Fig:
-    labelsize = 8
-
-    def draw(self, num=None, grid=(2, 2), size=(8.5, 11), style="figPublish", **kwargs):
-
+    def __init__(
+        self,
+        nrows,
+        ncols,
+        num=None,
+        size=(8.5, 11),
+        fontsize=8,
+        axis_color="#545454",
+        axis_lw=1.2,
+        tick_size=3.5,
+        constrained_layout=True,
+        fontname="Arial",
+        **kwargs,
+    ):
         # --- plot settings --------
         mpl_rcParams_style_dict = self.get_mpl_style(style=style)
         mpl.rcParams.update(mpl_rcParams_style_dict)
 
         fig = plt.figure(num=num, figsize=(8.5, 11), clear=True)
         fig.set_size_inches(size[0], size[1])
-        gs = gridspec.GridSpec(grid[0], grid[1], figure=fig)
-        fig.subplots_adjust(**kwargs)
+        gs = gridspec.GridSpec(nrows, ncols, figure=fig, **kwargs)
+
+        # fig.subplots_adjust(**kwargs)
 
         self.fig = fig
-        return self.fig, gs
+        self.gs = gs
 
-    def add_subplot(self, subplot_spec):
-        return plt.subplot(subplot_spec)
+    def subplot(self, subplot_spec, sharex=None, sharey=None, **kwargs):
+        return self.fig.add_subplot(
+            subplot_spec, sharex=sharex, sharey=sharey, **kwargs
+        )
 
-    def subplot2grid(self, subplot_spec, grid=(1, 3), **kwargs):
+    def add_subfigure(self, *args, **kwargs) -> mpl.figure.SubFigure:
+        return self.fig.add_subfigure(*args, **kwargs)
+
+    def subplot2grid(
+        self, subplot_spec, grid=(1, 3), return_axes: bool = False, **kwargs
+    ):
         """Subplots within a subplot
 
         Parameters
@@ -113,20 +130,32 @@ class Fig:
             subplot inside which subplots are created
         grid : tuple, optional
             number of rows and columns for subplots, by default (1, 3)
+        return_axes: returns axes instead of gridspec
 
         Returns
         -------
-        gridspec
+        gridspec (or axes if specified)
         """
         gs = gridspec.GridSpecFromSubplotSpec(
             grid[0], grid[1], subplot_spec=subplot_spec, **kwargs
         )
-        return gs
 
-    def panel_label(self, ax, label, fontsize=12):
+        if not return_axes:
+            return gs
+        elif return_axes:
+            ax = []
+            for row in range(grid[0]):
+                ax_col = []
+                for col in range(grid[1]):
+                    ax_col.append(self.fig.add_subplot(gs[row, col]))
+                ax.append(ax_col)
+            # [a.axis("off") for a in ax]
+            return np.array(ax).squeeze() if np.array(ax).ndim > 1 else np.array(ax)
+
+    def panel_label(self, ax, label, fontsize=12, x=-0.14, y=1.15):
         ax.text(
-            x=-0.08,
-            y=1.15,
+            x=x,
+            y=y,
             s=label,
             transform=ax.transAxes,
             fontsize=fontsize,
@@ -135,11 +164,47 @@ class Fig:
             ha="right",
         )
 
-    def savefig(self, fname: Path, scriptname=None, fig=None):
+    def legend(self, ax, text, color, fontsize=8, x=0.65, y=0.9, dy=0.1):
+        for i, (s, c) in enumerate(zip(text, color)):
+            ax.text(
+                x=x,
+                y=y - i * dy,
+                s=s,
+                color=c,
+                transform=ax.transAxes,
+                fontsize=fontsize,
+                fontweight="bold",
+                va="top",
+                ha="left",
+            )
 
+    @staticmethod
+    def legend_with_text_only(ax, spacing=0.3, fontsize=None):
+        """Sometimes the legend marker take too much unnecessary space. This function removes the legend markers and changes the color of the corresponding text.
+
+        Parameters
+        ----------
+        ax : _type_
+            Axis for which the legend needs to be modified
+        """
+
+        if fontsize is None:
+            fontsize = mpl.rcParams["axes.titlesize"]
+
+        legend = ax.legend(
+            labelcolor="linecolor",
+            frameon=False,
+            prop=dict(weight="bold", size=fontsize),
+            labelspacing=spacing,  # vertical spacing between legend entries
+        )
+        for item in legend.legendHandles:
+            item.set_visible(False)
+
+    def savefig(self, fname: Path, scriptname=None, fig=None, caption=None, dpi=300):
         if fig is None:
             fig = self.fig
 
+        # fig.set_dpi(300)
         filename = fname.with_suffix(".pdf")
 
         today = date.today().strftime("%m/%d/%y")
@@ -156,7 +221,27 @@ class Fig:
                 va="bottom",
                 alpha=0.5,
             )
-        fig.savefig(filename)
+
+        fig.savefig(filename, dpi=dpi)
+
+        if caption is not None:
+            fig_caption = Fig(grid=(1, 1))
+            ax_caption = fig_caption.subplot(fig_caption.gs[0])
+            ax_caption.text(0, 0.5, caption, wrap=True)
+            ax_caption.axis("off")
+            fig_caption.savefig(filename.with_suffix(".caption.pdf"))
+
+            """ Previously caption was combined to create a multi-page pdf with main figure. But this created dpi issue where we can't increase dpi to only saved pdf (pdfpages does not have that functionality yet) without affecting the plot in matplotlib widget which becomes bigger because of dpi-pixels relationsip)
+            """
+            # with PdfPages(filename) as pdf:
+            #     pdf.savefig(self.fig)
+
+            #     fig_caption = Fig(grid=(1, 1))
+            #     ax_caption = fig_caption.subplot(fig_caption.gs[0])
+
+            #     ax_caption.text(0, 0.5, caption, wrap=True)
+            #     ax_caption.axis("off")
+            #     pdf.savefig(fig_caption.fig)
 
     @staticmethod
     def pf_1D(ax):
@@ -164,10 +249,9 @@ class Fig:
         ax.tick_params("y", length=0)
 
     @staticmethod
-    def remove_spines(ax, sides=("top", "right")):
-
+    def toggle_spines(ax, sides=("top", "right"), keep=False):
         for side in sides:
-            ax.spines[side].set_visible(False)
+            ax.spines[side].set_visible(keep)
 
     @staticmethod
     def set_spines_width(ax, lw=2, sides=("bottom", "left")):
@@ -274,27 +358,3 @@ def neuron_number_title(neurons):
     titles = ["Neuron: " + str(n) for n in neurons]
 
     return titles
-
-
-def make_boxes(
-    ax, xdata, ydata, xerror, yerror, facecolor="r", edgecolor="None", alpha=0.5
-):
-
-    # Loop over data points; create box from errors at each point
-    errorboxes = [
-        Rectangle((x, y), xe, ye) for x, y, xe, ye in zip(xdata, ydata, xerror, yerror)
-    ]
-
-    # Create patch collection with specified colour/alpha
-    pc = PatchCollection(
-        errorboxes, facecolor=facecolor, alpha=alpha, edgecolor=edgecolor
-    )
-
-    # Add collection to axes
-    ax.add_collection(pc)
-
-    # Plot errorbars
-    # artists = ax.errorbar(
-    #     xdata, ydata, xerr=xerror, yerr=yerror, fmt="None", ecolor="k"
-    # )
-    return 1

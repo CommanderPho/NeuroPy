@@ -1,6 +1,5 @@
 import numpy as np
 
-
 class Signal:
     def __init__(
         self,
@@ -8,14 +7,17 @@ class Signal:
         sampling_rate,
         t_start=0.0,
         channel_id=None,
+        source_file=None,
     ) -> None:
-        self.traces = traces
+        assert traces.ndim <= 2
+        self.traces = traces if traces.ndim == 2 else traces[None, :]
         self.t_start = t_start
         self._sampling_rate = int(sampling_rate)
         if channel_id is None:
             self.channel_id = np.arange(self.n_channels)
         else:
             self.channel_id = channel_id
+        self.source_file = source_file
 
     @property
     def t_stop(self):
@@ -56,8 +58,11 @@ class Signal:
         if t_stop is None:
             t_stop = t_start + self.duration
 
-        frame_start = int(t_start * self.sampling_rate)
-        frame_stop = int(t_stop * self.sampling_rate)
+        assert t_stop <= self.t_stop, "t_stop should be less than signal.t_stop"
+        assert t_stop > t_start, "t_stop should be greater than t_start"
+
+        frame_start = int((t_start - self.t_start) * self.sampling_rate)
+        frame_stop = int((t_stop - self.t_start) * self.sampling_rate)
 
         if channel_id is None:
             traces = self.traces[:, frame_start:frame_stop]
@@ -65,3 +70,117 @@ class Signal:
             traces = self.traces[channel_id, frame_start:frame_stop]
 
         return Signal(traces, self.sampling_rate, t_start, channel_id)
+
+    def rescale(self, factor=0.95 * 1e-3):
+        """scales signal, use it for converting raw signal to volts, but can consume too much memory and time when used on large memmap arrays
+
+        Parameters
+        ----------
+        factor : float, optional
+            multiply the signal with this value, by default 0.95*1e-6 (openephys raw to millivolts)
+
+        Returns
+        -------
+        Signal
+            Signal object containing rescaled traces
+        """
+
+        return Signal(
+            traces=self.traces * factor,
+            sampling_rate=self.sampling_rate,
+            t_start=self.t_start,
+            channel_id=self.channel_id,
+        )
+
+
+class Spectrogram(Signal):
+    def __init__(self, traces, freqs, sampling_rate=1, t_start=0) -> None:
+        super().__init__(traces, sampling_rate, t_start=t_start, channel_id=freqs)
+
+    @property
+    def freqs(self):
+        return self.channel_id
+
+    def time_slice(self, t_start=None, t_stop=None):
+        return super().time_slice(t_start=t_start, t_stop=t_stop)
+
+    def freq_slice(self, f1=None, f2=None):
+        if f1 is None:
+            f1 = self.freqs[0]
+
+        if f2 is None:
+            f2 = self.freqs[-1]
+
+        assert f1 >= self.freqs[0], "f1 should be greater than lowest frequency"
+        assert (
+            f2 <= self.freqs[-1]
+        ), "f2 should be lower than highest possible frequency"
+        assert f2 > f1, "f2 should be greater than f1"
+
+        ind = np.where((self.freqs >= f1) & (self.freqs <= f2))[0]
+        freqs = self.freqs[ind]
+
+        return Spectrogram(
+            traces=self.traces[ind],
+            freqs=freqs,
+            sampling_rate=self.sampling_rate,
+            t_start=self.t_start,
+        )
+
+    def mean_power(self):
+        return np.mean(self.traces, axis=0)
+
+    def get_band_power(self, f1=None, f2=None):
+
+        if f1 is None:
+            f1 = self.freqs[0]
+
+        if f2 is None:
+            f2 = self.freqs[-1]
+
+        assert f1 >= self.freqs[0], "f1 should be greater than lowest frequency"
+        assert (
+            f2 <= self.freqs[-1]
+        ), "f2 should be lower than highest possible frequency"
+        assert f2 > f1, "f2 should be greater than f1"
+
+        ind = np.where((self.freqs >= f1) & (self.freqs <= f2))[0]
+        band_power = np.mean(self.traces[ind, :], axis=0)
+        return band_power
+
+    @property
+    def delta(self):
+        return self.get_band_power(f1=0.5, f2=4)
+
+    @property
+    def deltaplus(self):
+        deltaplus_ind = np.where(
+            ((self.freqs > 0.5) & (self.freqs < 4))
+            | ((self.freqs > 12) & (self.freqs < 15))
+        )[0]
+        deltaplus_sxx = np.mean(self.traces[deltaplus_ind, :], axis=0)
+        return deltaplus_sxx
+
+    @property
+    def theta(self):
+        return self.get_band_power(f1=5, f2=10)
+
+    @property
+    def spindle(self):
+        return self.get_band_power(f1=10, f2=20)
+
+    @property
+    def gamma(self):
+        return self.get_band_power(f1=30, f2=90)
+
+    @property
+    def ripple(self):
+        return self.get_band_power(f1=140, f2=250)
+
+    @property
+    def theta_delta_ratio(self):
+        return self.theta / self.delta
+
+    @property
+    def theta_deltaplus_ratio(self):
+        return self.theta / self.deltaplus

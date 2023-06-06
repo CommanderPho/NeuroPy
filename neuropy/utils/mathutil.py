@@ -5,6 +5,48 @@ from sklearn.decomposition import FastICA, PCA
 from scipy import stats
 from hmmlearn.hmm import GaussianHMM
 from .ccg import correlograms
+import scipy.signal as sg
+
+
+def choose_elementwise(x, y, condition):
+    assert type(x) == type(y), "Both inputs should have same type"
+    assert type(condition) is np.ndarray, "condition should be a boolean array"
+
+    if type(x) is np.ndarray:
+        assert x.shape == y.shape, "Input arrays should have same shape"
+        out = np.zeros_like(x)
+        out[..., condition] = x[..., condition]
+        out[..., ~condition] = y[..., ~condition]
+    else:
+        try:
+            out = [x if cond else y for (x, y, cond) in zip(x, y, condition)]
+        except:
+            raise TypeError("Inpvalid inputs")
+
+    return out
+
+
+def gaussian_kernel1D(sigma, bin_size, truncate=4.0):
+    """Get a gaussian kernel
+
+    Parameters
+    ----------
+    sigma : float
+        standard deviation of the kernel
+    bin_size : float
+        bin size of the kernel
+    truncate: float
+        limit kernel to this standard deviation,default = 4.0
+
+    Returns
+    -------
+    np.array
+        gaussian kernel
+    """
+    t_gauss = np.arange(-truncate * sigma, truncate * sigma, bin_size)
+    gaussian = np.exp(-(t_gauss**2) / (2 * sigma**2))
+    gaussian /= np.sum(gaussian)
+    return gaussian
 
 
 def min_max_scaler(x, axis=-1):
@@ -51,7 +93,7 @@ def partialcorr(x, y, z):
     xz = x.corr(z)
     zy = z.corr(y)
 
-    parcorr = (xy - xz * zy) / (np.sqrt(1 - xz ** 2) * np.sqrt(1 - zy ** 2))
+    parcorr = (xy - xz * zy) / (np.sqrt(1 - xz**2) * np.sqrt(1 - zy**2))
 
     return parcorr
 
@@ -175,6 +217,63 @@ def threshPeriods(sig, lowthresh=1, highthresh=2, minDistance=30, minDuration=50
             # )
 
     return np.asarray(fourthPass)
+
+
+def _unpack_args(values, fs=1):
+    """Parsing argument for thresh_epochs"""
+    try:
+        val_min, val_max = values
+    except (TypeError, ValueError):
+        val_min, val_max = (values, None)
+
+    val_min = val_min * fs
+    val_max = val_max * fs if val_max is not None else None
+
+    return val_min, val_max
+
+
+def thresh_epochs(arr: np.ndarray, thresh, length, sep=0, boundary=0, fs=1):
+
+    hmin, hmax = _unpack_args(thresh)  # does not need fs
+    lmin, lmax = _unpack_args(length, fs=fs)
+    sep = sep * fs + 1e-6
+
+    assert hmin >= boundary, "boundary must be smaller than min thresh"
+
+    arr_thresh = np.where(arr >= boundary, arr, 0)
+    peaks, props = sg.find_peaks(arr_thresh, height=[hmin, hmax], prominence=0)
+
+    starts, stops = props["left_bases"], props["right_bases"]
+    peaks_values = arr_thresh[peaks]
+
+    # ----- merge overlapping epochs ------
+    n_epochs = len(starts)
+    ind_delete = []
+    for i in range(n_epochs - 1):
+        if (starts[i + 1] - stops[i]) < sep:
+
+            # stretch the second epoch to cover the range of both epochs
+            starts[i + 1] = min(starts[i], starts[i + 1])
+            stops[i + 1] = max(stops[i], stops[i + 1])
+
+            peaks_values[i + 1] = max(peaks_values[i], peaks_values[i + 1])
+            peaks[i + 1] = [peaks[i], peaks[i + 1]][
+                np.argmax([peaks_values[i], peaks_values[i + 1]])
+            ]
+            ind_delete.append(i)
+
+    epochs_arr = np.vstack((starts, stops, peaks, peaks_values)).T
+    epochs_arr = np.delete(epochs_arr, ind_delete, axis=0)
+
+    # ----- duration thresholds ------
+    epochs_length = epochs_arr[:, 1] - epochs_arr[:, 0]
+    if lmax is None:
+        lmax = epochs_length.max()
+    ind_keep = (epochs_length >= lmin) & (epochs_length <= lmax)
+
+    starts, stops, peaks, peaks_values = epochs_arr[ind_keep, :].T
+
+    return starts / fs, stops / fs, peaks / fs, peaks_values
 
 
 def contiguous_regions(condition):
@@ -323,3 +422,34 @@ def eventpsth(ref, event, fs, quantparam=None, binsize=0.01, window=1, nQuantile
     )
 
     return ccg[:-1, -1, :]
+
+
+def gini(arr, eps=1e-8):
+    """
+    Calculate the Gini coefficient of a numpy array.
+
+    Source: PyGini
+    https://github.com/mckib2/pygini/blob/master/pygini/gini.py
+
+    -----
+    Based on bottom eq on [2]_.
+    References
+    ----------
+    .. [2]_ http://www.statsdirect.com/help/
+            default.htm#nonparametric_methods/gini.htm
+    """
+
+    # All values are treated equally, arrays must be 1d and > 0:
+    arr = np.abs(arr).flatten() + eps
+
+    # Values must be sorted:
+    arr = np.sort(arr)
+
+    # Index per array element:
+    index = np.arange(1, arr.shape[0] + 1)
+
+    # Number of array elements:
+    N = arr.shape[0]
+
+    # Gini coefficient:
+    return (np.sum((2 * index - N - 1) * arr)) / (N * np.sum(arr))
