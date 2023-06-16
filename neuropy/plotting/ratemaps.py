@@ -549,8 +549,15 @@ def plot_ratemap_1D(ratemap: Ratemap, normalize_xbin=False, fignum=None, fig=Non
     if normalize_xbin:
         bin_cntr = (bin_cntr - np.min(bin_cntr)) / np.ptp(bin_cntr)
 
+
+    #TODO 2023-06-16 04:32: - [ ] Added to try and fix order.
+    print(f'pre-sort: included_unit_indicies: {included_unit_indicies}')
+    included_unit_indicies = included_unit_indicies[sort_ind]
+    print(f'post-sort: included_unit_indicies: {included_unit_indicies}')
+    
     # for i, neuron_ind in enumerate(sort_ind):
     for i, curr_included_unit_index in enumerate(included_unit_indicies):
+    # for i, curr_included_unit_index in zip(sort_ind, included_unit_indicies):
 
         if curr_included_unit_index is not None:
             # valid neuron ID, access like normal
@@ -583,7 +590,12 @@ def plot_ratemap_1D(ratemap: Ratemap, normalize_xbin=False, fignum=None, fig=Non
         pfmap = single_cell_pfmap_processing_fn(i, curr_neuron_ID, pfmap)
 
         # bin_cntr # contains the x-positions of each point. Same for all cells
-        y_baseline = (i * pad) # y_baseline (y1): the y-position for each cell 
+        # y_baseline = (i * pad) # y_baseline (y1): the y-position for each cell
+
+        # sort should be applied here.
+        i_sorted = sort_ind[i]
+        y_baseline = (i_sorted * pad) # y_baseline (y1): the y-position for each cell
+
         y2 = (y_baseline + pfmap) # (y2): the top of each point is determined by adding the specific pfmap values to the baseline
 
         # Old way:
