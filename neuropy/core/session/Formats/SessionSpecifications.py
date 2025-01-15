@@ -145,6 +145,12 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
     
     from neuropy.core.session.Formats.SessionSpecifications import SessionConfig
     
+    ['basepath', 'session_spec', 'session_name', 'session_context', 'format_name', 'preprocessing_parameters',
+     'absolute_start_timestamp', 'position_sampling_rate_Hz', 'microseconds_to_seconds_conversion_factor',
+     'pix2cm', 'x_midpoint', 'loaded_track_limits',
+     'is_resolved', 'resolved_required_filespecs_dict', 'resolved_optional_filespecs_dict',
+     'x_unit_midpoint', 'first_valid_pos_time', 'last_valid_pos_time']
+    
     """
     basepath: Path = field()
     session_spec: SessionFolderSpec = field()
@@ -163,6 +169,8 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
     x_midpoint: float = field(default=143.8848920863310)
     loaded_track_limits: dict = field(default=Factory(dict))
 
+    x_unit_midpoint: float = field(default=0.5)
+    
     is_resolved: bool = field(default=False) # init=False, 
     resolved_required_filespecs_dict: dict = field(default=Factory(dict)) # , init=False
     resolved_optional_filespecs_dict: dict = field(default=Factory(dict)) # , init=False
@@ -191,6 +199,7 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
 
     def to_dict(self):
         out_dict = {a_key:str(a_value) for a_key, a_value in self.__dict__.items() if a_key in ['format_name', 'basepath', 'session_name', 'session_context', 'absolute_start_timestamp', 'position_sampling_rate_Hz', 'pix2cm', 'x_midpoint']}
+        out_dict = {a_key:str(a_value) for a_key, a_value in self.__dict__.items() if a_key in ['format_name', 'basepath', 'session_name', 'session_context', 'absolute_start_timestamp', 'position_sampling_rate_Hz', 'pix2cm', 'x_midpoint', 'x_unit_midpoint']} ## added 'x_unit_midpoint' 2025-01-15 10:04 
         # need to flatten: 'resolved_required_filespecs_dict', 'resolved_optional_filespecs_dict':
         out_dict['resolved_required_filespecs_dict'] = [str(a_path) for a_path in self.resolved_required_file_specs.keys()]
         out_dict['resolved_optional_filespecs_dict'] = [str(a_path) for a_path in self.resolved_optional_file_specs.keys()]
