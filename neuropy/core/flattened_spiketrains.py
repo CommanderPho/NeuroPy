@@ -14,7 +14,7 @@ from neuropy.core.neuron_identities import NeuronExtendedIdentity, NeuronType
 from neuropy.utils.mixins.binning_helpers import BinningInfo # for add_binned_time_column
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter
 from .datawriter import DataWriter
-from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableObjectProtocol, TimeSlicableIndiciesMixin, TimeSlicedMixin
+from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableObjectProtocol, TimeSlicableIndiciesMixin, TimeSlicedMixin, TimePointEventAccessor
 from neuropy.utils.mixins.unit_slicing import NeuronUnitSlicableObjectProtocol
 from neuropy.utils.mixins.concatenatable import ConcatenationInitializable
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_field, serialized_attribute_field, non_serialized_field
@@ -25,7 +25,7 @@ _REQUIRE_FLAT_SPIKE_INDEX_COLUMN: bool = False
 
 
 @pd.api.extensions.register_dataframe_accessor("spikes")
-class SpikesAccessor(TimeSlicedMixin):
+class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
     """ Part of the December 2021 Rewrite of the neuropy.core classes to be Pandas DataFrame based and easily manipulatable """
     __time_variable_name = 't_rel_seconds' # currently hardcoded
     
@@ -53,9 +53,14 @@ class SpikesAccessor(TimeSlicedMixin):
                 raise AttributeError(f"Must have 'flat_spike_idx' column.. obj.columns: {list(obj.columns)}")
             else:
                 print(f"This used to be an assert but `_REQUIRE_FLAT_SPIKE_INDEX_COLUMN == False, so continuing at your own risk. Missing the 'flat_spike_idx' column. obj.columns: {list(obj.columns)}")
+                
+        ## CONDITION FOR TimePointEventAccessor CONFORMANCE
         if "t" not in obj.columns and "t_seconds" not in obj.columns and "t_rel_seconds" not in obj.columns:
             raise AttributeError("Must have at least one time column: either 't' and 't_seconds', or 't_rel_seconds'.")
         
+    # ==================================================================================================================== #
+    # TimePointEventAccessor CONFORMANCE                                                                                   #
+    # ==================================================================================================================== #
     @property
     def time_variable_name(self):
         return self.__time_variable_name
@@ -81,6 +86,7 @@ class SpikesAccessor(TimeSlicedMixin):
         """
         return self._obj[self.time_variable_name].values
 
+    # END TimePointEventAccessor CONFORMANCE _____________________________________________________________________________ #
     @property
     def neuron_ids(self):
         """ return the unique cell identifiers (given by the unique values of the 'aclu' column) for this DataFrame """
@@ -152,9 +158,6 @@ class SpikesAccessor(TimeSlicedMixin):
         """
         inclusion_mask = np.isin(np.array(self._obj.qclu), included_qclu_values)
         return self._obj.loc[inclusion_mask, :].copy()
-
-
-
 
 
     def extract_unique_neuron_identities(self):
@@ -272,21 +275,16 @@ class SpikesAccessor(TimeSlicedMixin):
             print("\t done updating 'fragile_linear_neuron_IDX' and 'neuron_IDX'.")
         return self._obj
 
-    def add_binned_time_column(self, time_window_edges, time_window_edges_binning_info:BinningInfo, debug_print:bool=False): ## CONFORMANCE: TimePointEventAccessor
-        """ adds a 'binned_time' column to spikes_df given the time_window_edges and time_window_edges_binning_info provided 
-        
-        """
-        spike_timestamp_column_name = self.time_variable_name # 't_rel_seconds'
-        if debug_print:
-            print(f'self._obj[time_variable_name]: {np.shape(self._obj[spike_timestamp_column_name])}\ntime_window_edges: {np.shape(time_window_edges)}')
-            # assert (np.shape(out_digitized_variable_bins)[0] == np.shape(self._obj)[0]), f'np.shape(out_digitized_variable_bins)[0]: {np.shape(out_digitized_variable_bins)[0]} should equal np.shape(self._obj)[0]: {np.shape(self._obj)[0]}'
-            print(time_window_edges_binning_info)
 
-        bin_labels = time_window_edges_binning_info.bin_indicies[1:] # edge bin indicies: [0,     1,     2, ..., 11878, 11879, 11880][1:] -> [ 1,     2, ..., 11878, 11879, 11880]
-        self._obj['binned_time'] = pd.cut(self._obj[spike_timestamp_column_name].to_numpy(), bins=time_window_edges, include_lowest=True, labels=bin_labels) # same shape as the input data (time_binned_self._obj: (69142,))
-        return self._obj
+    # TimePointEventAccessor CONFORMANCE _________________________________________________________________________________ #
+    def add_binned_time_column(self, time_window_edges, time_window_edges_binning_info:BinningInfo, override_time_variable_name=None, debug_print:bool=False): ## CONFORMANCE: TimePointEventAccessor
+        """ adds a 'binned_time' column to spikes_df given the time_window_edges and time_window_edges_binning_info provided  """
+        if override_time_variable_name is None:
+            override_time_variable_name = self.time_variable_name # 't_rel_seconds'
+        return self._obj.time_point_event.add_binned_time_column(time_window_edges=time_window_edges, time_window_edges_binning_info=time_window_edges_binning_info, override_time_variable_name=override_time_variable_name, debug_print=debug_print)
 
-    def adding_lap_identity_column(self, laps_epoch_df, epoch_id_key_name:str='new_lap_IDX'):  ## CONFORMANCE: TimePointEventAccessor
+
+    def adding_lap_identity_column(self, laps_epoch_df, epoch_id_key_name:str='new_lap_IDX', override_time_variable_name=None):  ## CONFORMANCE: TimePointEventAccessor
         """ Adds the lap IDX column to the spikes df from a set of lap epochs.
 
             spikes: curr_active_pipeline.sess.spikes_df
@@ -296,22 +294,12 @@ class SpikesAccessor(TimeSlicedMixin):
                 'new_lap_IDX'
 
         """
-        if epoch_id_key_name in self._obj.columns:
-            print(f'column "{epoch_id_key_name}" already exists in df! Skipping recomputation.')
-            return self._obj
-        else:
-            from neuropy.utils.efficient_interval_search import OverlappingIntervalsFallbackBehavior
-            from neuropy.utils.mixins.time_slicing import add_epochs_id_identity
-
-            spike_timestamp_column_name=self.time_variable_name # 't_rel_seconds'
-            self._obj[epoch_id_key_name] = -1 # initialize the 'scISI' column (same-cell Intra-spike-interval) to -1
-            self._obj = add_epochs_id_identity(self._obj, epochs_df=laps_epoch_df, epoch_id_key_name=epoch_id_key_name, epoch_label_column_name=None, no_interval_fill_value=-1, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL) # uses new add_epochs_id_identity method which is general
-            return self._obj
+        if override_time_variable_name is None:
+            override_time_variable_name = self.time_variable_name # 't_rel_seconds'
+        return self._obj.time_point_event.adding_lap_identity_column(laps_epoch_df=laps_epoch_df, epoch_id_key_name=epoch_id_key_name, override_time_variable_name=override_time_variable_name)
 
 
-
-
-    def adding_epochs_identity_column(self, epochs_df: pd.DataFrame, epoch_id_key_name:str='temp_epoch_id', epoch_label_column_name=None, override_time_variable_name=None,
+    def adding_epochs_identity_column(self, epochs_df: pd.DataFrame, epoch_id_key_name:str='temp_epoch_id', epoch_label_column_name='label', override_time_variable_name=None,
                                       no_interval_fill_value=-1, should_replace_existing_column=False, drop_non_epoch_spikes: bool=False):  ## CONFORMANCE: TimePointEventAccessor
         """ Adds the arbitrary column with name epoch_id_key_name to the dataframe.
 
@@ -327,31 +315,23 @@ class SpikesAccessor(TimeSlicedMixin):
                 active_spikes_df = active_spikes_df.spikes.adding_epochs_identity_column(epochs_df=active_epochs_df, epoch_id_key_name=epoch_id_key_name, epoch_label_column_name='label', override_time_variable_name='t_rel_seconds',
                                                                                         no_interval_fill_value=no_interval_fill_value, should_replace_existing_column=True, drop_non_epoch_spikes=True)
                                                                                         
-
         """
         if (epoch_id_key_name in self._obj.columns) and (not should_replace_existing_column):
             print(f'column "{epoch_id_key_name}" already exists in df! Skipping adding intervals.')
             return self._obj
         else:
-            from neuropy.utils.efficient_interval_search import OverlappingIntervalsFallbackBehavior
-            from neuropy.utils.mixins.time_slicing import add_epochs_id_identity
+            if override_time_variable_name is None:
+                override_time_variable_name = self.time_variable_name # 't_rel_seconds'
+            # spike_timestamp_column_name = 't_rel_seconds'
+            self._obj = self._obj.time_point_event.adding_epochs_identity_column(epochs_df=epochs_df, epoch_id_key_name=epoch_id_key_name, epoch_label_column_name=epoch_label_column_name, override_time_variable_name=override_time_variable_name,
+                                                                                        no_interval_fill_value=no_interval_fill_value, should_replace_existing_column=should_replace_existing_column, drop_non_epoch_spikes=drop_non_epoch_spikes)
+            # Sort by columns: 't_rel_seconds' (ascending), 'aclu' (ascending)
+            self._obj = self._obj.sort_values([override_time_variable_name, 'aclu'])
+            self._obj, active_aclu_to_fragile_linear_neuron_IDX_dict = self._obj.spikes.rebuild_fragile_linear_neuron_IDXs()
+            return self._obj
 
-            spike_timestamp_column_name=self.time_variable_name # 't_rel_seconds'
-            self._obj[epoch_id_key_name] = no_interval_fill_value # initialize the column to -1
-            self._obj = add_epochs_id_identity(self._obj, epochs_df=epochs_df, epoch_id_key_name=epoch_id_key_name, epoch_label_column_name=epoch_label_column_name, no_interval_fill_value=no_interval_fill_value, override_time_variable_name=override_time_variable_name, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL) # uses new add_epochs_id_identity method which is general
-            if drop_non_epoch_spikes:
-                active_spikes_df = self._obj.copy()
-                active_spikes_df.drop(active_spikes_df.loc[active_spikes_df[epoch_id_key_name] == no_interval_fill_value].index, inplace=True)
-                # Sort by columns: 't_rel_seconds' (ascending), 'aclu' (ascending)
-                active_spikes_df = active_spikes_df.sort_values(['t_rel_seconds', 'aclu'])
-                active_spikes_df, active_aclu_to_fragile_linear_neuron_IDX_dict = active_spikes_df.spikes.rebuild_fragile_linear_neuron_IDXs()
-            else:
-                # return all spikes
-                active_spikes_df = self._obj
-
-            return active_spikes_df
-
-
+    # END TimePointEventAccessor CONFORMANCE _____________________________________________________________________________ #
+    
 
 
     def to_hdf(self, file_path, key: str, **kwargs):
