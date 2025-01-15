@@ -814,6 +814,7 @@ def build_or_reuse_figure(fignum=1, fig=None, fig_idx:int=0, **kwargs):
         fig = extant_fig
     return fig
 
+
 def scale_title_label(ax, curr_title_obj, curr_im, debug_print=False):
     """ Scales some matplotlib-based figures titles to be reasonable. I remember that this was important and hard to make, but don't actually remember what it does as of 2022-10-24. It needs to be moved in to somewhere else.
     
