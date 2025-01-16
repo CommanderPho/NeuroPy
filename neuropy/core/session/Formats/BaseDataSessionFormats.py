@@ -275,6 +275,7 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
 		override_parameters_nested_dicts = KeypathsAccessibleMixin.keypath_dict_to_nested_dict(override_parameters_flat_keypaths_dict)
 		
 		#TODO 2024-10-30 10:20: - [ ] Should it be `.get('preprocessing', {})`? Or these more top-level?
+		#TODO 2025-01-16 03:27: - [ ] 'grid_bin': `cls.compute_position_grid_bin_size(sess.position.x, sess.position.y, num_bins=(64, 64))` is wrong
 		kwargs.setdefault('pf_params', PlacefieldComputationParameters(**override_dict({'speed_thresh': 10.0, 'grid_bin': cls.compute_position_grid_bin_size(sess.position.x, sess.position.y, num_bins=(64, 64)), 'grid_bin_bounds': None, 'smooth': (2.0, 2.0), 'frate_thresh': 1.0, 'time_bin_size': 0.1, 'computation_epochs': None}, ## NOTE: 2025-01-15 06:31 on at least one call (but before the main pf computation) this is hit without using the grid_bin_bounds in the computation, seems to be inferring it from the recorded position info and the desired num_bins in each direction
 																						(override_parameters_nested_dicts.get('preprocessing', {}).get('pf_params', {}) | kwargs))))
 		kwargs.setdefault('spike_analysis', DynamicContainer(**{'max_num_spikes_per_neuron': 20000,
@@ -490,7 +491,11 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
 	def compute_position_grid_bin_size(cls, x, y, num_bins=(64,64), debug_print=False):
 		""" Compute Required Bin size given a desired number of bins in each dimension
 		Usage:
-			active_grid_bin = compute_position_grid_bin_size(curr_kdiba_pipeline.sess.position.x, curr_kdiba_pipeline.sess.position.y, num_bins=(64, 64)
+			active_grid_bin = DataSessionFormatBaseRegisteredClass.compute_position_grid_bin_size(curr_kdiba_pipeline.sess.position.x, curr_kdiba_pipeline.sess.position.y, num_bins=(64, 64))
+			
+		Usage from grid_bin_bounds:
+			grid_bin_bounds = override_dict['real_cm_grid_bin_bounds'] ## key to use 'real_cm_grid_bin_bounds' ((float, float), (float, float))
+            active_grid_bin = DataSessionFormatBaseRegisteredClass.compute_position_grid_bin_size(grid_bin_bounds[0], grid_bin_bounds[1], num_bins=(64, 64)) ## get the updated grid_bin (computing from the grid_bin_bounds)
 		"""
 		out_grid_bin_size, out_bins, out_bins_infos = compute_position_grid_size(x, y, num_bins=num_bins)
 		active_grid_bin = tuple(out_grid_bin_size)

@@ -320,6 +320,8 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         
         if override_dict.get('real_cm_grid_bin_bounds', None) is not None:
             grid_bin_bounds = override_dict['real_cm_grid_bin_bounds'] ## key to use 'real_cm_grid_bin_bounds' ((float, float), (float, float))
+            grid_bin = DataSessionFormatBaseRegisteredClass.compute_position_grid_bin_size(grid_bin_bounds[0], grid_bin_bounds[1], num_bins=(64, 64)) ## get the updated grid_bin (computing from the grid_bin_bounds)
+            
         else:
             # no overrides present
             raise NotImplementedError
@@ -351,7 +353,7 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
             for i in np.arange(len(active_session_computation_configs)):
                 curr_config = deepcopy(active_session_computation_configs[i])
                 # curr_config.pf_params.time_bin_size = 0.025
-                curr_config.pf_params.grid_bin_bounds = grid_bin_bounds # same bounds for all
+                
                 if override_dict.get('track_start_t', None) is not None:
                     track_start_t = override_dict['track_start_t']
                     curr_config.pf_params.track_start_t = track_start_t
@@ -364,7 +366,10 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
                 else:
                     curr_config.pf_params.track_end_t = None
 
-                curr_config.pf_params.grid_bin_bounds = grid_bin_bounds
+                ## Updates: ['.pf_params.grid_bin_bounds', '.pf_params.grid_bin']
+                curr_config.pf_params.grid_bin_bounds = grid_bin_bounds # same bounds for all
+                curr_config.pf_params.grid_bin = grid_bin
+
                 curr_config.pf_params.computation_epochs = deepcopy(a_restricted_lap_epoch) # add the laps epochs to all of the computation configs.
                 final_active_session_computation_configs.append(curr_config)
                 
