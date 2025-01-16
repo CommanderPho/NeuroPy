@@ -324,7 +324,7 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
                 override_time_variable_name = self.time_variable_name # 't_rel_seconds'
             # spike_timestamp_column_name = 't_rel_seconds'
             self._obj = self._obj.time_point_event.adding_epochs_identity_column(epochs_df=epochs_df, epoch_id_key_name=epoch_id_key_name, epoch_label_column_name=epoch_label_column_name, override_time_variable_name=override_time_variable_name,
-                                                                                        no_interval_fill_value=no_interval_fill_value, should_replace_existing_column=should_replace_existing_column, drop_non_epoch_spikes=drop_non_epoch_spikes)
+                                                                                        no_interval_fill_value=no_interval_fill_value, should_replace_existing_column=should_replace_existing_column, drop_non_epoch_events=drop_non_epoch_spikes)
             # Sort by columns: 't_rel_seconds' (ascending), 'aclu' (ascending)
             self._obj = self._obj.sort_values([override_time_variable_name, 'aclu'])
             self._obj, active_aclu_to_fragile_linear_neuron_IDX_dict = self._obj.spikes.rebuild_fragile_linear_neuron_IDXs()
