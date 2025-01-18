@@ -293,7 +293,8 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
     @classmethod
     def build_lap_only_short_long_bin_aligned_computation_configs(cls, sess, **kwargs):
         """ 2023-05-16 - sets the computation intervals to only be performed on the laps """
-        active_session_computation_configs = DataSessionFormatBaseRegisteredClass.build_default_computation_configs(sess, **kwargs)
+        num_bins = (64, 32)
+        active_session_computation_configs: List[DynamicContainer] = DataSessionFormatBaseRegisteredClass.build_default_computation_configs(sess, **kwargs) ## SHOULD I BE CALLING THIS ON THE BASE CLASS??!?! 2025-01-17 20:26 YES! The overriden one below is broken
         
         # Need one computation config for each lap (even/odd)
         debug_print = kwargs.get('debug_print', False)
@@ -310,9 +311,11 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         ## Get specific grid_bin_bounds overrides from the `cls._specific_session_override_dict`
         override_dict = cls.get_specific_session_override_dict().get(sess.get_context(), {})
         if override_dict.get('grid_bin_bounds', None) is not None:
+            
             grid_bin_bounds = override_dict['grid_bin_bounds']
-            print(f'WARNING: classic grid_bin_bounds mode with grid_bin_bounds: {grid_bin_bounds}')
-
+            print(f'WARNING: classic grid_bin_bounds mode with grid_bin_bounds: {grid_bin_bounds}')        
+            grid_bin = DataSessionFormatBaseRegisteredClass.compute_position_grid_bin_size(grid_bin_bounds[0], grid_bin_bounds[1], num_bins=num_bins) ## get the updated grid_bin (computing from the grid_bin_bounds)     '
+        
         # if override_dict.get('unit_grid_bin_bounds', None) is not None:
         #     grid_bin_bounds = override_dict['unit_grid_bin_bounds']
         
@@ -345,8 +348,28 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         # Lap-restricted computation epochs:
         if debug_print:
             print(f'\tlen(active_session_computation_configs): {len(active_session_computation_configs)}')
-        final_active_session_computation_configs = []
         
+        for i in np.arange(len(active_session_computation_configs)):
+            curr_config = active_session_computation_configs[i]
+            if override_dict.get('track_start_t', None) is not None:
+                track_start_t = override_dict['track_start_t']
+                curr_config.pf_params.track_start_t = track_start_t
+            else:
+                curr_config.pf_params.track_start_t = None
+
+            if override_dict.get('track_end_t', None) is not None:
+                track_end_t = override_dict['track_end_t']
+                curr_config.pf_params.track_end_t = track_end_t
+            else:
+                curr_config.pf_params.track_end_t = None
+
+            ## Updates: ['.pf_params.grid_bin_bounds', '.pf_params.grid_bin']
+            curr_config.pf_params.grid_bin_bounds = grid_bin_bounds # same bounds for all
+            curr_config.pf_params.grid_bin = deepcopy(grid_bin) # cls.compute_position_grid_bin_size(sess.position.x, sess.position.y, num_bins=(64, 64))
+
+
+        ## build copies with correct `.pf_params.computation_epochs` for each computation epoch
+        final_active_session_computation_configs = []
         # if len(active_session_computation_configs) < len(desired_computation_epochs):
         # Clone the configs for each epoch
         for a_restricted_lap_epoch in desired_computation_epochs:
@@ -354,23 +377,6 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
             for i in np.arange(len(active_session_computation_configs)):
                 curr_config = deepcopy(active_session_computation_configs[i])
                 # curr_config.pf_params.time_bin_size = 0.025
-                
-                if override_dict.get('track_start_t', None) is not None:
-                    track_start_t = override_dict['track_start_t']
-                    curr_config.pf_params.track_start_t = track_start_t
-                else:
-                    curr_config.pf_params.track_start_t = None
-
-                if override_dict.get('track_end_t', None) is not None:
-                    track_end_t = override_dict['track_end_t']
-                    curr_config.pf_params.track_end_t = track_end_t
-                else:
-                    curr_config.pf_params.track_end_t = None
-
-                ## Updates: ['.pf_params.grid_bin_bounds', '.pf_params.grid_bin']
-                curr_config.pf_params.grid_bin_bounds = grid_bin_bounds # same bounds for all
-                # curr_config.pf_params.grid_bin = grid_bin
-
                 curr_config.pf_params.computation_epochs = deepcopy(a_restricted_lap_epoch) # add the laps epochs to all of the computation configs.
                 final_active_session_computation_configs.append(curr_config)
                 
