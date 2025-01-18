@@ -276,7 +276,8 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
 		
 		#TODO 2024-10-30 10:20: - [ ] Should it be `.get('preprocessing', {})`? Or these more top-level?
 		#TODO 2025-01-16 03:27: - [ ] 'grid_bin': `cls.compute_position_grid_bin_size(sess.position.x, sess.position.y, num_bins=(64, 64))` is wrong
-		kwargs.setdefault('pf_params', PlacefieldComputationParameters(**override_dict({'speed_thresh': 10.0, 'grid_bin': cls.compute_position_grid_bin_size(sess.position.x, sess.position.y, num_bins=(64, 64)), 'grid_bin_bounds': None, 'smooth': (2.0, 2.0), 'frate_thresh': 1.0, 'time_bin_size': 0.1, 'computation_epochs': None}, ## NOTE: 2025-01-15 06:31 on at least one call (but before the main pf computation) this is hit without using the grid_bin_bounds in the computation, seems to be inferring it from the recorded position info and the desired num_bins in each direction
+		kwargs.setdefault('pf_params', PlacefieldComputationParameters(**override_dict({'speed_thresh': 10.0, 'grid_bin': cls.compute_position_grid_bin_size(sess.position.x, sess.position.y, num_bins=(64, 64)), 'grid_bin_bounds': None,
+																				  		'smooth': (2.0, 2.0), 'frate_thresh': 1.0, 'time_bin_size': 0.1, 'computation_epochs': None}, ## NOTE: 2025-01-15 06:31 on at least one call (but before the main pf computation) this is hit without using the grid_bin_bounds in the computation, seems to be inferring it from the recorded position info and the desired num_bins in each direction
 																						(override_parameters_nested_dicts.get('preprocessing', {}).get('pf_params', {}) | kwargs))))
 		kwargs.setdefault('spike_analysis', DynamicContainer(**{'max_num_spikes_per_neuron': 20000,
 																 'kleinberg_parameters': DynamicContainer(**{'s': 2, 'gamma': 0.2}).override(kwargs),
