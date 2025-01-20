@@ -1,7 +1,7 @@
 import io
 from copy import deepcopy
 from typing import Callable, Dict, Optional
-from attrs import define, fields, filters, asdict, astuple
+from attrs import define, field, fields, filters, Factory, asdict, astuple
 import h5py
 import time
 import matplotlib.pyplot as plt
@@ -711,30 +711,30 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
 		# Excluded from serialization: ['_included_thresh_neurons_indx', '_peak_frate_filter_function']
 	"""
-	spikes_df: pd.DataFrame # spikes_df shouldn't ever be updated
-	position: Position
-	epochs: Epoch = None
-	config: PlacefieldComputationParameters = None
-	position_srate: float = None
+	spikes_df: pd.DataFrame = field() # spikes_df shouldn't ever be updated
+	position: Position = field()
+	epochs: Epoch = field(default=None)
+	config: PlacefieldComputationParameters = field(default=None)
+	position_srate: float = field(default=None)
 	
-	setup_on_init: bool = True
-	compute_on_init: bool = True
-	_save_intermediate_spikes_maps: bool = True
+	setup_on_init: bool = field(default=True)
+	compute_on_init: bool = field(default=True)
+	_save_intermediate_spikes_maps: bool = field(default=True)
 
-	_included_thresh_neurons_indx: np.ndarray = None
-	_peak_frate_filter_function: Callable = None
+	_included_thresh_neurons_indx: np.ndarray = field(default=None)
+	_peak_frate_filter_function: Callable = field(default=None)
 
-	_ratemap: Ratemap = None
-	_ratemap_spiketrains: list = None
-	_ratemap_spiketrains_pos: list = None
+	_ratemap: Ratemap = field(default=None)
+	_ratemap_spiketrains: list = field(default=None)
+	_ratemap_spiketrains_pos: list = field(default=None)
 
-	_filtered_pos_df: pd.DataFrame = None
-	_filtered_spikes_df: pd.DataFrame = None
+	_filtered_pos_df: pd.DataFrame = field(default=None)
+	_filtered_spikes_df: pd.DataFrame = field(default=None)
 
-	ndim: int = None
-	xbin: np.ndarray = None
-	ybin: np.ndarray = None
-	bin_info: dict = None # dict with keys: ['mode', 'xstep', 'xnum_bins'] and if 2D ['ystep', 'ynum_bins']
+	ndim: int = field(default=None)
+	xbin: np.ndarray = field(default=None)
+	ybin: np.ndarray = field(default=None)
+	bin_info: dict = field(default=None) # dict with keys: ['mode', 'xstep', 'xnum_bins'] and if 2D ['ystep', 'ynum_bins']
 
 	def __attrs_post_init__(self):
 		""" called after initializer built by `attrs` library. """
