@@ -84,6 +84,25 @@ def find_epoch_times_to_data_indicies_map(a_df: pd.DataFrame, epoch_times: NDArr
     """
     ...
 
+def find_epochs_overlapping_other_epochs(epochs_df: pd.DataFrame, epochs_df_required_to_overlap: pd.DataFrame): # -> NDArray[Any]:
+    """ 
+    For example, you might wonder which epochs occur during laps:
+
+        from neuropy.core.epoch import find_epoch_times_to_data_indicies_map
+        
+        ## INPUTS: time_bin_containers, global_laps
+        left_edges = deepcopy(time_bin_containers.left_edges)
+        right_edges = deepcopy(time_bin_containers.right_edges)
+        continuous_time_binned_computation_epochs_df: pd.DataFrame = pd.DataFrame({'start': left_edges, 'stop': right_edges, 'label': np.arange(len(left_edges))})
+        is_included: NDArray = find_epochs_overlapping_other_epochs(epochs_df=continuous_time_binned_computation_epochs_df, epochs_df_required_to_overlap=deepcopy(global_laps))
+        continuous_time_binned_computation_epochs_df['is_in_laps'] = is_included
+        continuous_time_binned_computation_epochs_df
+        continuous_time_binned_computation_epochs_included_only_df = continuous_time_binned_computation_epochs_df[continuous_time_binned_computation_epochs_df['is_in_laps']].drop(columns=['is_in_laps'])
+        continuous_time_binned_computation_epochs_included_only_df
+
+    """
+    ...
+
 class NamedTimerange(SimplePrintable, metaclass=OrderedMeta):
     """ A simple named period of time with a known start and end time """
     def __init__(self, name, start_end_times) -> None:
@@ -128,11 +147,11 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         ...
     
     @property
-    def starts(self):
+    def starts(self): # -> ArrayLike:
         ...
     
     @property
-    def midtimes(self):
+    def midtimes(self): # -> Any | NDArray[floating[Any]]:
         """ since each epoch is given by a (start, stop) time, the midtimes are the center of this epoch. """
         ...
     
@@ -141,7 +160,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         ...
     
     @property
-    def t_start(self):
+    def t_start(self): # -> Any | None:
         ...
     
     @t_start.setter
@@ -257,7 +276,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
 
         Usage:
 
-            active_epochs_df = add_active_aclus_information(active_epochs_df, active_spikes_df, add_unique_aclus_list_column=True)
+            active_epochs_df = active_epochs_df.epochs.adding_active_aclus_information(spikes_df=active_spikes_df, epoch_id_key_name='Probe_Epoch_id', add_unique_aclus_list_column=True)
 
         """
         ...
@@ -299,6 +318,22 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             laps_df = laps_obj.to_dataframe()
             laps_df = laps_df.epochs.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end)
             laps_df
+
+        """
+        ...
+    
+    def adding_global_epoch_row(self, global_epoch_name=..., first_included_epoch_name=..., last_included_epoch_name=...) -> pd.DataFrame:
+        """ builds the 'global' epoch row for the entire session that includes by default the times from all other epochs in epochs_df. 
+		e.g. builds the 'maze' epoch from ['maze1', 'maze2'] epochs
+        
+        Based off of `neuropy.core.session.Formats.BaseDataSessionFormats.DataSessionFormatBaseRegisteredClass.build_global_epoch_filter_config_dict` on 2025-01-15 15:56 
+        
+        Usage:
+            from neuropy.core.epoch import Epoch, EpochsAccessor, NamedTimerange, ensure_dataframe, ensure_Epoch
+
+            maze_epochs_df = deepcopy(curr_active_pipeline.sess.epochs).to_dataframe()
+            maze_epochs_df = maze_epochs_df.epochs.adding_global_epoch_row()
+            maze_epochs_df
 
         """
         ...
@@ -406,7 +441,7 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
         ...
     
     @property
-    def __array_interface__(self):
+    def __array_interface__(self): # -> dict[str, Any]:
         """ wraps the internal dataframe's `__array_interface__` which Pandas uses to provide numpy with information about dataframes such as np.shape(a_df) info.
         Allows np.shape(an_epoch_obj) to work.
 
@@ -424,6 +459,22 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
                Occurs because `_slice == ['lap_id']` which doesn't pass the first check because it's a list of strings not a string itself
         Example:
             Error line `laps_df[['lap_id']] = laps_df[['lap_id']].astype('int')`
+        """
+        ...
+    
+    def adding_global_epoch_row(self, global_epoch_name=..., first_included_epoch_name=..., last_included_epoch_name=...) -> Epoch:
+        """ builds the 'global' epoch row for the entire session that includes by default the times from all other epochs in epochs_df. 
+		e.g. builds the 'maze' epoch from ['maze1', 'maze2'] epochs
+        
+        Based off of `neuropy.core.session.Formats.BaseDataSessionFormats.DataSessionFormatBaseRegisteredClass.build_global_epoch_filter_config_dict` on 2025-01-15 15:56 
+        
+        Usage:
+            from neuropy.core.epoch import Epoch, EpochsAccessor, NamedTimerange, ensure_dataframe, ensure_Epoch
+
+            maze_epochs_obj = ensure_Epoch(deepcopy(curr_active_pipeline.sess.epochs).to_dataframe())
+            maze_epochs_obj.adding_global_epoch_row(global_epoch_name='maze', first_included_epoch_name=None, last_included_epoch_name=None)
+            maze_epochs_obj
+            
         """
         ...
     

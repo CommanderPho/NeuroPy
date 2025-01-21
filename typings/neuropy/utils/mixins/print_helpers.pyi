@@ -71,7 +71,7 @@ class FileProgressAction(ExtendedEnum):
     
 
 
-def print_file_progress_message(filepath, action: str, contents_description: str, print_line_ending=..., returns_string: bool = ...) -> Optional[str]:
+def print_file_progress_message(filepath, action: str, contents_description: str, print_line_ending=..., returns_string: bool = ..., enable_print: bool = ...) -> Optional[str]:
     """Prints a specific progress message related to an action (e.g. loading/saving) performed on a filepath
 
         
@@ -96,7 +96,7 @@ class ProgressMessagePrinter:
             flattened_spike_identities = np.concatenate([np.full((active_session.neurons.n_spikes[i],), active_session.neurons.neuron_ids[i]) for i in np.arange(active_session.neurons.n_neurons)]) # repeat the neuron_id for each spike that belongs to that neuron
     
     """
-    def __init__(self, filepath, action: str, contents_description: str, print_line_ending: str = ..., finished_message: str = ..., returns_string: bool = ...) -> None:
+    def __init__(self, filepath, action: str, contents_description: str, print_line_ending: str = ..., finished_message: str = ..., returns_string: bool = ..., enable_print: bool = ...) -> None:
         ...
     
     def __enter__(self): # -> None:

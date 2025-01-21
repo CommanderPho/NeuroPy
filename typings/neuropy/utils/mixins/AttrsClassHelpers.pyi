@@ -82,6 +82,25 @@ class SimpleFieldSizesReprMixin:
     from neuropy.utils.mixins.AttrsClassHelpers import SimpleFieldSizesReprMixin
 
     
+    Prints something like:
+    
+        DecodedFilterEpochsResult(decoding_time_bin_size: float,
+            filter_epochs: neuropy.core.epoch.Epoch,
+            num_filter_epochs: int,
+            most_likely_positions_list: list | shape (n_epochs),
+            p_x_given_n_list: list | shape (n_epochs),
+            marginal_x_list: list | shape (n_epochs),
+            marginal_y_list: list | shape (n_epochs),
+            most_likely_position_indicies_list: list | shape (n_epochs),
+            spkcount: list | shape (n_epochs),
+            nbins: numpy.ndarray | shape (n_epochs),
+            time_bin_containers: list | shape (n_epochs),
+            time_bin_edges: list | shape (n_epochs),
+            epoch_description_list: list | shape (n_epochs)
+        )
+
+    for an attrs-based object
+    
     """
     def __repr__(self): # -> str:
         """ 2024-01-11 - Renders only the fields and their sizes

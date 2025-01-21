@@ -30,6 +30,10 @@ class PlacefieldComputationParameters(SimplePrintable, KeypathsAccessibleMixin, 
 	
 	#TODO 2023-07-30 18:18: - [ ] HDFMixin conformance for PlacefieldComputationParameters
 	
+	.grid_bin_bounds - specifies the outer extents (bounds) of the position grid in each spatial dimension (x & y)
+	.grid_bin - specifies the fixed size of binning in each spatial dimension (x & y)
+	
+	
 	"""
 	decimal_point_character = ...
 	param_sep_char = ...
@@ -48,7 +52,10 @@ class PlacefieldComputationParameters(SimplePrintable, KeypathsAccessibleMixin, 
 	
 	@property
 	def grid_bin_bounds_1D(self): # -> generic | bool | int | float | complex | str | bytes | memoryview[int] | None:
-		"""The grid_bin_bounds property."""
+		"""The grid_bin_bounds property.
+		It seems like even in 1D it's supposed to be returning a tuple (xmin, xmax), and not a float. 	
+			
+		"""
 		...
 	
 	@property
@@ -210,8 +217,8 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
 		# Excluded from serialization: ['_included_thresh_neurons_indx', '_peak_frate_filter_function']
 	"""
-	spikes_df: pd.DataFrame
-	position: Position
+	spikes_df: pd.DataFrame = ...
+	position: Position = ...
 	epochs: Epoch = ...
 	config: PlacefieldComputationParameters = ...
 	position_srate: float = ...
