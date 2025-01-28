@@ -42,7 +42,7 @@ flexitext = {git = "https://github.com/CommanderPho/flexitext.git", rev = "main"
 [tool.poetry.group.dev.dependencies]
 pip = "^24.0"
 ipdb = "^0.13.11"
-dvc = {version = "^2.52.0", extras = ["gdrive"], optional = false}
+dvc = {version = "^3.59.0", extras = ["gdrive"], optional = false}
 
 [tool.poetry.extras]
 gui = ["tqdm"]
