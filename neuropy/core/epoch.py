@@ -1161,6 +1161,26 @@ epochs_df
         return self._obj
         
 
+
+    def adding_or_updating_metadata(self, **metadata_update_kwargs) -> pd.DataFrame:
+        """ updates the dataframe's `df.attrs` dictionary metadata, building it as a new dict if it doesn't yet exist
+         
+        Usage:
+            from neuropy.core.epoch import Epoch, EpochsAccessor, NamedTimerange, ensure_dataframe, ensure_Epoch
+
+            maze_epochs_df = deepcopy(curr_active_pipeline.sess.epochs).to_dataframe()
+            maze_epochs_df = maze_epochs_df.epochs.adding_or_updating_metadata(train_test_period='train')
+            maze_epochs_df
+
+        """
+        ## Add the metadata:
+        if self._obj.attrs is None:
+            self._obj.attrs = {} # create a new metadata dict on the dataframe
+        self._obj.attrs.update(**metadata_update_kwargs)
+        return self._obj
+
+
+
     # ==================================================================================================================== #
     # `Epoch` object / pd.DataFrame exchangeability                                                                         #
     # ==================================================================================================================== #
