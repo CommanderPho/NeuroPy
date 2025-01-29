@@ -268,7 +268,8 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
                 active_point_events_df = self._obj.copy()
                 active_point_events_df.drop(active_point_events_df.loc[active_point_events_df[epoch_id_key_name] == no_interval_fill_value].index, inplace=True)
                 # Sort by columns: 't_rel_seconds' (ascending), 'aclu' (ascending)
-                active_point_events_df = active_point_events_df.sort_values(['t_rel_seconds'])
+                assert override_time_variable_name is not None                
+                active_point_events_df = active_point_events_df.sort_values([override_time_variable_name])
             else:
                 # return all spikes
                 active_point_events_df = self._obj
