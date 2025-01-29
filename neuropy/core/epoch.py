@@ -1856,7 +1856,8 @@ def subdivide_epochs(df: pd.DataFrame, subdivide_bin_size: float, start_col='sta
     """
     sub_epochs = []
 
-    extra_column_names = list(set(df.columns) - set([start_col, stop_col, 'label', 'duration', 'lap_id', 'lap_dir', 'epoch_t_bin_idx', 'epoch_num_t_bins']))
+    # extra_column_names = list(set(df.columns) - set([start_col, stop_col, 'label', 'duration', 'lap_id', 'lap_dir', 'epoch_t_bin_idx', 'epoch_num_t_bins']))
+    extra_column_names = list(set(df.columns) - set([start_col, stop_col, 'label', 'duration'])) # ['lap_id', 'lap_dir', 'epoch_t_bin_idx', 'epoch_num_t_bins']
     # print(f'extra_column_names: {extra_column_names}')
 
     for index, row in df.iterrows():
@@ -1870,16 +1871,15 @@ def subdivide_epochs(df: pd.DataFrame, subdivide_bin_size: float, start_col='sta
             sub_start = start + (i * subdivide_bin_size)
             sub_stop = min(start + (i + 1) * subdivide_bin_size, stop)
             sub_duration = sub_stop - sub_start
-            
             sub_epochs.append({
                 start_col: sub_start,
                 stop_col: sub_stop,
                 'label': row['label'],
                 'duration': sub_duration,
-                'lap_id': row['lap_id'],
-                'lap_dir': row['lap_dir'],
-                'epoch_t_bin_idx': i,
-                'epoch_num_t_bins': num_bins,
+                # 'lap_id': row['lap_id'],
+                # 'lap_dir': row['lap_dir'],
+                # 'epoch_t_bin_idx': i,
+                # 'epoch_num_t_bins': num_bins,
                 **{k:row[k] for k in extra_column_names},
             })
     
