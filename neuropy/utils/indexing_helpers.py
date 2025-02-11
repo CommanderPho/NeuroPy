@@ -106,6 +106,44 @@ def unwrap_single_item(lst):
     return lst[0] if len(lst) == 1 else None
 
         
+def wrap_in_container_if_needed(value, container_types=(list, tuple, set, dict, NDArray), container_constructor=list):
+    """  When passing a scalar, it gets wrapped in a list (or whatever type is specified by `container_constructor`); but when passing an already list-like object, it is returned as-is:
+    Wrap a scalar value in a container if it is not already one of the given container_types.
+    
+    Parameters:
+      value: The value to be checked.
+      container_types: A tuple of types that are considered container-like.
+                       If value is an instance of one of these, it is returned as-is.
+      container_constructor: A callable that will be used to wrap the value
+                             if it is scalar. By default, this is the list constructor.
+                             
+    Returns:
+      Either the original value (if it is an instance of container_types)
+      or a new container (by default, a list) containing value.
+        
+    Usage:
+        from neuropy.utils.indexing_helpers import wrap_in_container_if_needed
+        
+        # When passing a scalar, it gets wrapped in a list:
+        a_value = wrap_in_container_if_needed('DirectionalLaps', container_constructor=list)
+        assert isinstance(a_value, list)
+        print(a_value)  # Output: ['DirectionalLaps']
+
+        # When passing an already list-like object, it is returned as-is:
+        another_value = wrap_in_container_if_needed(['DirectionalLaps'])
+        assert isinstance(another_value, list)
+        print(another_value)  # Output: ['DirectionalLaps']
+
+            
+    """
+    if isinstance(value, container_types):
+        return value
+    else:
+        return container_constructor([value])
+
+        
+        
+    
 def find_desired_sort_indicies(extant_arr, desired_sort_arr):
     """ Finds the set of sort indicies that can be applied to extant_arr s.t.
         (extant_arr[out_sort_idxs] == desired_sort_arr)
