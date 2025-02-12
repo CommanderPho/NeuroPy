@@ -357,6 +357,48 @@ class PositionComputedDataMixin:
             self.df = self.compute_higher_order_derivatives()   
         return self.df['acceleration_y'].to_numpy()
     
+
+    @classmethod
+    def perform_add_binned_position_columns(cls, pos_df: pd.DataFrame, xbin_edges=None, ybin_edges=None, active_computation_config=None, debug_print:bool=False) -> pd.DataFrame:
+        """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
+        
+        PURE: does not modify `pos_df`, returns a copy
+        
+        `active_computation_config` is not used/needed if the appropriate xbin_edges/ybin_edges are provided.
+        
+        Internally uses: `build_df_discretized_binned_position_columns`
+        
+        """
+        from neuropy.utils.mixins.binning_helpers import build_df_discretized_binned_position_columns # for perform_time_range_computation only
+        
+        pos_df = deepcopy(pos_df) ## does not modify pos_df
+        
+        if 'y' not in pos_df.columns:
+            # Assume 1D:
+            ndim = 1
+            pos_col_names = ('x',)
+            binned_col_names = ('binned_x',)
+            bin_values = (xbin_edges,)
+        else:
+            # otherwise assume 2D:
+            ndim = 2
+            pos_col_names = ('x', 'y')
+            binned_col_names = ('binned_x', 'binned_y')
+            bin_values = (xbin_edges, ybin_edges)        
+
+        # bin the dataframe's x and y positions into bins, with binned_x and binned_y containing the index of the bin that the given position is contained within.
+        pos_df, out_bins, bin_info = build_df_discretized_binned_position_columns(pos_df, bin_values=bin_values, position_column_names=pos_col_names, binned_column_names=binned_col_names, active_computation_config=active_computation_config, force_recompute=False, debug_print=debug_print)
+
+        return pos_df
+
+    
+    def adding_binned_position_columns(self, xbin_edges=None, ybin_edges=None, active_computation_config=None, debug_print:bool=False) -> pd.DataFrame:
+        """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
+        `active_computation_config` is not used/needed if the appropriate xbin_edges/ybin_edges are provided.
+        Internally uses: `cls.perform_add_binned_position_columns(...)`
+        """
+        self.df = self.perform_add_binned_position_columns(pos_df=self.df, xbin_edges=xbin_edges, ybin_edges=ybin_edges, active_computation_config=active_computation_config, debug_print=debug_print)
+        return self.df
     
 
 
