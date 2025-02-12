@@ -791,6 +791,8 @@ def flatten_dict(d: Dict, parent_key='', sep='/') -> Dict:
     Usage:
         from neuropy.utils.indexing_helpers import flatten_dict
     
+        flat_dict = flatten_dict(a_dict, parent_key='', sep='/')
+    
     """
     if (not isinstance(d, dict)):
         if hasattr(d, 'to_dict'):
@@ -811,6 +813,37 @@ def flatten_dict(d: Dict, parent_key='', sep='/') -> Dict:
             items[new_key] = v
     return items
 
+
+# Benedict Helpers ___________________________________________________________________________________________________ #
+def get_values_from_keypaths(data, keypaths):
+    """ used with benedict-dicts to get nested values from a flat list of keypaths """
+    def get_value(d, keys):
+        for key in keys:
+            if isinstance(d, dict) and key in d:
+                d = d[key]
+            else:
+                return None
+        return d
+
+    return {kp: get_value(data, kp.split('.')) for kp in keypaths}
+
+def set_value_by_keypath(data, keypath, value):
+    """ used with benedict-dicts to set multiple nested values from a flat (non-nested) dict keypath:Value items """
+    keys = keypath.split('.')
+    d = data
+    for key in keys[:-1]:  # Traverse until the second last key
+        if key not in d or not isinstance(d[key], dict):
+            d[key] = {}  # Ensure path exists
+        d = d[key]
+    d[keys[-1]] = value  # Set final value
+
+
+def update_nested_dict(data, updates):
+    """ used with benedict-dicts to update nested values from a flat list of keypaths """
+    for keypath, value in updates.items():
+        set_value_by_keypath(data, keypath, value)
+        
+            
 
 # ==================================================================================================================== #
 #region PandasDataFrameHelpers                                                                                               #

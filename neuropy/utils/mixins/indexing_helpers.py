@@ -107,7 +107,7 @@ def get_dict_subset(a_dict: dict, subset_includelist=None, subset_excludelist=No
         
     Usage:
         from neuropy.utils.mixins.indexing_helpers import get_dict_subset
-        
+        get_dict_subset(a_dict: dict, subset_includelist=None, subset_excludelist=None)
     """
     if subset_excludelist is not None:
         assert subset_includelist is None, "subset_includelist must be None when a subset_excludelist is provided!"
