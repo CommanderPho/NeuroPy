@@ -857,19 +857,19 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 		
 
 		# Binning with Fixed bin size: _______________________________________________________________________________________ #
-		# Uses `self.config.grid_bin_bounds` if it exists to determine proper self.xbin, self,ybin, self.bin_info
+		# Uses `self.config.grid_bin_bounds` and `self.config.grid_bin` if it exists to determine proper self.xbin, self,ybin, self.bin_info
 		
 		# 2022-12-09 - We want to be able to have both long/short track placefields have the same bins.
 		if (self.ndim > 1):
 			if self.config.grid_bin_bounds is None:
 				raise NotImplementedError(f'thrown by Pho Hale on 2025-02-12 to ensure the correct grid_bin_bounds is always retrieved and used.')
-				grid_bin_bounds = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), self.filtered_pos_df.y.to_numpy())
+				# grid_bin_bounds = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), self.filtered_pos_df.y.to_numpy())
 			else:
 				# Use grid_bin_bounds:
 				if ((self.config.grid_bin_bounds[0] is None) or (self.config.grid_bin_bounds[1] is None)):
 					print(f'WARN: computing pf2D with set self.config.grid_bin_bounds but one of the compoenents is None! self.config.grid_bin_bounds: {self.config.grid_bin_bounds}.\n\trecomputing from positions and ignoring set grid_bin_bounds!')
 					raise NotImplementedError(f'thrown by Pho Hale on 2025-02-12 to ensure the correct grid_bin_bounds is always retrieved and used.')
-					grid_bin_bounds = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), self.filtered_pos_df.y.to_numpy())
+					# grid_bin_bounds = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), self.filtered_pos_df.y.to_numpy())
 				else:
 					if debug_print:
 						print(f'using self.config.grid_bin_bounds: {self.config.grid_bin_bounds}')
@@ -880,7 +880,8 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 		else:
 			# 1D case
 			if self.config.grid_bin_bounds_1D is None:
-				grid_bin_bounds_1D = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), None)[0]
+				raise NotImplementedError(f'thrown by Pho Hale on 2025-02-12 to ensure the correct grid_bin_bounds is always retrieved and used.')
+				# grid_bin_bounds_1D = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), None)[0]
 			else:
 				if debug_print:
 					print(f'using self.config.grid_bin_bounds_1D: {self.config.grid_bin_bounds_1D}')
