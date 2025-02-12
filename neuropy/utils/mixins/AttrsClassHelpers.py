@@ -461,3 +461,372 @@ def convert_attrs_inline_class_instance_to_normal_class_defn(an_instance, class_
     return content
 
 
+
+
+# ==================================================================================================================== #
+# Attrs + Params/Panel Helpers                                                                                         #
+# ==================================================================================================================== #
+from copy import deepcopy
+import param
+import pathlib
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional, Callable, Union, Any
+from typing_extensions import TypeAlias
+from nptyping import NDArray
+import pyphoplacecellanalysis.General.type_aliases as types
+from pyphocorehelpers.programming_helpers import metadata_attributes
+from pyphocorehelpers.function_helpers import function_attributes
+import attrs
+from attrs import define, field, Factory, astuple, asdict, fields
+from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_attribute_field, serialized_field, non_serialized_field
+from neuropy.utils.mixins.HDF5_representable import HDF_SerializationMixin
+from neuropy.core.parameters import BaseConfig
+from pyphocorehelpers.DataStructure.dynamic_parameters import DynamicParameters
+from pyphocorehelpers.function_helpers import get_fn_kwargs_with_defaults, get_decorated_function_attributes, fn_best_name
+from pyphocorehelpers.print_helpers import strip_type_str_to_classname
+from pyphoplacecellanalysis.General.Model.Configs.ParamConfigs import BasePlotDataParams
+
+
+class AttrsWithParamParameterizedHelpers:
+    """ Helpers for programmatically modifying attrs-based classes to include param.Parameterized properties automatically so they can be used/edited/displayed in Param widgets
+    
+
+    from neuropy.utils.mixins.AttrsClassHelpers import AttrsWithParamParameterizedHelpers, BaseAttrsParameterizedParameters
+    
+    
+    """
+
+    attrs_to_params_type_map = { str: param.String, int: param.Integer, float: param.Number, bool: param.Boolean, list: param.List, dict: param.Dict, tuple: param.Tuple, Path: param.Path,
+                    Optional[str]: param.String, Optional[int]: param.Integer, Optional[float]: param.Number, Optional[bool]: param.Boolean, Optional[Path]: param.Path,
+                    Optional[list]: param.List, Optional[dict]: param.Dict, Optional[tuple]: param.Tuple,
+                    }
+
+
+    @function_attributes(short_name=None, tags=['parameters', 'attrs'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-02-11 02:56', related_items=[])
+    @classmethod
+    def _perform_attrs_to_parameters(cls, cls_to_decorate, should_fallback_to_default_paramParameter:bool=False):
+        """ uses: `cls.attrs_to_params_type_map`
+        """
+        for field in attrs.fields(cls_to_decorate):
+            default = field.default if field.default is not attrs.NOTHING else None
+            # setattr(cls, field.name, param.Parameter(default=default))
+            # p_type = type_map.get(field.type, param.Parameter)
+            p_type = cls.attrs_to_params_type_map.get(field.type, None)
+            if (p_type is None):
+                if not should_fallback_to_default_paramParameter:
+                    assert (p_type is not None), f"failed for field: {field}"
+                    pass ## FAIL
+                else:
+                    # fallback default to param.Parameter
+                    p_type = param.Parameter
+
+            assert (p_type is not None)
+            
+            # if field.metadata is None:
+            #     field.metadata = {} ## initialize
+            ## update the field metadata
+            # field.metadata.update(param=p_type(default=default))
+            # field.metadata['param'] = p_type(default=default)
+            # setattr(cls, field.name, p_type(default=default))
+            curr_param_class_var_name: str = f"{field.name}_PARAM"
+            
+            if hasattr(cls_to_decorate, curr_param_class_var_name):
+                delattr(cls_to_decorate, curr_param_class_var_name) ## remove extant
+                assert (not hasattr(cls_to_decorate, curr_param_class_var_name)), f"hasattr even after removal!"
+
+
+            param_obj = p_type(default=default)
+            # set the parameter on the class under the same name as the field
+            # setattr(cls, curr_param_class_var_name, param_obj)
+            # setattr(cls, field.name, param_obj)
+            # register the parameter so that Parameterized picks it up
+            # cls._add_parameter(param_obj)
+            # cls.param.add_parameter(curr_param_class_var_name, param_obj)
+            cls_to_decorate.param.add_parameter(field.name, param_obj)
+
+            # cls._add_parameter(
+            # getattr(cls, curr_param_class_var_name, None)
+            
+
+        return cls_to_decorate
+
+    @classmethod
+    def attrs_to_parameters(cls, cls_to_decorate):
+        return cls._perform_attrs_to_parameters(cls_to_decorate=cls_to_decorate, should_fallback_to_default_paramParameter=False)
+
+    @classmethod
+    def attrs_to_parameters_with_fallback(cls, cls_to_decorate):
+        return cls._perform_attrs_to_parameters(cls_to_decorate=cls_to_decorate, should_fallback_to_default_paramParameter=True)
+    
+
+    # def attrs_to_parameters_container(cls):
+    #     """ all fields should be `param.Parameterized` subclasses """
+    #     for field in attrs.fields(cls):
+    #         field_type = field.type
+    #         default = field.default if field.default is not attrs.NOTHING else field_type()
+    #         setattr(cls, field.name, param.ClassSelector(class_=field_type, default=default))
+    #     return cls
+
+    @function_attributes(short_name=None, tags=['parameters', 'attrs'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-02-11 02:56', related_items=[])
+    @classmethod
+    def attrs_to_parameters_container(cls, cls_to_decorate):
+        """ all fields should be `param.Parameterized` subclasses """
+        for field in attrs.fields(cls_to_decorate):
+            if field.default is not attrs.NOTHING:
+                default = field.default
+                if isinstance(default, attrs.Factory):
+                    if default.takes_self:
+                        raise ValueError("Factory with takes_self=True is not supported")
+                    default = default.factory()
+            else:
+                default = field.type()
+            
+            variable_name: str = str(field.name).removeprefix('_').removesuffix('_Parameters')
+            print(f'field.name: "{field.name}", variable_name: "{variable_name}"')
+            param_obj = param.ClassSelector(class_=field.type, default=default, doc=f'{variable_name} param', label=variable_name)
+            
+            # setattr(cls, field.name, param_obj)
+            
+            # set the parameter on the class under the same name as the field
+            # setattr(cls, curr_param_class_var_name, param_obj)
+            # setattr(cls, field.name, param_obj)
+            # register the parameter so that Parameterized picks it up
+            # cls._add_parameter(param_obj)
+            # cls.param.add_parameter(curr_param_class_var_name, param_obj)
+            cls_to_decorate.param.add_parameter(field.name, param_obj)
+            
+        return cls_to_decorate
+
+
+""" 
+
+Example:
+
+    @define(slots=False, eq=False, repr=False)
+    class rank_order_shuffle_analysis_Parameters(HDF_SerializationMixin, AttrsBasedClassHelperMixin, BaseAttrsParameterizedParameters):
+        num_shuffles: int = serialized_attribute_field(default=500)
+        minimum_inclusion_fr_Hz: float = serialized_attribute_field(default=5.0)
+        included_qclu_values: list = serialized_field(default=[1, 2, 4, 6, 7, 9])
+        skip_laps: bool = serialized_attribute_field(default=False)
+        ## PARAMS - these are class properties
+        num_shuffles_PARAM = param.Integer(default=500, doc='num_shuffles param', label='num_shuffles')
+        minimum_inclusion_fr_Hz_PARAM = param.Number(default=5.0, doc='minimum_inclusion_fr_Hz param', label='minimum_inclusion_fr_Hz')
+        included_qclu_values_PARAM = param.List(default=[1, 2, 4, 6, 7, 9], doc='included_qclu_values param', label='included_qclu_values')
+        skip_laps_PARAM = param.Boolean(default=False, doc='skip_laps param', label='skip_laps')
+
+
+""" 
+
+class BaseAttrsParameterizedParameters(BaseConfig, param.Parameterized):
+    """ Base class
+    Based off of `BaseGlobalComputationParameters`
+    
+    """
+    # Overriding defaults from parent
+    # name = param.String(default='BaseAttrsParameterizedParameters', doc='Name of the global computations')
+    # isVisible = param.Boolean(default=False, doc="Whether the global computations widget is visible") # default to False    
+
+    def __attrs_post_init__(self):
+        param.Parameterized.__init__(self)
+        active_attribute_names_list = deepcopy(self.get_param_Params_attribute_names())
+        self.param.watch(self._sync_param_to_raw_attr_field_internal, active_attribute_names_list)
+
+
+    def __repr__(self):
+        """ 2024-01-11 - Renders only the fields and their sizes  """
+        from pyphocorehelpers.print_helpers import strip_type_str_to_classname
+        attr_reprs = []
+        for a in self.__attrs_attrs__:
+            attr_type = strip_type_str_to_classname(type(getattr(self, a.name)))
+            if 'shape' in a.metadata:
+                shape = ', '.join(a.metadata['shape'])  # this joins tuple elements with a comma, creating a string without quotes
+                attr_reprs.append(f"{a.name}: {attr_type} | shape ({shape})")  # enclose the shape string with parentheses
+            else:
+                attr_reprs.append(f"{a.name}: {attr_type}")
+        content = ",\n\t".join(attr_reprs)
+        return f"{type(self).__name__}({content}\n)"
+    
+    def values_only_repr(self, attr_separator_str: str=",\n", sub_attr_additive_seperator_str:str='\t'):
+        """ renders only the field names and their values
+        
+        _out_str: str = param_typed_parameters.values_only_repr(attr_separator_str=",\n", sub_attr_additive_seperator_str='\t')
+        print(_out_str)
+
+        """
+        attr_reprs = []
+        for a in self.__attrs_attrs__:
+            attr_value = getattr(self, a.name)
+            if hasattr(attr_value, 'values_only_repr'):
+                _new_attr_sep_str: str = f"{attr_separator_str}{sub_attr_additive_seperator_str}"
+                # attr_value = attr_value.values_only_repr(attr_separator_str=attr_separator_str, sub_attr_additive_seperator_str=sub_attr_additive_seperator_str)
+                attr_value = attr_value.values_only_repr(attr_separator_str=_new_attr_sep_str, sub_attr_additive_seperator_str=sub_attr_additive_seperator_str)
+            attr_reprs.append(f"{a.name}: {attr_value}")
+            
+        content = attr_separator_str.join(attr_reprs)
+        # return f"{type(self).__name__}({content}\n)"
+        return content
+    
+
+    # ==================================================================================================================== #
+    # Serialization/Deserialization                                                                                        #
+    # ==================================================================================================================== #
+
+    @classmethod
+    def from_state(cls, state):
+        """ Rebuilds an instance using the latest class definition and updates state. """
+        obj = cls.__new__(cls)  # Create a new instance without calling __init__
+        obj.__setstate__(state)
+        return obj
+
+    def __setstate__(self, state):
+        """
+        #TODO 2025-01-07 14:06: - [ ] UNFINISHED - needs to handle missing fields like 'should_disable_cache' added to one of the params types
+            => these result in an `AttributeError: 'directional_decoders_decode_continuous_Parameters' object has no attribute 'should_disable_cache' when trying to pickle again after unpickling (`to_dict(...)`)
+        
+         Restore instance attributes and update child fields if needed. """
+        # Handle legacy format
+
+        loaded_keys: List[str] = list(state.keys())
+        modern_keys: List[str] = [a.name for a in self.__class__.__attrs_attrs__]
+
+        added_keys: List[str] = [k for k in modern_keys if k not in loaded_keys]
+        removed_keys: List[str] = [k for k in loaded_keys if k not in modern_keys]
+
+        ## update with what we have:
+        self.__dict__.update(state)
+
+        if len(added_keys) > 0:
+            print(f'\tadded_keys: {added_keys}')
+            # Update missing attributes based on the current class definition
+            for a in self.__class__.__attrs_attrs__:  # Access current class attributes
+                attr_name: str = a.name
+                # attr_field = a.field
+                if attr_name in added_keys:
+                    # Use the default factory if available, otherwise set the default value
+                    if a.default is not None:
+                        print(f'\t\tadding key: {attr_name}')
+                        self.__dict__[attr_name] = a.default
+                    # elif a.factory is not None:
+                    #     self.__dict__[attr_name] = a.factory()
+        # # Update missing attributes based on the current class definition
+        # for a in self.__class__.__attrs_attrs__:  # Access current class attributes
+        #     attr_name: str = a.name
+        #     # attr_field = a.field
+        #     if attr_name not in self.__dict__:
+        #         # Use the default factory if available, otherwise set the default value
+        #         if attr_field.default is not None:
+        #             self.__dict__[attr_name] = a.default
+        #         # elif attr_field.factory is not None:
+        #         #     self.__dict__[attr_name] = attr_field.factory()
+
+        print(f'\tdone.')
+
+        # # Ensure child fields are updated
+        # self._post_load_update()
+        # self =  self.__class__.from_state(state=self.__dict__)
+
+
+    # ==================================================================================================================== #
+    # Params Helpers                                                                                                       #
+    # ==================================================================================================================== #
+    
+    # def __setattr__(self, name, value):
+    #     super().__setattr__(name, value)
+    #     is_PARAM_variable: bool = name.endswith('_PARAM')
+    #     if is_PARAM_variable:
+    #         original_variable_name: str = deepcopy(name).removesuffix('_PARAM')
+    #         ## update the original value
+    #         setattr(self, original_variable_name, value)
+            
+    #     # if name == "my_param":
+    #     #     self._internal_value = value  # Ensure sync
+
+
+    def _sync_param_to_raw_attr_field_internal(self, event):
+        """ called to sync variables"""
+        print(f"_sync_param_to_raw_attr_field_internal(...): Parameter '{event.name}' changed from {event.old} to {event.new}")
+        is_PARAM_variable: bool = event.name.endswith('_PARAM')
+        assert is_PARAM_variable
+        original_variable_name: str = deepcopy(event.name).removesuffix('_PARAM')
+        setattr(self, original_variable_name, event.new) # Sync non-param property
+    
+
+    @classmethod
+    def get_class_param_Params_attribute_names(cls) -> List[str]:
+        return [k for k in cls.param.values().keys() if k not in ['name']]
+    
+    def get_param_Params_attribute_names(self) -> List[str]:
+        return [k for k in self.param.values().keys() if k not in ['name']]
+        
+        
+    @classmethod
+    def get_class_param_Params_dict(cls, param_name_excludeList=None) -> Dict:
+        # param_name_excludeList = ['name']
+        if param_name_excludeList is None:
+            param_name_excludeList = []
+        return {k:v for k, v in cls.param.values().items() if k not in param_name_excludeList}
+    
+
+    def to_params_dict(self, param_name_excludeList=None) -> Dict:
+        """ returns as a dictionary representation """
+        # param_name_excludeList = ['name']
+        if param_name_excludeList is None:
+            param_name_excludeList = []
+        return {k:v for k, v in self.param.values().items() if k not in param_name_excludeList}
+    
+
+
+       
+class BaseContainerAttrsParameterizedParametersToDictWidgetMixin:
+    """ Provides an alternative/working way for a container to hold nested parameters since the normal way doesn't seem to work.
+
+    import panel as pn
+    pn.extension()
+
+    curr_global_param_typed_parameters.display_params()
+        
+
+    """
+    # ==================================================================================================================== #
+    # Params Overrides                                                                                                     #
+    # ==================================================================================================================== #
+    def get_param_Params_attribute_names(self) -> List[str]:
+        return [k for k in self.param.values().keys() if k not in ['name']]
+        
+
+    def to_params_dict(self, param_name_excludeList=None, recursive_to_dict: bool=False) -> Dict:
+        """ overrides to provide recurrsive implementation
+        returns as a dictionary representation 
+        
+        Working:
+        
+            out_configs_dict = curr_global_param_typed_parameters.to_params_dict(recursive_to_dict=False)
+            pn.Column(*[pn.Param(a_sub_v) for a_sub_v in reversed(out_configs_dict.values())])
+
+        """
+        # param_name_excludeList = ['name']
+        if param_name_excludeList is None:
+            param_name_excludeList = ['name']
+        if recursive_to_dict:
+            return {k:v.to_params_dict(param_name_excludeList=param_name_excludeList) for k, v in self.param.values().items() if k not in param_name_excludeList}
+        else:
+            _out_dict = {k:v for k, v in self.param.values().items() if k not in param_name_excludeList}
+            # _out_dict = {k:v.param for k, v in self.param.values().items() if k not in param_name_excludeList}
+            _out_dict = {k:v.param for k, v in _out_dict.items()}
+            return _out_dict
+
+
+    def display_params(self):
+        """ renders the widget       
+        Usage:
+            import panel as pn
+            pn.extension()
+
+            curr_global_param_typed_parameters.display_params() 
+        """
+        import panel as pn
+        # pn.extension()
+
+        out_configs_dict = self.to_params_dict(recursive_to_dict=False)
+        return pn.Column(*[pn.Param(a_sub_v) for a_sub_v in reversed(out_configs_dict.values())])
+
