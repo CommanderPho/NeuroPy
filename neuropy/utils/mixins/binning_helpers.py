@@ -497,6 +497,62 @@ def bin_pos_nD(x: NDArray, y: NDArray, num_bins=None, bin_size=None):
         return xbin, ybin, bin_info_out_dict # {'mode':mode, 'xstep':xstep, 'ystep':ystep, 'xnum_bins':xnum_bins, 'ynum_bins':ynum_bins}
 
 
+def safe_limit_num_grid_bin_values(fixed_grid_bin_bounds: Tuple[Tuple[float, float], Tuple[float, float]], desired_grid_bin_sizes: Tuple[float, float], max_allowed_num_bins: Optional[Tuple[int, int]]=None, debug_print:bool=True) -> Tuple[Tuple[float, float], Tuple[int, int]]:
+    """ 
+    given the fixed `correct_grid_bin_bounds` and a `desired_grid_bin_sizes`, determines the num bins needed and if max_allowed_num_bins is provided will limit num grid bins to this size and return the required grid_bin sizes to meet this bound
+    
+    Usage:
+    
+        from neuropy.utils.mixins.binning_helpers import bin_pos_nD
+        from pyphoplacecellanalysis.SpecificResults.PendingNotebookCode import get_hardcoded_known_good_grid_bin_bounds
+        from neuropy.utils.mixins.binning_helpers import safe_limit_num_grid_bin_values
+
+
+        correct_grid_bin_bounds = get_hardcoded_known_good_grid_bin_bounds(curr_active_pipeline) # ((0.0, 287.7697841726619), (86.33093525179856, 201.4388489208633))
+        desired_grid_bin = (2.0, 2.0) # (2cm x 2cm)
+        # desired_grid_bin = (1.5, 1.5) # (1.5cm x 1.5cm)
+        (constrained_grid_bin_sizes, constrained_num_grid_bins) = safe_limit_num_grid_bin_values(correct_grid_bin_bounds, desired_grid_bin_sizes=desired_grid_bin, max_allowed_num_bins=[58, 7], debug_print=True)
+        constrained_grid_bin_sizes
+        constrained_num_grid_bins
+
+
+    """
+    num_bin_keys_names_list = ['xnum_bins', 'ynum_bins']
+    grid_bin_size_keys_names_list = ['xstep', 'ystep']
+
+    proposed_xbin, proposed_ybin, proposed_bin_info = bin_pos_nD(*fixed_grid_bin_bounds, bin_size=desired_grid_bin_sizes) # bin_size mode - {'mode': 'bin_size', 'xstep': 2.0, 'xnum_bins': 145, 'ystep': 2.0, 'ynum_bins': 59}
+    if debug_print:
+        print(f"proposed_bin_info: {proposed_bin_info}")
+
+    proposed_nbins: Tuple[float, float] = [proposed_bin_info[k] for k in num_bin_keys_names_list]
+    if debug_print:
+        print(f'proposed_nbins: {proposed_nbins}')
+
+    if max_allowed_num_bins is not None:
+        if debug_print:
+            print(f'max_allowed_num_bins: {max_allowed_num_bins}')
+        constrained_num_grid_bins = [min(proposed_bin_info[k], a_max_allowed_n_bins) for k, a_max_allowed_n_bins in zip(num_bin_keys_names_list, max_allowed_num_bins)]
+        if debug_print:
+            print(f'constrained_nbins: {constrained_num_grid_bins}') # constrained_nbins: [58, 7]
+
+        ## compute the reverse `grid_bin` values required to get the num bins in `constrained_nbins`:
+        # Binning with Fixed Number of Bins:
+        constrained_xbin, constrained_ybin, constrained_bin_info = bin_pos_nD(*fixed_grid_bin_bounds, num_bins=constrained_num_grid_bins) # {'mode': 'num_bins', 'xstep': 5.138746145940391, 'xnum_bins': 57, 'ystep': 19.184652278177456, 'ynum_bins': 7}
+        if debug_print:
+            print(f"constrained_bin_info: {constrained_bin_info}")
+
+        constrained_grid_bin_sizes = [constrained_bin_info[k] for k in grid_bin_size_keys_names_list]
+    else:
+        ## no constraint on max num bins:
+        constrained_grid_bin_sizes = desired_grid_bin_sizes
+        constrained_num_grid_bins = proposed_nbins
+        
+    if debug_print:
+        print(f'constrained_grid_bin: {constrained_grid_bin_sizes}') # constrained_grid_bin: [5.048592704783542, 19.184652278177456]
+    return constrained_grid_bin_sizes, constrained_num_grid_bins
+
+
+
 
 ## Add Binned Position Columns to spikes_df:
 def build_df_discretized_binned_position_columns(active_df, bin_values=(None, None), position_column_names = ('x', 'y'), binned_column_names = ('binned_x', 'binned_y'),
