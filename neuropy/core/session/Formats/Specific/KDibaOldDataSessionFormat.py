@@ -261,40 +261,7 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
     # ==================================================================================================================== #
     # Computation Configs                                                                                                  #
     # ==================================================================================================================== #
-    
-    # @classmethod
-    # def build_lap_only_computation_configs(cls, sess, **kwargs):
-    #     """ sets the computation intervals to only be performed on the laps
 
-    #     Starts from base of `DataSessionFormatBaseRegisteredClass.build_default_computation_configs(...)`
-    #     Calls `build_lap_computation_epochs(...)`
-        
-    #     """
-    #     active_session_computation_configs = DataSessionFormatBaseRegisteredClass.build_default_computation_configs(sess, **kwargs)
-
-    #     ## Lap-restricted computation epochs:
-    #     lap_estimation_parameters = sess.config.preprocessing_parameters.epoch_estimation_parameters.laps
-    #     assert lap_estimation_parameters is not None
-    #     use_direction_dependent_laps: bool = lap_estimation_parameters['use_direction_dependent_laps'] # whether to split the laps into left and right directions
-    #     # print(f'use_direction_dependent_laps: {use_direction_dependent_laps}')
-    #     desired_computation_epochs = build_lap_computation_epochs(sess, use_direction_dependent_laps=use_direction_dependent_laps)
-
-    #     # Lap-restricted computation epochs:
-    #     print(f'\tlen(active_session_computation_configs): {len(active_session_computation_configs)}')
-    #     final_active_session_computation_configs = []
-        
-    #     # if len(active_session_computation_configs) < len(desired_computation_epochs):
-    #     # Clone the configs for each epoch
-    #     for a_restricted_lap_epoch in desired_computation_epochs:
-    #         # for each lap to be used as a computation epoch:        
-    #         for i in np.arange(len(active_session_computation_configs)):
-    #             curr_config = deepcopy(active_session_computation_configs[i])
-    #             curr_config.pf_params.computation_epochs = a_restricted_lap_epoch # add the laps epochs to all of the computation configs.
-    #             final_active_session_computation_configs.append(curr_config)
-        
-    #     print(f'\tlen(final_active_session_computation_configs): {len(final_active_session_computation_configs)}')
-    #     return final_active_session_computation_configs
-    
 
     @classmethod
     def build_lap_only_short_long_bin_aligned_computation_configs(cls, sess, **kwargs):
@@ -350,6 +317,11 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
             # # print(f"Add this to `specific_session_override_dict`:\n\n{curr_active_pipeline.get_session_context().get_initialization_code_string()}:dict(grid_bin_bounds=({(grid_bin_bounds[0], grid_bin_bounds[1]), (grid_bin_bounds[2], grid_bin_bounds[3])})),\n")
 
 
+        assert override_dict.get('grid_bin', None) is not None, f"missing grid_bin values: {override_dict}"
+        grid_bin = deepcopy(override_dict['grid_bin']) ## key to use 'real_cm_grid_bin_bounds' ((float, float), (float, float))
+
+            
+
         # Lap-restricted computation epochs:
         if debug_print:
             print(f'\tlen(active_session_computation_configs): {len(active_session_computation_configs)}')
@@ -362,7 +334,11 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
             for i in np.arange(len(active_session_computation_configs)):
                 curr_config = deepcopy(active_session_computation_configs[i])
                 # curr_config.pf_params.time_bin_size = 0.025
-                curr_config.pf_params.grid_bin_bounds = grid_bin_bounds # same bounds for all
+                curr_config.pf_params.grid_bin_bounds = deepcopy(grid_bin_bounds) # same bounds for all
+                curr_config.pf_params.grid_bin = deepcopy(grid_bin) # same grid_bin for all
+
+
+
                 if override_dict.get('track_start_t', None) is not None:
                     track_start_t = override_dict['track_start_t']
                     curr_config.pf_params.track_start_t = track_start_t
@@ -375,7 +351,8 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
                 else:
                     curr_config.pf_params.track_end_t = None
 
-                curr_config.pf_params.grid_bin_bounds = grid_bin_bounds
+                curr_config.pf_params.grid_bin_bounds = deepcopy(grid_bin_bounds)
+                curr_config.pf_params.grid_bin = deepcopy(grid_bin)
                 curr_config.pf_params.computation_epochs = deepcopy(a_restricted_lap_epoch) # add the laps epochs to all of the computation configs.
                 final_active_session_computation_configs.append(curr_config)
                 
@@ -394,7 +371,15 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
             # (1.874, 0.518) # for (128, 128) bins
         """
         active_session_computation_configs = DataSessionFormatBaseRegisteredClass.build_default_computation_configs(sess, **kwargs)
-
+        # ## Get specific grid_bin_bounds overrides from the `cls._specific_session_override_dict`
+        # override_dict = cls.get_specific_session_override_dict().get(sess.get_context(), {})
+        # # assert override_dict.get('real_cm_grid_bin_bounds', None) is not None, f"missing real_cm_grid_bin_bounds values: {override_dict}"
+        # # grid_bin_bounds = deepcopy(override_dict['real_cm_grid_bin_bounds']) ## key to use 'real_cm_grid_bin_bounds' ((float, float), (float, float))
+        # assert override_dict.get('grid_bin_bounds', None) is not None, f"missing grid_bin_bounds values: {override_dict}"
+        # grid_bin_bounds = deepcopy(override_dict['grid_bin_bounds']) ## key to use 'real_cm_grid_bin_bounds' ((float, float), (float, float))
+        # assert override_dict.get('grid_bin', None) is not None, f"missing grid_bin values: {override_dict}"
+        # grid_bin = deepcopy(override_dict['grid_bin']) ## key to use 'real_cm_grid_bin_bounds' ((float, float), (float, float))
+        
         ## Non-restricted computation epochs:
         any_lap_specific_epochs = None
 
