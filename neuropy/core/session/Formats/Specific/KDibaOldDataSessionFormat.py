@@ -921,7 +921,10 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
     
     @classmethod
     def perform_load_position_info_mat_into_session(cls, session_position_mat_file_path: Path, session: DataSession, debug_print:bool=True) -> DataSession:
-        """ must conform to `[Path, DataSession], DataSession` """
+        """ must conform to `[Path, DataSession], DataSession` 
+
+        !! TODO NOTE:: this does not set/use any `.grid_bin_bounds` , only the track limits, which are NOT the same
+        """
         from neuropy.utils.load_exported import import_mat_file
         assert session_position_mat_file_path.exists(), f"session_position_mat_file_path: '{session_position_mat_file_path}' does not exist!"
 

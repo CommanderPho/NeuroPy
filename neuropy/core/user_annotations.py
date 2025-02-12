@@ -755,11 +755,21 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         pix2cm: float = 287.7697841726619
         real_unit_x_grid_bin_bounds = np.array([0.0, 1.0])
         real_cm_x_grid_bin_bounds = (real_unit_x_grid_bin_bounds * pix2cm)
-        
+        print(f'real_unit_x_grid_bin_bounds: {real_unit_x_grid_bin_bounds}')
+        print(f'real_cm_x_grid_bin_bounds: {real_cm_x_grid_bin_bounds}')
 
-        real_unit_y_grid_bin_bounds = np.array([0.4, 0.6])
+        # real_unit_y_grid_bin_bounds = np.array([0.4, 0.6])
+        real_unit_y_grid_bin_bounds = np.array([0.3, 0.7])
         real_cm_y_grid_bin_bounds = (real_unit_y_grid_bin_bounds * pix2cm)
+        print(f'real_unit_y_grid_bin_bounds: {real_unit_y_grid_bin_bounds}')
         print(f'real_cm_y_grid_bin_bounds: {real_cm_y_grid_bin_bounds}')
+
+
+        # # 2025-02-12 Lab Computer ____________________________________________________________________________________________ #
+        # real_unit_x_grid_bin_bounds: [0 1]
+        # real_cm_x_grid_bin_bounds: [0 287.77]
+        # real_unit_y_grid_bin_bounds: [0.3 0.7]
+        # real_cm_y_grid_bin_bounds: [86.3309 201.439]
 
         # real_cm_x_grid_bin_bounds # array([0, 287.77])
 
