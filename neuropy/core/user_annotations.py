@@ -9,6 +9,7 @@ import pandas as pd
 import tables as tb
 from datetime import datetime
 from neuropy.utils.misc import numpyify_array
+from neuropy.utils.mixins.binning_helpers import safe_limit_num_grid_bin_values
 from neuropy.utils.result_context import IdentifyingContext
 from neuropy.utils.result_context import IdentifyingContext as Ctx
 
@@ -765,6 +766,18 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         print(f'real_cm_y_grid_bin_bounds: {real_cm_y_grid_bin_bounds}')
 
 
+        # ==================================================================================================================== #
+        # 2025-02-12 15:17 Lab - Finally think I fixed it -- explicitly set the `grid_bin` (`pf_params.grid_bin`) desired                               #
+        # ==================================================================================================================== #
+
+        # 'computation_config.pf_params.grid_bin': (3.819259898065432, 1.3611823623005381),
+        # 'computation_config.pf_params.grid_bin_bounds': ((0.0, 287.7697841726619), (86.33093525179856, 201.4388489208633)),
+
+        # grid_bin = (2.0, 2.0) # (2cm x 2cm)
+        # grid_bin = (1.5, 1.5) # (1.5cm x 1.5cm)
+        
+
+
         # # 2025-02-12 Lab Computer ____________________________________________________________________________________________ #
         # real_unit_x_grid_bin_bounds: [0 1]
         # real_cm_x_grid_bin_bounds: [0 287.77]
@@ -773,10 +786,25 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
 
         # real_cm_x_grid_bin_bounds # array([0, 287.77])
 
+        real_cm_grid_bin_bounds = (tuple(deepcopy(real_cm_x_grid_bin_bounds)), tuple(deepcopy(real_cm_y_grid_bin_bounds)))
+
+        desired_grid_bin = (2.0, 2.0) # (2cm x 2cm)
+        # desired_grid_bin = (1.5, 1.5) # (1.5cm x 1.5cm)
+        max_allowed_num_bins = [60, 9]
+        (constrained_grid_bin_sizes, constrained_num_grid_bins) = safe_limit_num_grid_bin_values(real_cm_grid_bin_bounds, desired_grid_bin_sizes=desired_grid_bin, max_allowed_num_bins=max_allowed_num_bins, debug_print=False)
+        # constrained_grid_bin_sizes
+        # constrained_num_grid_bins
+
+
+
         for a_ctxt, a_dict in user_annotations.items():
             # a_dict.update(pix2cm=pix2cm, real_unit_x_grid_bin_bounds=tuple(deepcopy(real_unit_x_grid_bin_bounds)),  real_cm_x_grid_bin_bounds=tuple(deepcopy(real_cm_x_grid_bin_bounds)))
             a_dict.update(pix2cm=pix2cm, real_unit_grid_bin_bounds=(tuple(deepcopy(real_unit_x_grid_bin_bounds)), tuple(deepcopy(real_unit_y_grid_bin_bounds))),  real_cm_grid_bin_bounds=(tuple(deepcopy(real_cm_x_grid_bin_bounds)), tuple(deepcopy(real_cm_y_grid_bin_bounds))))
             a_dict.update(grid_bin_bounds=(tuple(deepcopy(real_cm_x_grid_bin_bounds)), tuple(deepcopy(real_cm_y_grid_bin_bounds))))
+            ## Override with the computed `grid_bin`
+            a_dict.update(grid_bin=tuple(deepcopy(constrained_grid_bin_sizes))) ## 2025-02-12 16:16 adds working `grid_bin`
+            
+
         
         ## override with the "real" bounds
 
