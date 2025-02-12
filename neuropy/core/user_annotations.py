@@ -759,7 +759,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
 
         real_unit_y_grid_bin_bounds = np.array([0.4, 0.6])
         real_cm_y_grid_bin_bounds = (real_unit_y_grid_bin_bounds * pix2cm)
-        
+        print(f'real_cm_y_grid_bin_bounds: {real_cm_y_grid_bin_bounds}')
 
         # real_cm_x_grid_bin_bounds # array([0, 287.77])
 
