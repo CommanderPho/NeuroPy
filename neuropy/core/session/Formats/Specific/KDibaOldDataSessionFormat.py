@@ -262,37 +262,48 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
     # Computation Configs                                                                                                  #
     # ==================================================================================================================== #
     
-    @classmethod
-    def build_lap_only_computation_configs(cls, sess, **kwargs):
-        """ sets the computation intervals to only be performed on the laps """
-        active_session_computation_configs = DataSessionFormatBaseRegisteredClass.build_default_computation_configs(sess, **kwargs)
+    # @classmethod
+    # def build_lap_only_computation_configs(cls, sess, **kwargs):
+    #     """ sets the computation intervals to only be performed on the laps
 
-        ## Lap-restricted computation epochs:
-        lap_estimation_parameters = sess.config.preprocessing_parameters.epoch_estimation_parameters.laps
-        assert lap_estimation_parameters is not None
-        use_direction_dependent_laps: bool = lap_estimation_parameters['use_direction_dependent_laps'] # whether to split the laps into left and right directions
-        # print(f'use_direction_dependent_laps: {use_direction_dependent_laps}')
-        desired_computation_epochs = build_lap_computation_epochs(sess, use_direction_dependent_laps=use_direction_dependent_laps)
+    #     Starts from base of `DataSessionFormatBaseRegisteredClass.build_default_computation_configs(...)`
+    #     Calls `build_lap_computation_epochs(...)`
+        
+    #     """
+    #     active_session_computation_configs = DataSessionFormatBaseRegisteredClass.build_default_computation_configs(sess, **kwargs)
 
-        # Lap-restricted computation epochs:
-        print(f'\tlen(active_session_computation_configs): {len(active_session_computation_configs)}')
-        final_active_session_computation_configs = []
+    #     ## Lap-restricted computation epochs:
+    #     lap_estimation_parameters = sess.config.preprocessing_parameters.epoch_estimation_parameters.laps
+    #     assert lap_estimation_parameters is not None
+    #     use_direction_dependent_laps: bool = lap_estimation_parameters['use_direction_dependent_laps'] # whether to split the laps into left and right directions
+    #     # print(f'use_direction_dependent_laps: {use_direction_dependent_laps}')
+    #     desired_computation_epochs = build_lap_computation_epochs(sess, use_direction_dependent_laps=use_direction_dependent_laps)
+
+    #     # Lap-restricted computation epochs:
+    #     print(f'\tlen(active_session_computation_configs): {len(active_session_computation_configs)}')
+    #     final_active_session_computation_configs = []
         
-        # if len(active_session_computation_configs) < len(desired_computation_epochs):
-        # Clone the configs for each epoch
-        for a_restricted_lap_epoch in desired_computation_epochs:
-            # for each lap to be used as a computation epoch:        
-            for i in np.arange(len(active_session_computation_configs)):
-                curr_config = deepcopy(active_session_computation_configs[i])
-                curr_config.pf_params.computation_epochs = a_restricted_lap_epoch # add the laps epochs to all of the computation configs.
-                final_active_session_computation_configs.append(curr_config)
+    #     # if len(active_session_computation_configs) < len(desired_computation_epochs):
+    #     # Clone the configs for each epoch
+    #     for a_restricted_lap_epoch in desired_computation_epochs:
+    #         # for each lap to be used as a computation epoch:        
+    #         for i in np.arange(len(active_session_computation_configs)):
+    #             curr_config = deepcopy(active_session_computation_configs[i])
+    #             curr_config.pf_params.computation_epochs = a_restricted_lap_epoch # add the laps epochs to all of the computation configs.
+    #             final_active_session_computation_configs.append(curr_config)
         
-        print(f'\tlen(final_active_session_computation_configs): {len(final_active_session_computation_configs)}')
-        return final_active_session_computation_configs
+    #     print(f'\tlen(final_active_session_computation_configs): {len(final_active_session_computation_configs)}')
+    #     return final_active_session_computation_configs
     
+
     @classmethod
     def build_lap_only_short_long_bin_aligned_computation_configs(cls, sess, **kwargs):
-        """ 2023-05-16 - sets the computation intervals to only be performed on the laps """
+        """ 2023-05-16 - sets the computation intervals to only be performed on the laps
+        
+        Starts from base of `DataSessionFormatBaseRegisteredClass.build_default_computation_configs(...)`
+        Calls `build_lap_computation_epochs(...)`
+
+        """
         active_session_computation_configs = DataSessionFormatBaseRegisteredClass.build_default_computation_configs(sess, **kwargs)
         
         # Need one computation config for each lap (even/odd)
