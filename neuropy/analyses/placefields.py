@@ -710,6 +710,10 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
 
 		# Excluded from serialization: ['_included_thresh_neurons_indx', '_peak_frate_filter_function']
+		
+	
+	#TODO 2025-02-12 01:23: - [ ] Why are none of these defined as proper attrs-fields?
+	
 	"""
 	spikes_df: pd.DataFrame # spikes_df shouldn't ever be updated
 	position: Position
@@ -754,7 +758,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 			setup_on_init=setup_on_init, compute_on_init=compute_on_init, position_srate=position.sampling_rate)
 
 
-	def setup(self, position: Position, spikes_df, epochs: Epoch, debug_print=False):
+	def setup(self, position: Position, spikes_df: pd.DataFrame, epochs: Epoch, debug_print=False):
 		""" do the preliminary setup required to build the placefields
 
 		Adds columns to the spikes and positions dataframes, etc.
@@ -779,7 +783,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 		pos_df = position.to_dataframe()
 		spk_df = spikes_df.copy()
 
-		# filtering:
+		# filtering: _________________________________________________________________________________________________________ #
 		if epochs is not None:
 			# filter the spikes_df:
 			self._filtered_spikes_df = spk_df.spikes.time_sliced(epochs.starts, epochs.stops)
@@ -852,15 +856,19 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
 		
 
-		## Binning with Fixed bin size:
+		# Binning with Fixed bin size: _______________________________________________________________________________________ #
+		# Uses `self.config.grid_bin_bounds` if it exists to determine proper self.xbin, self,ybin, self.bin_info
+		
 		# 2022-12-09 - We want to be able to have both long/short track placefields have the same bins.
 		if (self.ndim > 1):
 			if self.config.grid_bin_bounds is None:
+				raise NotImplementedError(f'thrown by Pho Hale on 2025-02-12 to ensure the correct grid_bin_bounds is always retrieved and used.')
 				grid_bin_bounds = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), self.filtered_pos_df.y.to_numpy())
 			else:
 				# Use grid_bin_bounds:
 				if ((self.config.grid_bin_bounds[0] is None) or (self.config.grid_bin_bounds[1] is None)):
 					print(f'WARN: computing pf2D with set self.config.grid_bin_bounds but one of the compoenents is None! self.config.grid_bin_bounds: {self.config.grid_bin_bounds}.\n\trecomputing from positions and ignoring set grid_bin_bounds!')
+					raise NotImplementedError(f'thrown by Pho Hale on 2025-02-12 to ensure the correct grid_bin_bounds is always retrieved and used.')
 					grid_bin_bounds = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), self.filtered_pos_df.y.to_numpy())
 				else:
 					if debug_print:
