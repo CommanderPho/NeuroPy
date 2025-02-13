@@ -18,7 +18,7 @@ from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, po
 from neuropy.utils.mixins.peak_location_representing import PeakLocationRepresentingMixin, ContinuousPeakLocationRepresentingMixin
 from neuropy.utils.misc import is_iterable
 from . import DataWriter
-
+from neuropy.utils.mixins.binning_helpers import GridBinDebuggableMixin, DebugBinningInfo
 
 class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, ContinuousPeakLocationRepresentingMixin, PeakLocationRepresentingMixin, NeuronUnitSlicableObjectProtocol, BinnedPositionsMixin, DataWriter):
     """A Ratemap holds information about each unit's firing rate across binned positions. 
@@ -527,3 +527,22 @@ class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, Co
 
         combined_directional_ratemap = Ratemap(tuning_curves=tuning_curves, unsmoothed_tuning_maps=unsmoothed_tuning_maps, spikes_maps=spikes_maps, xbin=xbin, ybin=ybin, occupancy=occupancy, neuron_ids=neuron_ids, neuron_extended_ids=neuron_extended_ids, metadata=lhs.metadata)
         return combined_directional_ratemap
+
+
+    # ==================================================================================================================== #
+    # GridBinDebuggableMixin Conformances                                                                                  #
+    # ==================================================================================================================== #
+    def get_debug_binning_info(self) -> DebugBinningInfo:
+        """Returns relevant debug info about the binning configuration
+
+        Returns:
+            DebugBinningInfo: Contains binning dimensions and sizes
+        """  
+        nCells = len(self.neuron_ids)
+        return DebugBinningInfo(
+            n_xbin_edges=self.n_xbin_edges,
+            n_ybin_edges=self.n_ybin_edges, 
+            ndim=self.ndim,
+            nCells=nCells,
+        )
+  

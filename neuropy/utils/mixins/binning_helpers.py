@@ -5,6 +5,7 @@ import numpy as np
 from nptyping import NDArray
 import pandas as pd
 import attrs
+from attrs import define, field, Factory
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, custom_define, serialized_field, serialized_attribute_field, non_serialized_field, keys_only_repr, SimpleFieldSizesReprMixin
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
 
@@ -39,6 +40,62 @@ def get_bin_edges(bin_centers):
     out.append(last_edge_bin) # append the last_edge_bin to the bins.
     return np.array(out)
 
+
+@custom_define(slots=False, eq=False)
+class DebugBinningInfo(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
+    """ A comparable object to hold all the binning releated info for comparing different binnings in time/space/ncells
+    
+    from neuropy.utils.mixins.binning_helpers import DebugBinningInfo
+    
+    """
+    n_xbin_edges: serialized_attribute_field(is_computable=False)
+    n_ybin_edges: int = serialized_attribute_field(is_computable=False)
+    ndim: int = serialized_attribute_field(is_computable=False)
+    nFlatPositionBins: int = serialized_attribute_field(init=False, is_computable=True) ## computable
+ 
+    nCells: Optional[int] = serialized_attribute_field(is_computable=False, default=None)
+    nTimeBins: Optional[int] = serialized_attribute_field(is_computable=False, default=None)
+ 
+    def __attrs_post_init__(self):
+        """ validate and build bin_indicies """
+        # self._validate_variable_extents()
+        self.nFlatPositionBins = ((self.n_xbin_edges-1) * (self.n_ybin_edges-1)) if (self.ndim == 2) else (self.n_xbin_edges-1) # Number of position bins in flattened 1D representation
+        
+        # assert len(self.bin_indicies) == self.num_bins, f"len(self.bin_indicies): {len(self.bin_indicies)} does not equal self.num_bins: {self.num_bins}!! Something is wrong"
+        # self.num_bins = len(self.bin_indicies) # update from bin_indicies
+    
+class GridBinDebuggableMixin:
+    """ A mixin for a class that has a bin_indicies attribute that can be used to bin data.
+
+    Usage:
+        from neuropy.utils.mixins.binning_helpers import GridBinDebuggableMixin, DebugBinningInfo
+
+    """
+    def get_debug_binning_info(self) -> DebugBinningInfo:
+        """Returns relevant debug info about the binning configuration
+
+        Returns:
+            DebugBinningInfo: Contains binning dimensions and sizes
+        """
+        raise NotImplementedError("This method must be implemented in the subclass")
+        # n_xbin_edges = len(self.xbin)
+        # n_ybin_edges = len(self.ybin) if self.ybin is not None else 0
+        # ndim = self.ndim
+        # nCells = len(self.ratemap.neuron_ids)
+        # nTimeBins = len(self.filtered_pos_df)
+        # # nFlatPositionBins = ((n_xbin_edges-1) * (n_ybin_edges-1)) if (ndim == 2) else (n_xbin_edges-1) # Number of position bins in flattened 1D representation
+    
+        # return DebugBinningInfo(
+        # 	n_xbin_edges=n_xbin_edges,
+        # 	n_ybin_edges=n_ybin_edges, 
+        # 	ndim=ndim,
+        # 	nCells=nCells,
+        # 	nTimeBins=nTimeBins,
+        # 	# nFlatPositionBins=nFlatPositionBins
+        # )
+
+
+ 
 @custom_define(slots=False, repr=False, eq=False)
 class BinningInfo(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     """ Factored out of pyphocorehelpers.indexing_helpers.BinningInfo
@@ -346,7 +403,7 @@ def build_spanning_grid_matrix(x_values, y_values, debug_print=False):
     return all_entries_matrix, flat_all_entries_matrix, original_data_shape
 
 
-class BinnedPositionsMixin(object):
+class BinnedPositionsMixin(GridBinDebuggableMixin):
     """ Adds common accessors for convenince properties such as *bin_centers/*bin_labels
     
     Requires (Implementor Must Provide):
@@ -415,8 +472,6 @@ class BinnedPositionsMixin(object):
         else:
              return (len(self.ybin) - 1) # the -1 is to get the counts for the centers only
 
-            
-    
     @property
     def dims_coord_tuple(self):
         """Returns a tuple containing the number of bins in each dimension. For 1D it will be (n_xbins,) for 2D (n_xbins, n_ybins) 
@@ -432,7 +487,37 @@ class BinnedPositionsMixin(object):
             dims_coord_ist = (n_xbins,)
         return dims_coord_ist
 
+    @property
+    def n_flattened_position_bins(self) -> int:
+        """ the number of xbin edges. """
+        return np.sum(dims_coord_tuple)
+    
+    # ==================================================================================================================== #
+    # GridBinDebuggableMixin Conformances                                                                                  #
+    # ==================================================================================================================== #
+    def get_debug_binning_info(self) -> DebugBinningInfo:
+        """Returns relevant debug info about the binning configuration
 
+        Returns:
+            DebugBinningInfo: Contains binning dimensions and sizes
+        """  
+        # n_xbin_edges = len(self.xbin)
+        # n_ybin_edges = len(self.ybin) if self.ybin is not None else 0
+        # ndim = self.ndim
+        # nCells = len(self.ratemap.neuron_ids)
+        # nTimeBins = len(self.filtered_pos_df)
+        # nFlatPositionBins = ((n_xbin_edges-1) * (n_ybin_edges-1)) if (ndim == 2) else (n_xbin_edges-1) # Number of position bins in flattened 1D representation
+    
+        return DebugBinningInfo(
+            n_xbin_edges=self.n_xbin_edges,
+            n_ybin_edges=self.n_ybin_edges, 
+            ndim=self.ndim,
+            # nCells=nCells,
+            # nTimeBins=nTimeBins,
+            # nFlatPositionBins=nFlatPositionBins
+        )
+    
+    
 
 
 def bin_pos_nD(x: NDArray, y: NDArray, num_bins=None, bin_size=None):
