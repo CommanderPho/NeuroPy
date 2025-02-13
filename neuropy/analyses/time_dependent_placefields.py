@@ -15,7 +15,7 @@ from neuropy.utils.misc import safe_pandas_get_group, copy_if_not_none
 ## Need to apply position binning to the spikes_df's position columns to find the bins they fall in:
 from neuropy.utils.mixins.binning_helpers import build_df_discretized_binned_position_columns # for perform_time_range_computation only
 from neuropy.utils.mixins.unit_slicing import NeuronUnitSlicableObjectProtocol # allows placefields to be sliced by neuron ids
-
+from neuropy.utils.mixins.binning_helpers import DebugBinningInfo
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_field, serialized_attribute_field, non_serialized_field, custom_define
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
 
@@ -1118,6 +1118,26 @@ class PfND_TimeDependent(PfND):
         """ exports all snapshots as an xarray """
         return prepare_snapshots_for_export_as_xarray(historical_snapshots=self.historical_snapshots, ndim=self.ndim)
 
+
+    # ==================================================================================================================== #
+    # GridBinDebuggableMixin Conformances                                                                                  #
+    # ==================================================================================================================== #
+    def get_debug_binning_info(self) -> DebugBinningInfo:
+        """Returns relevant debug info about the binning configuration
+
+        Returns:
+            DebugBinningInfo: Contains binning dimensions and sizes
+        """  
+        # nCells = len(self.ratemap.neuron_ids) ## computes ratemap, which sucks and is slow
+        nCells = len(self.included_neuron_IDs) ## might be wrong, but is how it's used to calculate ratemap
+        return DebugBinningInfo(
+            n_xbin_edges=self.n_xbin_edges,
+            n_ybin_edges=self.n_ybin_edges, 
+            ndim=self.ndim,
+            nCells=nCells,
+        )
+
+        
 
 
 def perform_compute_time_dependent_placefields(active_session_spikes_df, active_pos, computation_config: PlacefieldComputationParameters, active_epoch_placefields1D=None, active_epoch_placefields2D=None, included_epochs=None, should_force_recompute_placefields=True):

@@ -1865,41 +1865,14 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         Returns:
             DebugBinningInfo: Contains binning dimensions and sizes
         """  
-        nCells = len(self.neuron_ids)
+        nCells = len(self.ratemap.neuron_ids)
         return DebugBinningInfo(
             n_xbin_edges=self.n_xbin_edges,
             n_ybin_edges=self.n_ybin_edges, 
             ndim=self.ndim,
             nCells=nCells,
         )
-  
-  
-  
-    def get_debug_binning_info(self) -> DebugBinningInfo:
-        """Returns relevant debug info about the binning configuration
-
-        Returns:
-            DebugBinningInfo: Contains binning dimensions and sizes
-        """
-        n_xbin_edges = len(self.xbin)
-        n_ybin_edges = len(self.ybin) if self.ybin is not None else 0
-        ndim = self.ndim
-        nCells = len(self.ratemap.neuron_ids)
-        nTimeBins = len(self.filtered_pos_df)
-        # nFlatPositionBins = ((n_xbin_edges-1) * (n_ybin_edges-1)) if (ndim == 2) else (n_xbin_edges-1) # Number of position bins in flattened 1D representation
-    
-        return DebugBinningInfo(
-            n_xbin_edges=n_xbin_edges,
-            n_ybin_edges=n_ybin_edges, 
-            ndim=ndim,
-            nCells=nCells,
-            nTimeBins=nTimeBins,
-            # nFlatPositionBins=nFlatPositionBins
-        )
-
                                 
-
-
 
 # ==================================================================================================================== #
 # Global Placefield Computation Functions                                                                              #
