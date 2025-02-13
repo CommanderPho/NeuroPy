@@ -56,13 +56,46 @@ class DebugBinningInfo(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     nCells: Optional[int] = serialized_attribute_field(is_computable=False, default=None)
     nTimeBins: Optional[int] = serialized_attribute_field(is_computable=False, default=None)
  
+
+    @property
+    def nTotalFlatAllTimebins(self) -> int:
+        """The total size of a flat matrix, determines how large the computation for decoding a posterior would be."""
+        total: int = self.nFlatPositionBins
+        if (self.nCells is not None):
+            total *= self.nCells
+        if self.nTimeBins is not None:
+            total *= self.nTimeBins
+        return total
+
+
+    @property
+    def dims_coord_tuple(self) -> Tuple:
+        """Returns a tuple containing the number of bins in each dimension. For 1D it will be (n_xbins,) for 2D (n_xbins, n_ybins) 
+        TODO 2023-03-08 19:31: - [ ] Add to parent class (PfND) since it should have the same implementation.
+        """
+        dims_size_list = [(self.n_xbin_edges-1), ]
+        if self.n_ybin_edges is not None:
+            dims_size_list.append((self.n_ybin_edges-1))
+        if (self.nCells is not None):
+            dims_size_list.append(self.nCells)
+        if self.nTimeBins is not None:
+            dims_size_list.append(self.nTimeBins)
+        return tuple(*dims_size_list)
+
     def __attrs_post_init__(self):
-        """ validate and build bin_indicies """
-        # self._validate_variable_extents()
         self.nFlatPositionBins = ((self.n_xbin_edges-1) * (self.n_ybin_edges-1)) if (self.ndim == 2) else (self.n_xbin_edges-1) # Number of position bins in flattened 1D representation
+
+    ## For serialization/pickling:
+    def __getstate__(self):
+        # Copy the object's state from self.__dict__ which contains all our instance attributes. Always use the dict.copy() method to avoid modifying the original state.
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        # super(BinningInfo, self).__init__() # Call the superclass __init__() (from https://stackoverflow.com/a/48325758)
+        self.__dict__.update(state)
         
-        # assert len(self.bin_indicies) == self.num_bins, f"len(self.bin_indicies): {len(self.bin_indicies)} does not equal self.num_bins: {self.num_bins}!! Something is wrong"
-        # self.num_bins = len(self.bin_indicies) # update from bin_indicies
+
     
 class GridBinDebuggableMixin:
     """ A mixin for a class that has a bin_indicies attribute that can be used to bin data.
