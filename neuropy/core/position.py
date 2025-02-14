@@ -457,6 +457,15 @@ class PositionComputedDataMixin:
         return percentage_within_ranges, filtered_df
     
 
+    def find_percent_pos_samples_within_grid_bin_bounds(self, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> Tuple[float, pd.DataFrame]:
+        """Instance method version that uses the accessor's internal dataframe.
+        
+        Usage:
+            percentage, filtered_df = pos_df.position.find_percent_pos_samples_within_grid_bin_bounds(grid_bin_bounds=correct_grid_bin_bounds)
+        """
+        return self.__class__.find_percent_pos_samples_within_grid_bin_bounds(self.df, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, 
+                                                                            xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple,
+                                                                            grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
 
 
 
