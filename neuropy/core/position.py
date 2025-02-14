@@ -412,77 +412,30 @@ class PositionComputedDataMixin(PositionSlicedMixin):
     # grid_bin_bounds filtering                                                                                            #
     # ==================================================================================================================== #
     @classmethod
-    def filtering_by_grid_bin_bounds(cls, pos_df: pd.DataFrame, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> pd.DataFrame:
-        """ Filters the position dataframe by the specified bounds
-        
-        Args:
-            pos_df (pd.DataFrame): DataFrame containing position data with 'x' and optionally 'y' columns
-            xmin (Optional[float]): Minimum x-axis bound
-            xmax (Optional[float]): Maximum x-axis bound
-            ymin (Optional[float]): Minimum y-axis bound
-            ymax (Optional[float]): Maximum y-axis bound
-            xmin_xmax_tuple (Optional[Tuple[float, float]]): Tuple of (xmin, xmax)
-            ymin_ymax_tuple (Optional[Tuple[float, float]]): Tuple of (ymin, ymax)
-            grid_bin_bounds (Optional[Tuple[Tuple[float, float], Tuple[float, float]]]): Tuple of ((xmin, xmax), (ymin, ymax))
-            debug_print (bool): Whether to print debug information
+    def filtered_by_grid_bin_bounds(cls, pos_df: pd.DataFrame, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> pd.DataFrame:
+        """ Filters the position dataframe by the specified bounds using position_sliced """
+        return pos_df.position.position_sliced(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
 
-        Returns:
-            pd.DataFrame: filtered dataframe containing only positions within bounds
-        """
-        # Parse input arguments to get bounds
-        if grid_bin_bounds is not None:
-            (xmin, xmax), (ymin, ymax) = grid_bin_bounds
-            assert ((xmin_xmax_tuple is None) and (ymin_ymax_tuple is None)), "only one mutually exclusive argument allowed at a time!"
-        elif (xmin_xmax_tuple is not None) or (ymin_ymax_tuple is not None):
-            if xmin_xmax_tuple is not None:
-                xmin, xmax = xmin_xmax_tuple
-            if ymin_ymax_tuple is not None:
-                ymin, ymax = ymin_ymax_tuple
-        
-        # Build filter conditions
-        filter_conditions = []
-        if xmin is not None and xmax is not None:
-            filter_conditions.append((pos_df['x'] >= xmin) & (pos_df['x'] <= xmax))
-        
-        if 'y' in pos_df.columns and ymin is not None and ymax is not None:
-            filter_conditions.append((pos_df['y'] >= ymin) & (pos_df['y'] <= ymax))
-        
-        # Combine all conditions
-        if filter_conditions:
-            is_pos_sample_included = filter_conditions[0]
-            for condition in filter_conditions[1:]:
-                is_pos_sample_included = is_pos_sample_included & condition
-                
-            filtered_df = pos_df[is_pos_sample_included]
-        else:
-            filtered_df = pos_df
-            
-        return filtered_df
-
-    def filtering_by_grid_bin_bounds(self, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> pd.DataFrame:
-        """Instance method version that uses the accessor's internal dataframe."""
-        return self.__class__.filtering_by_grid_bin_bounds(self._obj, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
-                                                        xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple,
-                                                        grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
-
+    def filtered_by_grid_bin_bounds(self, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> pd.DataFrame:
+        """Instance method version that uses position_sliced"""
+        return self.position_sliced(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
 
     @classmethod
     def find_percent_pos_samples_within_grid_bin_bounds(cls, pos_df: pd.DataFrame, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> Tuple[float, pd.DataFrame]:
-        """Computes percentage of positions within bounds and returns filtered dataframe"""
-        filtered_df = cls.filtering_by_grid_bin_bounds(pos_df, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
-                                                    xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple,
-                                                    grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
-        
+        """Computes percentage of positions within bounds using position_sliced"""
+        filtered_df = cls.filtered_by_grid_bin_bounds(pos_df, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
         percentage_within_ranges = (len(filtered_df) / len(pos_df)) * 100
         if debug_print:
             print(f'percentage_within_ranges: {percentage_within_ranges}%')
         return percentage_within_ranges, filtered_df
 
     def find_percent_pos_samples_within_grid_bin_bounds(self, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> Tuple[float, pd.DataFrame]:
-        """Instance method version that uses the accessor's internal dataframe."""
-        return self.__class__.find_percent_pos_samples_within_grid_bin_bounds(self._obj, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
-                                                                            xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple,
-                                                                            grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
+        """Instance method version using position_sliced
+        
+        percentage_within_ranges, filtered_df = self.find_percent_pos_samples_within_grid_bin_bounds(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
+        """
+        return self.__class__.find_percent_pos_samples_within_grid_bin_bounds(self._obj, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
+
 
 
 
