@@ -7,7 +7,7 @@ import pandas as pd
 from typing import Sequence, Union
 from neuropy.utils.mixins.binning_helpers import BinningInfo
 from .datawriter import DataWriter
-from neuropy.utils.mixins.time_slicing import TimeSlicableObjectProtocol, TimeSlicedMixin
+from neuropy.utils.mixins.time_slicing import TimePointEventAccessor, TimeSlicableObjectProtocol, TimeSlicedMixin
 from neuropy.utils.mixins.unit_slicing import NeuronUnitSlicableObjectProtocol
 from neuropy.utils.mixins.concatenatable import ConcatenationInitializable
 from neuropy.utils.mixins.HDF5_representable import HDFMixin
@@ -16,7 +16,7 @@ module_logger = ...
 _REQUIRE_NEURON_TYPE_COLUMN: bool = ...
 _REQUIRE_FLAT_SPIKE_INDEX_COLUMN: bool = ...
 @pd.api.extensions.register_dataframe_accessor("spikes")
-class SpikesAccessor(TimeSlicedMixin):
+class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
     """ Part of the December 2021 Rewrite of the neuropy.core classes to be Pandas DataFrame based and easily manipulatable """
     __time_variable_name = ...
     def __init__(self, pandas_obj) -> None:
@@ -151,7 +151,6 @@ class SpikesAccessor(TimeSlicedMixin):
                 active_spikes_df = active_spikes_df.spikes.adding_epochs_identity_column(epochs_df=active_epochs_df, epoch_id_key_name=epoch_id_key_name, epoch_label_column_name='label', override_time_variable_name='t_rel_seconds',
                                                                                         no_interval_fill_value=no_interval_fill_value, should_replace_existing_column=True, drop_non_epoch_spikes=True)
                                                                                         
-
         """
         ...
     

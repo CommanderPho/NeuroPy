@@ -80,6 +80,38 @@ def unwrap_single_item(lst): # -> None:
     """
     ...
 
+def wrap_in_container_if_needed(value, container_types=..., container_constructor=...): # -> list[Any]:
+    """  When passing a scalar, it gets wrapped in a list (or whatever type is specified by `container_constructor`); but when passing an already list-like object, it is returned as-is:
+    Wrap a scalar value in a container if it is not already one of the given container_types.
+    
+    Parameters:
+      value: The value to be checked.
+      container_types: A tuple of types that are considered container-like.
+                       If value is an instance of one of these, it is returned as-is.
+      container_constructor: A callable that will be used to wrap the value
+                             if it is scalar. By default, this is the list constructor.
+                             
+    Returns:
+      Either the original value (if it is an instance of container_types)
+      or a new container (by default, a list) containing value.
+        
+    Usage:
+        from neuropy.utils.indexing_helpers import wrap_in_container_if_needed
+        
+        # When passing a scalar, it gets wrapped in a list:
+        a_value = wrap_in_container_if_needed('DirectionalLaps', container_constructor=list)
+        assert isinstance(a_value, list)
+        print(a_value)  # Output: ['DirectionalLaps']
+
+        # When passing an already list-like object, it is returned as-is:
+        another_value = wrap_in_container_if_needed(['DirectionalLaps'])
+        assert isinstance(another_value, list)
+        print(another_value)  # Output: ['DirectionalLaps']
+
+            
+    """
+    ...
+
 def find_desired_sort_indicies(extant_arr, desired_sort_arr): # -> tuple[NDArray[Any], NDArray[Any] | Any]:
     """ Finds the set of sort indicies that can be applied to extant_arr s.t.
         (extant_arr[out_sort_idxs] == desired_sort_arr)
@@ -277,6 +309,22 @@ class NumpyHelpers:
         """ returns the result of `np.split(...)` but removes any empty sequences that it returns. """
         ...
     
+    @classmethod
+    def convert_to_array_recursive(cls, data: Any) -> Any:
+        """
+        Recursively converts lists and tuples in a nested structure into np.array objects.
+
+        Args:
+            data (Any): The input data, can be a list, tuple, dict, or other nested structure.
+
+        Returns:
+            Any: The transformed structure with lists and tuples replaced by np.array.
+
+        Usage:
+            result = convert_to_array_recursive([1, 2, (3, 4, [5, 6])])
+        """
+        ...
+    
 
 
 def paired_incremental_sorting(neuron_IDs_lists, sortable_values_lists): # -> list[Any]:
@@ -397,7 +445,21 @@ def flatten_dict(d: Dict, parent_key=..., sep=...) -> Dict:
     Usage:
         from neuropy.utils.indexing_helpers import flatten_dict
     
+        flat_dict = flatten_dict(a_dict, parent_key='', sep='/')
+    
     """
+    ...
+
+def get_values_from_keypaths(data, keypaths): # -> dict[Any, Any | None]:
+    """ used with benedict-dicts to get nested values from a flat list of keypaths """
+    ...
+
+def set_value_by_keypath(data, keypath, value): # -> None:
+    """ used with benedict-dicts to set multiple nested values from a flat (non-nested) dict keypath:Value items """
+    ...
+
+def update_nested_dict(data, updates): # -> None:
+    """ used with benedict-dicts to update nested values from a flat list of keypaths """
     ...
 
 class PandasHelpers:

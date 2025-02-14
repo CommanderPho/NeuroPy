@@ -7,7 +7,7 @@ import pandas as pd
 from typing import Sequence, Union
 from .epoch import Epoch
 from .datawriter import DataWriter
-from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableObjectProtocol, TimeSlicedMixin
+from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimePointEventAccessor, TimeSlicableObjectProtocol, TimeSlicedMixin
 from neuropy.utils.mixins.concatenatable import ConcatenationInitializable
 from neuropy.utils.mixins.dataframe_representable import DataFrameRepresentable
 from neuropy.utils.mixins.HDF5_representable import HDFMixin
@@ -195,16 +195,54 @@ class PositionComputedDataMixin:
     def acceleration_y(self): # -> ndarray[Any, Any]:
         ...
     
+    @classmethod
+    def perform_add_binned_position_columns(cls, pos_df: pd.DataFrame, xbin_edges=..., ybin_edges=..., active_computation_config=..., debug_print: bool = ...) -> pd.DataFrame:
+        """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
+        
+        PURE: does not modify `pos_df`, returns a copy
+        
+        `active_computation_config` is not used/needed if the appropriate xbin_edges/ybin_edges are provided.
+        
+        Internally uses: `build_df_discretized_binned_position_columns`
+        
+        """
+        ...
+    
+    def adding_binned_position_columns(self, xbin_edges=..., ybin_edges=..., active_computation_config=..., debug_print: bool = ...) -> pd.DataFrame:
+        """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
+        `active_computation_config` is not used/needed if the appropriate xbin_edges/ybin_edges are provided.
+        Internally uses: `cls.perform_add_binned_position_columns(...)`
+        """
+        ...
+    
 
+
+def adding_lap_info_to_position_df(position_df: pd.DataFrame, laps_df: pd.DataFrame, debug_print: bool = ...): # -> DataFrame[Any]:
+    """ Adds a 'lap' column to the position dataframe:
+        Also adds a 'lap_dir' column, containing 0 if it's an outbound trial, 1 if it's an inbound trial, and -1 if it's neither.
+    Usage:
+    
+        from neuropy.core.position import adding_lap_info_to_position_df
+        
+        curr_position_df = self.position.to_dataframe() # get the position dataframe from the session
+        curr_laps_df = self.laps.to_dataframe()
+        curr_position_df = adding_lap_info_to_position_df(position_df=curr_position_df, laps_df=curr_laps_df)
+        
+        # update:
+        self.position._data['lap'] = curr_position_df['lap']
+        self.position._data['lap_dir'] = curr_position_df['lap_dir']
+        
+    """
+    ...
 
 @pd.api.extensions.register_dataframe_accessor("position")
-class PositionAccessor(PositionDimDataMixin, PositionComputedDataMixin, TimeSlicedMixin):
+class PositionAccessor(PositionDimDataMixin, PositionComputedDataMixin, TimeSlicedMixin, TimePointEventAccessor):
     """ A Pandas DataFrame-based Position helper. """
     def __init__(self, pandas_obj) -> None:
         ...
     
     @property
-    def df(self): # -> Any:
+    def df(self): # -> Any | DataFrame[Any]:
         ...
     
     @df.setter
@@ -218,7 +256,7 @@ class PositionAccessor(PositionDimDataMixin, PositionComputedDataMixin, TimeSlic
         """
         ...
     
-    def drop_dimensions_above(self, desired_ndim: int, inplace: bool = ...): # -> None:
+    def drop_dimensions_above(self, desired_ndim: int, inplace: bool = ...): # -> DataFrame[Any] | None:
         """ drops all columns related to dimensions above `desired_ndim`.
 
         e.g. desired_ndim = 1:
@@ -226,6 +264,24 @@ class PositionAccessor(PositionDimDataMixin, PositionComputedDataMixin, TimeSlic
 
         if inplace is True, None is returned and the dataframe is modified in place
 
+        """
+        ...
+    
+    def adding_lap_info(self, laps_df: pd.DataFrame, inplace: bool = ..., debug_print: bool = ...): # -> DataFrame[Any]:
+        """ Adds a 'lap' column to the position dataframe:
+            Also adds a 'lap_dir' column, containing 0 if it's an outbound trial, 1 if it's an inbound trial, and -1 if it's neither.
+        Usage:
+        
+            from neuropy.core.position import adding_lap_info_to_position_df
+            
+            curr_position_df = self.position.to_dataframe() # get the position dataframe from the session
+            curr_laps_df = self.laps.to_dataframe()
+            curr_position_df = curr_position_df.position.adding_lap_info(laps_df=curr_laps_df, inplace=False)
+            
+            # update:
+            self.position._data['lap'] = curr_position_df['lap']
+            self.position._data['lap_dir'] = curr_position_df['lap_dir']
+            
         """
         ...
     

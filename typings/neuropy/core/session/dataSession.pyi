@@ -268,11 +268,21 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         ...
     
     @staticmethod
-    def compute_laps_position_df(position_df, laps_df):
+    def compute_laps_position_df(position_df, laps_df): # -> DataFrame[Any]:
         """ Adds a 'lap' column to the position dataframe:
             Also adds a 'lap_dir' column, containing 0 if it's an outbound trial, 1 if it's an inbound trial, and -1 if it's neither.
         Usage:
-            laps_position_traces, curr_position_df = compute_position_laps(sess) """
+            laps_position_traces, curr_position_df = compute_position_laps(sess) 
+            
+            curr_position_df = self.position.to_dataframe() # get the position dataframe from the session
+            curr_laps_df = self.laps.to_dataframe()
+            curr_position_df = DataSession.compute_laps_position_df(curr_position_df, curr_laps_df)
+            
+            # update:
+            self.position._data['lap'] = curr_position_df['lap']
+            self.position._data['lap_dir'] = curr_position_df['lap_dir']
+            
+        """
         ...
     
     def compute_spikes_PBEs(self):

@@ -59,7 +59,7 @@ def get_dict_subset(a_dict: dict, subset_includelist=..., subset_excludelist=...
         
     Usage:
         from neuropy.utils.mixins.indexing_helpers import get_dict_subset
-        
+        get_dict_subset(a_dict: dict, subset_includelist=None, subset_excludelist=None)
     """
     ...
 

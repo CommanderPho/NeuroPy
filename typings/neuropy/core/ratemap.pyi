@@ -7,7 +7,7 @@ import neuropy.utils.type_aliases as types
 from typing import Dict, Tuple
 from nptyping import NDArray
 from neuropy.core.neuron_identities import NeuronIdentitiesDisplayerMixin
-from neuropy.utils.mixins.binning_helpers import BinnedPositionsMixin
+from neuropy.utils.mixins.binning_helpers import BinnedPositionsMixin, DebugBinningInfo
 from neuropy.plotting.mixins.ratemap_mixins import RatemapPlottingMixin
 from neuropy.utils.mixins.unit_slicing import NeuronUnitSlicableObjectProtocol
 from neuropy.utils.mixins.HDF5_representable import HDFMixin
@@ -268,6 +268,14 @@ class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, Co
             combined_directional_ratemap = Ratemap.build_merged_ratemap(lhs, rhs)
             combined_directional_ratemap
         
+        """
+        ...
+    
+    def get_debug_binning_info(self) -> DebugBinningInfo:
+        """Returns relevant debug info about the binning configuration
+
+        Returns:
+            DebugBinningInfo: Contains binning dimensions and sizes
         """
         ...
     

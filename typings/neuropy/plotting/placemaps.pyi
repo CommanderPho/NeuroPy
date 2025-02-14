@@ -12,7 +12,7 @@ def plot_all_placefields(active_placefields1D, active_placefields2D, active_conf
     """
     ...
 
-def plot_placefield_occupancy(active_epoch_placefields, fig=..., ax=..., **kwargs): # -> tuple[Figure | Any, Axes | Any]:
+def plot_placefield_occupancy(active_epoch_placefields, fig=..., ax=..., plot_pos_bin_axes: bool = ..., **kwargs): # -> tuple[Figure | Any, Axes | Any]:
     """ plots the placefield occupancy in a matplotlib figure. 
     Works for both 1D and 2D.
     

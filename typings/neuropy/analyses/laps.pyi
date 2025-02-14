@@ -37,6 +37,9 @@ def build_lap_computation_epochs(sess, use_direction_dependent_laps: bool = ...)
 
     Notes:
         lap_specific_epochs.labels: ['0', '1', ..., '79'] == ['0', ..., f'{len(sess.laps.lap_id)-1}]
+        
+        
+    #TODO 2025-02-12 05:03: - [ ] NOTE - old - odd/even/any directional notation
 
     """
     ...
