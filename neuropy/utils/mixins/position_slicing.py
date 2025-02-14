@@ -1,4 +1,5 @@
 from typing import Dict, List, Tuple, Optional
+import pandas as pd
 
 class PositionSlicedMixin:
     """ Used in Position-based classes to enable spatial filtering/slicing operations 
@@ -22,7 +23,7 @@ class PositionSlicedMixin:
             return ('binned_x', 'binned_y')
         return ('binned_x',)
 
-    def position_sliced(self, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> pd.DataFrame:
+    def position_sliced(self, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None) -> pd.DataFrame:
         """ Returns a copy of the dataframe filtered to only include positions within the specified bounds """
         # Build filter conditions
         filter_conditions = []

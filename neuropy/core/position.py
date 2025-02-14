@@ -411,31 +411,20 @@ class PositionComputedDataMixin(PositionSlicedMixin):
     # ==================================================================================================================== #
     # grid_bin_bounds filtering                                                                                            #
     # ==================================================================================================================== #
-    @classmethod
-    def filtered_by_grid_bin_bounds(cls, pos_df: pd.DataFrame, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> pd.DataFrame:
-        """ Filters the position dataframe by the specified bounds using position_sliced """
-        return pos_df.position.position_sliced(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
-
-    def filtered_by_grid_bin_bounds(self, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> pd.DataFrame:
+    def filtered_by_grid_bin_bounds(self, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None) -> pd.DataFrame:
         """Instance method version that uses position_sliced"""
-        return self.position_sliced(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
-
-    @classmethod
-    def find_percent_pos_samples_within_grid_bin_bounds(cls, pos_df: pd.DataFrame, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> Tuple[float, pd.DataFrame]:
-        """Computes percentage of positions within bounds using position_sliced"""
-        filtered_df = cls.filtered_by_grid_bin_bounds(pos_df, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
-        percentage_within_ranges = (len(filtered_df) / len(pos_df)) * 100
-        if debug_print:
-            print(f'percentage_within_ranges: {percentage_within_ranges}%')
-        return percentage_within_ranges, filtered_df
+        return self.position_sliced(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds)
 
     def find_percent_pos_samples_within_grid_bin_bounds(self, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> Tuple[float, pd.DataFrame]:
         """Instance method version using position_sliced
         
         percentage_within_ranges, filtered_df = self.find_percent_pos_samples_within_grid_bin_bounds(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
         """
-        return self.__class__.find_percent_pos_samples_within_grid_bin_bounds(self._obj, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
-
+        filtered_df = self.filtered_by_grid_bin_bounds(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple, grid_bin_bounds=grid_bin_bounds)
+        percentage_within_ranges = (len(filtered_df) / len(self.df)) * 100
+        if debug_print:
+            print(f'percentage_within_ranges: {percentage_within_ranges}%')
+        return percentage_within_ranges, filtered_df
 
 
 
