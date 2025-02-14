@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Sequence, Union
+from typing import Sequence, Union, Optional, Tuple, Dict, List, Any
 import itertools # for flattening lists with itertools.chain.from_iterable()
 import numpy as np
 import h5py # for to_hdf and read_hdf definitions
@@ -400,6 +400,64 @@ class PositionComputedDataMixin:
         self.df = self.perform_add_binned_position_columns(pos_df=self.df, xbin_edges=xbin_edges, ybin_edges=ybin_edges, active_computation_config=active_computation_config, debug_print=debug_print)
         return self.df
     
+
+    @classmethod
+    def find_percent_pos_samples_within_grid_bin_bounds(cls, pos_df: pd.DataFrame, xmin: Optional[float]=None, xmax: Optional[float]=None, ymin: Optional[float]=None, ymax: Optional[float]=None, xmin_xmax_tuple: Optional[Tuple[float, float]]=None, ymin_ymax_tuple: Optional[Tuple[float, float]]=None, grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]=None, debug_print: bool=False) -> Tuple[float, pd.DataFrame]:
+        """ sanity-checks the grid_bin_bounds against the pos_df to see what percent of positions fall within the bounds
+        
+        percentage_within_ranges, filtered_df = find_percent_pos_samples_within_grid_bin_bounds(pos_df=pos_df, grid_bin_bounds=correct_grid_bin_bounds)
+        
+        percentage_within_ranges, filtered_df = find_percent_pos_samples_within_grid_bin_bounds(pos_df=pos_df, grid_bin_bounds=((0.0, 287.7697841726619), (115.10791366906477, 172.66187050359713)))
+
+        percentage_within_ranges, filtered_df = find_percent_pos_samples_within_grid_bin_bounds(pos_df=pos_df, grid_bin_bounds=((37.0773897438341, 250.69004399129707), (107.8177789584226, 113.7570079192343)))
+
+        """
+        (grid_bin_bounds is not None) and ((xmin is None) and (xmax is None) and (ymin is None) and (ymax is None))
+        if grid_bin_bounds is not None:
+            (xmin, xmax), (ymin, ymax) = grid_bin_bounds
+            assert ((xmin is None) and (xmax is None) and (ymin is None) and (ymax is None)), "only one mututally exclusive argument allowed at a time!"
+            assert ((xmin_xmax_tuple is None) and (ymin_ymax_tuple is None)), "only one mututally exclusive argument allowed at a time!"
+        elif (xmin_xmax_tuple is not None) or (ymin_ymax_tuple is not None):
+            ## already know grid_bin_bounds is None
+            assert ((xmin is None) and (xmax is None) and (ymin is None) and (ymax is None)), "only one mututally exclusive argument allowed at a time!"
+            xmin, xmax = xmin_xmax_tuple
+            if ymin_ymax_tuple is not None:
+                ymin, ymax = ymin_ymax_tuple
+            else:
+                ymin, ymax = (None, None)
+        else:
+            ## individual mode
+            assert (xmin is not None) and (xmax is not None)
+                             
+        ## now have xmin, xmax
+        
+        # Build filter conditions
+        filter_conditions = []
+        if xmin is not None and xmax is not None:
+            filter_conditions.append((pos_df['x'] >= xmin) & (pos_df['x'] <= xmax))
+        
+        if 'y' in pos_df.columns and ymin is not None and ymax is not None:
+            filter_conditions.append((pos_df['y'] >= ymin) & (pos_df['y'] <= ymax))
+        
+        # Combine all conditions
+        if filter_conditions:
+            is_pos_sample_included = filter_conditions[0]
+            for condition in filter_conditions[1:]:
+                is_pos_sample_included = is_pos_sample_included & condition
+                
+            filtered_df = pos_df[is_pos_sample_included]
+        else:
+            filtered_df = pos_df
+
+        # Calculate percentage
+        percentage_within_ranges = (len(filtered_df) / len(pos_df)) * 100
+        
+        if debug_print:
+            print(f'percentage_within_ranges: {percentage_within_ranges}%')
+        return percentage_within_ranges, filtered_df
+    
+
+
 
 
 def adding_lap_info_to_position_df(position_df: pd.DataFrame, laps_df: pd.DataFrame, debug_print:bool=False):
