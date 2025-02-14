@@ -13,6 +13,7 @@ from neuropy.utils.mixins.concatenatable import ConcatenationInitializable
 from neuropy.utils.mixins.dataframe_representable import DataFrameRepresentable
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
 from neuropy.utils.mixins.time_slicing import TimePointEventAccessor
+from neuropy.utils.mixins.position_slicing import PositionSlicedMixin
 
 """ --- Helper FUNCTIONS """
 def build_position_df_time_window_idx(active_pos_df: pd.DataFrame, curr_active_time_windows, debug_print=False):
@@ -156,7 +157,10 @@ class PositionDimDataMixin:
     def n_frames(self):
         return len(self.df.index)
 
-class PositionComputedDataMixin:
+
+
+
+class PositionComputedDataMixin(PositionSlicedMixin):
     """ Requires conformance to PositionDimDataMixin as well. Adds computed properties like velocity and acceleration (higher-order derivatives of position) and smoothed values to the dataframe."""
     
     ## Computed Variable Labels Properties:
@@ -358,6 +362,9 @@ class PositionComputedDataMixin:
         return self.df['acceleration_y'].to_numpy()
     
 
+    # ==================================================================================================================== #
+    # Position Discretization/Binning                                                                                      #
+    # ==================================================================================================================== #
     @classmethod
     def perform_add_binned_position_columns(cls, pos_df: pd.DataFrame, xbin_edges=None, ybin_edges=None, active_computation_config=None, debug_print:bool=False) -> pd.DataFrame:
         """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
@@ -466,6 +473,7 @@ class PositionComputedDataMixin:
         return self.__class__.find_percent_pos_samples_within_grid_bin_bounds(self.df, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, 
                                                                             xmin_xmax_tuple=xmin_xmax_tuple, ymin_ymax_tuple=ymin_ymax_tuple,
                                                                             grid_bin_bounds=grid_bin_bounds, debug_print=debug_print)
+
 
 
 
