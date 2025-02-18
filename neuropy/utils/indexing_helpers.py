@@ -1247,6 +1247,33 @@ class PandasHelpers:
         
         return (added_rows, same_rows, removed_rows)
             
+    @classmethod
+    def swap_columns(cls, potentially_updated_df: pd.DataFrame, lhs_col_name: str, rhs_col_name: str, temp_col_suffix: str = '_temp', debug_print=False) -> pd.DataFrame:
+        """ Returns an empty dataframe with the same columns (and the same dtypes for each column) as `df`
+
+        Usage:
+            
+            from neuropy.utils.indexing_helpers import PandasHelpers
+
+            self.stacked_flat_global_pos_df = PandasHelpers.swap_columns(self.stacked_flat_global_pos_df, lhs_col_name='x', rhs_col_name='y') 
+            self.stacked_flat_global_pos_df = PandasHelpers.swap_columns(self.stacked_flat_global_pos_df, lhs_col_name='x_scaled', rhs_col_name='y_scaled') 
+            
+        
+        """
+        assert lhs_col_name in potentially_updated_df
+        assert rhs_col_name in potentially_updated_df
+        temp_col_name: str = f"{rhs_col_name}{temp_col_suffix}"
+        if debug_print:
+            print(f'temp_col_name: "{temp_col_name}"')
+        assert (temp_col_name not in potentially_updated_df), f"the temporary column name '{temp_col_name}' already exists in the dataframe, so we cannot overwrite it!"
+        ## swap axes:
+        potentially_updated_df[temp_col_name] = deepcopy(potentially_updated_df[rhs_col_name])
+        potentially_updated_df[rhs_col_name] = deepcopy(potentially_updated_df[lhs_col_name])
+        potentially_updated_df[lhs_col_name] = deepcopy(potentially_updated_df[temp_col_name])
+        potentially_updated_df.drop(columns=[temp_col_name], inplace=True)
+        return potentially_updated_df
+            
+
         
 class ColumnTracker(ContextDecorator):
     """A context manager to track changes in the columns of DataFrames.
