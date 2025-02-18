@@ -80,6 +80,7 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         for an_additional_arg, arg_value in kwargs.items():
             setattr(self, an_additional_arg, arg_value) # allows specifying additional information as optional arguments
     
+
     def __repr__(self) -> str:
         if self.recinfo is None:
             return f"{self.__class__.__name__}(config: {self.config}): Not yet configured."
@@ -88,6 +89,8 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
                 return f"{self.__class__.__name__}(configured from manual recinfo: {self.recinfo})"
             else:
                 return f"{self.__class__.__name__}({self.recinfo.source_file.name})"
+            
+    
     #######################################################
     ## Passthru Accessor Properties:
     @property
