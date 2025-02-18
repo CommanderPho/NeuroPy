@@ -177,8 +177,6 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
 
         # 2023-05-16 - Replace loaded replays (which are bad) with estimated ones:
         
-        
-        
         # num_pre = session.replay.
         replay_estimation_parameters = sess.config.preprocessing_parameters.epoch_estimation_parameters.replays
         assert replay_estimation_parameters is not None
@@ -206,6 +204,13 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         #     'PBEs': PBE_estimation_parameters,
         #     'replays': replay_estimation_parameters
         # }))
+
+
+        # ==================================================================================================================== #
+        # 2025-02-18 - Add the Non-PBE epochs:                                                                                 #
+        # ==================================================================================================================== #
+        new_non_pbe_epochs = sess.compute_non_PBE_epochs(sess, active_parameters=PBE_estimation_parameters, save_on_compute=True)
+        sess.non_pbe = new_non_pbe_epochs
 
         return sess
 
