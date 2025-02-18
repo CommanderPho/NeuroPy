@@ -447,7 +447,7 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         Returns:
             _type_: _description_
         """
-        from pyphoplacecellanalysis.General.Pipeline.Stages.ComputationFunctions.DefaultComputationFunctions import KnownFilterEpochs
+        from pyphoplacecellanalysis.General.Pipeline.Stages.ComputationFunctions.EpochComputationFunctions import KnownFilterEpochs
 
         print('computing estimated replay epochs for session...\n')
         filter_epochs = a_session.pbe # Epoch object
