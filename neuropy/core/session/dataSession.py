@@ -11,7 +11,7 @@ import tables as tb
 from pathlib import Path
 from neuropy import core
 from neuropy.core import neurons
-from neuropy.core.epoch import Epoch, NamedTimerange
+from neuropy.core.epoch import Epoch, NamedTimerange, ensure_dataframe, ensure_Epoch
 from neuropy.core.flattened_spiketrains import FlattenedSpiketrains
 from neuropy.core.laps import Laps
 from neuropy.core.position import Position, PositionAccessor, adding_lap_info_to_position_df
@@ -386,6 +386,91 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         return new_pbe_epochs
     # sess.pbe = compute_pbe_epochs(sess)
     
+
+    @classmethod
+    def compute_non_PBE_epochs(cls, session, active_parameters=None, save_on_compute=False, **additional_df_metdata) -> pd.DataFrame:
+        """ Builds a dictionary of train/test-split epochs for ['long', 'short', 'global'] periods
+        
+        from pyphoplacecellanalysis.SpecificResults.PendingNotebookCode import _adding_global_non_PBE_epochs
+        
+        a_new_training_df, a_new_test_df, a_new_training_df_dict, a_new_test_df_dict = Compute_NonPBE_Epochs._compute_non_PBE_epochs_from_sess(sess=long_session)
+        a_new_training_df
+        a_new_test_df
+
+            
+        sess.pbe
+        sess.epochs
+        curr_active_pipeline.find_LongShortDelta_times()
+        
+        Usage:
+        
+            t_start, t_delta, t_end = curr_active_pipeline.find_LongShortDelta_times()
+            , t_start: float, t_delta: float, t_end: float
+        
+        """
+        print('computing non_PBE epochs for session...\n')
+        if active_parameters is None:
+            raise NotImplementedError
+            # active_parameters = dict(sigma=0.030, thresh=(0, 1.5), min_dur=0.030, merge_dur=0.100, max_dur=2.3) # 2023-10-05 Kamran's imposed Parameters, wants to remove the effect of the max_dur which was previously at 0.300
+        # Filter parameters:
+        extracted_filter_parameters = dict(require_intersecting_epoch=active_parameters.pop('require_intersecting_epoch', None),
+                                            min_epoch_included_duration=active_parameters.pop('min_epoch_included_duration', None), max_epoch_included_duration=active_parameters.pop('max_epoch_included_duration', None),
+                                            maximum_speed_thresh=active_parameters.pop('maximum_speed_thresh', None),
+                                            min_inclusion_fr_active_thresh=active_parameters.pop('min_inclusion_fr_active_thresh', None), min_num_unique_aclu_inclusions=active_parameters.pop('min_num_unique_aclu_inclusions', None))
+
+
+
+        ## build the epochs object:    
+        PBE_df: pd.DataFrame = ensure_dataframe(deepcopy(session.pbe))
+        ## Build up a new epoch -- this works successfully for filter epochs as well, although 'maze' label is incorrect
+        epochs_df: pd.DataFrame = deepcopy(session.epochs).epochs.adding_global_epoch_row()
+        global_epoch_only_df: pd.DataFrame = epochs_df.epochs.label_slice('maze')
+
+        # t_start, t_stop = epochs_df.epochs.t_start, epochs_df.epochs.t_stop
+        global_epoch_only_non_PBE_epoch_df: pd.DataFrame = global_epoch_only_df.epochs.subtracting(PBE_df)
+        global_epoch_only_non_PBE_epoch_df = global_epoch_only_non_PBE_epoch_df.epochs.modify_each_epoch_by(additive_factor=-0.008, final_output_minimum_epoch_duration=0.040)
+
+        # 'global'
+        # f'global_NonPBE_TRAIN'
+
+        df_metadata = {}
+        # if track_identity is not None:
+        #     df_metadata['track_identity'] = track_identity
+        # if interval_datasource_name is not None:
+        #     df_metadata['interval_datasource_name'] = interval_datasource_name
+            
+        df_metadata.update(**additional_df_metdata)        
+        # for a_df_metadata_key, a_v in additional_df_metdata.items():
+            
+        ## Add the metadata:
+        if len(df_metadata) > 0:
+            global_epoch_only_non_PBE_epoch_df = global_epoch_only_non_PBE_epoch_df.epochs.adding_or_updating_metadata(**df_metadata)
+        
+        ## Add the maze_id column to the epochs:
+        
+        # a_new_global_training_df = a_new_global_training_df.epochs.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end)
+        # a_new_global_test_df = a_new_global_test_df.epochs.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end)
+
+        # maze_id_to_maze_name_map = {-1:'none', 0:'long', 1:'short'}
+        # a_new_global_training_df['maze_name'] = a_new_global_training_df['maze_id'].map(maze_id_to_maze_name_map)
+        # a_new_global_test_df['maze_name'] = a_new_global_test_df['maze_id'].map(maze_id_to_maze_name_map)
+
+
+        ## finally, filter on it if needed:
+        new_non_pbe_epochs = Epoch.filter_epochs(ensure_Epoch(global_epoch_only_non_PBE_epoch_df), pos_df=session.position.to_dataframe(), spikes_df=session.spikes_df.copy(), **extracted_filter_parameters, debug_print=False) # Filter based on the criteria if provided
+
+
+
+        if save_on_compute:
+            new_non_pbe_epochs.filename = session.filePrefix.with_suffix('.non_pbe.npy')
+            with ProgressMessagePrinter(new_non_pbe_epochs.filename, action='Saving', contents_description='non_pbe results'):
+                new_non_pbe_epochs.save()
+                
+        return new_non_pbe_epochs
+    
+
+
+
     @staticmethod
     def compute_linear_position(session, debug_print=False):
         """ compute linear positions:
