@@ -692,6 +692,21 @@ class PandasHelpers:
         """
         ...
     
+    @classmethod
+    def swap_columns(cls, potentially_updated_df: pd.DataFrame, lhs_col_name: str, rhs_col_name: str, temp_col_suffix: str = ..., debug_print=...) -> pd.DataFrame:
+        """ Returns an empty dataframe with the same columns (and the same dtypes for each column) as `df`
+
+        Usage:
+            
+            from neuropy.utils.indexing_helpers import PandasHelpers
+
+            self.stacked_flat_global_pos_df = PandasHelpers.swap_columns(self.stacked_flat_global_pos_df, lhs_col_name='x', rhs_col_name='y') 
+            self.stacked_flat_global_pos_df = PandasHelpers.swap_columns(self.stacked_flat_global_pos_df, lhs_col_name='x_scaled', rhs_col_name='y_scaled') 
+            
+        
+        """
+        ...
+    
 
 
 class ColumnTracker(ContextDecorator):
