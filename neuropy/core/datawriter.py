@@ -16,6 +16,14 @@ class LegacyDataLoadingMixin:
         
 
 class DataWriter(FileRepresentable, DictRepresentable, LegacyDataLoadingMixin, SimplePrintable):
+    """ stores a reference to the filename it was loaded from which can be used to save it out again.
+        
+    Required Properties:
+        self._filename
+        self._metadata
+            
+
+    """
     def __init__(self, metadata=None) -> None:
 
         self._filename = None
