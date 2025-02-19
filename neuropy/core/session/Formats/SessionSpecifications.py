@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from attrs import define, field, Factory
-from typing import Callable, List, Dict, Optional
+from typing import Callable, List, Dict, Optional, Tuple, Any
 import warnings
 import numpy as np
 import pandas as pd
@@ -163,9 +163,19 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
     x_midpoint: float = field(default=143.8848920863310)
     loaded_track_limits: dict = field(default=Factory(dict))
 
+    grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]] = field(default=None, metadata={'desc': "the absolute extents of the recording camera frame", 'field_added_date':"2025.02.19_0"})
+    real_unit_grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]] = field(default=None, metadata={'desc': "the absolute extents of the recording camera frame (in [0.0, 1.0] scale)", 'field_added_date':"2025.02.19_0"})
+    real_cm_grid_bin_bounds: Optional[Tuple[Tuple[float, float], Tuple[float, float]]] = field(default=None, metadata={'desc': "the absolute extents of the recording camera frame (in real-world [cm])", 'field_added_date':"2025.02.19_0"})
+    grid_bin_bin: Optional[Tuple[float, float]] = field(default=None, metadata={'desc': "the real-world size of each grid_bin (in [cm])", 'field_added_date':"2025.02.19_0"})
+
+    track_start_t: Optional[float] = field(default=None, metadata={'desc': "the start time of the valid positions (in [seconds])", 'field_added_date':"2025.02.19_0"})
+    track_end_t: Optional[float] = field(default=None, metadata={'desc': "the last good time of the valid positions (in [seconds])", 'field_added_date':"2025.02.19_0"})
+
     is_resolved: bool = field(default=False) # init=False, 
     resolved_required_filespecs_dict: dict = field(default=Factory(dict)) # , init=False
     resolved_optional_filespecs_dict: dict = field(default=Factory(dict)) # , init=False
+
+    additional_metadata: Dict = field(default=Factory(dict), metadata={'desc': "optional dict to hold additional metadata without adding new fields. Contents must be picklable.", 'field_added_date':"2025.02.19_0"})
 
 
     @property
@@ -196,6 +206,8 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
         out_dict['resolved_optional_filespecs_dict'] = [str(a_path) for a_path in self.resolved_optional_file_specs.keys()]
 
         out_dict['loaded_track_limits'] = {str(k):v for k,v in self.loaded_track_limits.items()}
+        
+        out_dict['additional_metadata'] = {str(k):v for k,v in self.additional_metadata.items()}
 
         return out_dict
     
@@ -247,9 +259,14 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
             active_data_mode_registered_class = DataSessionFormatRegistryHolder.get_registry_data_session_type_class_name_dict()[state['format_name']]
             state['session_context'] = active_data_mode_registered_class.parse_session_basepath_to_context(state['basepath'])
 
-        if 'loaded_track_limits' not in state:
-            state['loaded_track_limits'] = dict()
         
+        for an_empty_dict_initializable_field_name in ['loaded_track_limits', 'additional_metadata']:
+            if an_empty_dict_initializable_field_name not in state:
+                state[an_empty_dict_initializable_field_name] = {} # set it to a new empty dict        
+
+        for an_optional_field_name in ['real_unit_grid_bin_bounds', 'real_cm_grid_bin_bounds', 'grid_bin_bounds', 'grid_bin', 'track_start_t', 'track_end_t']:
+            if an_optional_field_name not in state:
+                state[an_optional_field_name] = None # set it to None
         
         self.__dict__.update(state)
         
