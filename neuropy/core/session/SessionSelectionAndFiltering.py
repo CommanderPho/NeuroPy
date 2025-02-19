@@ -102,7 +102,7 @@ def build_custom_epochs_filters(sess, epoch_name_includelist=None, filter_name_s
 ## Efficiently filter by cell type and desired ids
 def batch_filter_session(sess, position, spikes_df, epochs, debug_print=False):
     """a workaround to efficiently filter DataSession objects by epochs and neuron_type (currently hardcoded Pyramidal) that works around the issue with deepcopy(...) on DataSessions filled with Bapun's data."""
-    """ #TODO: 2022-08-05 - What is this doing, and why is it needed? """
+    """ #TODO: 2022-08-05 - What is this doing, and why is it needed? called by `batch_filter_session` """
     position.compute_higher_order_derivatives()
     pos_df = (
         position.compute_smoothed_position_info()
