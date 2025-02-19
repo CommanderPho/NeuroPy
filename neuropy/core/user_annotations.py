@@ -493,7 +493,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
 
             
     @classmethod
-    def get_hardcoded_specific_session_override_dict(cls) -> dict:
+    def get_hardcoded_specific_session_override_dict(cls, debug_print:bool=False) -> dict:
         """ ## Create a dictionary of overrides that have been specified manually for a given session:
             # Used in `build_lap_only_short_long_bin_aligned_computation_configs`
             History: Extracted from `neuropy.core.session.Formats.Specific.KDibaOldDataSessionFormat` 
@@ -756,14 +756,16 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         pix2cm: float = 287.7697841726619
         real_unit_x_grid_bin_bounds = np.array([0.0, 1.0])
         real_cm_x_grid_bin_bounds = (real_unit_x_grid_bin_bounds * pix2cm)
-        print(f'real_unit_x_grid_bin_bounds: {real_unit_x_grid_bin_bounds}')
-        print(f'real_cm_x_grid_bin_bounds: {real_cm_x_grid_bin_bounds}')
+        if debug_print:
+            print(f'real_unit_x_grid_bin_bounds: {real_unit_x_grid_bin_bounds}')
+            print(f'real_cm_x_grid_bin_bounds: {real_cm_x_grid_bin_bounds}')
 
         # real_unit_y_grid_bin_bounds = np.array([0.4, 0.6])
         real_unit_y_grid_bin_bounds = np.array([0.3, 0.7])
         real_cm_y_grid_bin_bounds = (real_unit_y_grid_bin_bounds * pix2cm)
-        print(f'real_unit_y_grid_bin_bounds: {real_unit_y_grid_bin_bounds}')
-        print(f'real_cm_y_grid_bin_bounds: {real_cm_y_grid_bin_bounds}')
+        if debug_print:
+            print(f'real_unit_y_grid_bin_bounds: {real_unit_y_grid_bin_bounds}')
+            print(f'real_cm_y_grid_bin_bounds: {real_cm_y_grid_bin_bounds}')
 
 
         # ==================================================================================================================== #
