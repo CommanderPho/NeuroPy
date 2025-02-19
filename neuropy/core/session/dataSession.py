@@ -387,6 +387,7 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
     # sess.pbe = compute_pbe_epochs(sess)
     
 
+    # @function_attributes(short_name=None, tags=['non_PBE', 'epoch'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-02-18 19:07', related_items=[])
     @classmethod
     def compute_non_PBE_epochs(cls, session, active_parameters=None, save_on_compute=False, **additional_df_metdata) -> pd.DataFrame:
         """ Builds a dictionary of train/test-split epochs for ['long', 'short', 'global'] periods
@@ -410,14 +411,12 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         """
         print('computing non_PBE epochs for session...\n')
         if active_parameters is None:
-            raise NotImplementedError
-            # active_parameters = dict(sigma=0.030, thresh=(0, 1.5), min_dur=0.030, merge_dur=0.100, max_dur=2.3) # 2023-10-05 Kamran's imposed Parameters, wants to remove the effect of the max_dur which was previously at 0.300
+            active_parameters = {} # empty dict
         # Filter parameters:
         extracted_filter_parameters = dict(require_intersecting_epoch=active_parameters.pop('require_intersecting_epoch', None),
                                             min_epoch_included_duration=active_parameters.pop('min_epoch_included_duration', None), max_epoch_included_duration=active_parameters.pop('max_epoch_included_duration', None),
                                             maximum_speed_thresh=active_parameters.pop('maximum_speed_thresh', None),
                                             min_inclusion_fr_active_thresh=active_parameters.pop('min_inclusion_fr_active_thresh', None), min_num_unique_aclu_inclusions=active_parameters.pop('min_num_unique_aclu_inclusions', None))
-
 
 
         ## build the epochs object:    
