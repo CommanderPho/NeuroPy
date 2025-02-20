@@ -667,6 +667,12 @@ def safe_limit_num_grid_bin_values(fixed_grid_bin_bounds: Tuple[Tuple[float, flo
         
     if debug_print:
         print(f'constrained_grid_bin: {constrained_grid_bin_sizes}') # constrained_grid_bin: [5.048592704783542, 19.184652278177456]
+        
+    if not isinstance(constrained_grid_bin_sizes, tuple):
+        constrained_grid_bin_sizes = tuple(constrained_grid_bin_sizes) ## convert to tuple for comparison
+    if not isinstance(constrained_num_grid_bins, tuple):
+        constrained_num_grid_bins = tuple(constrained_num_grid_bins) ## convert to tuple for comparison
+
     return constrained_grid_bin_sizes, constrained_num_grid_bins
 
 
