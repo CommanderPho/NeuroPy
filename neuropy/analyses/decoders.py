@@ -470,6 +470,8 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
     
         If the epoch is shorter than the bin_size the time_bins returned should be the edges of the epoch
         
+    2025-02-20 12:06 Gemni 2.0 Suggestion for fix: "The most robust solution is to always use the single-bin-per-epoch approach when the epoch is shorter than the bin size, even when use_single_time_bin_per_epoch is false. This ensures consistency and avoids the sliding_window_view issues.:"
+    
         
     """
     from neuropy.core.epoch import ensure_dataframe
@@ -573,7 +575,7 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
                     n_reduced_edges: int = len(reduced_time_bin_edges)
                     if n_reduced_edges == 1:
                         # Built using `epoch` - have to manually build center_info from subsampled `bins` because it doesn't work with two or less entries.
-                        print(f'ERROR: epochs_spkcount(...): epoch[{i}], nbins[{i}]: {nbins[i]} - TODO 2024-08-07 19:11: Building BinningContainer for epoch with fewer than 2 edges (occurs when epoch duration is shorter than the bin size). Using the epoch.start, epoch.stop as the two edges (giving a single bin) but this might be off and cause problems, as they are the edges of the epoch but maybe not "real" edges?')
+                        print(f'ERROR: epochs_spkcount(...): {i}/{n_epochs}, epoch[{i}], nbins[{i}]: {nbins[i]} - TODO 2024-08-07 19:11: Building BinningContainer for epoch with fewer than 2 edges (occurs when epoch duration is shorter than the bin size). Using the epoch.start, epoch.stop as the two edges (giving a single bin) but this might be off and cause problems, as they are the edges of the epoch but maybe not "real" edges?')
                         reduced_time_bin_edges = np.array([epoch.start, epoch.stop])
                         # reduced_time_bin_edges = deepcopy(bins) #TODO 2024-08-07 19:11: - [ ] This might be off, as they are the edges of the epoch but maybe not "real" edges?
                         reduced_time_bin_centers = np.asarray([(epoch.start + epoch.stop) / 2]) # And the bin center is just the middle of the epoch
@@ -597,7 +599,7 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
                         reduced_time_bin_centers = deepcopy(bin_container.centers)                 
 
                 except Exception as err:
-                    print(f'ERROR: epochs_spkcount(...): epoch[{i}], nbins[{i}]: while building time bins, encountered exception err: {err}.')
+                    print(f'ERROR: epochs_spkcount(...): {i}/{n_epochs}, epoch[{i}], nbins[{i}]: while building time bins, encountered exception err: {err}.')
                     raise err                
             
             if debug_print:
