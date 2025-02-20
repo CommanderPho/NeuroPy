@@ -523,7 +523,7 @@ class BinnedPositionsMixin(GridBinDebuggableMixin):
     @property
     def n_flattened_position_bins(self) -> int:
         """ the number of xbin edges. """
-        return np.sum(dims_coord_tuple)
+        return np.sum(self.dims_coord_tuple)
     
     # ==================================================================================================================== #
     # GridBinDebuggableMixin Conformances                                                                                  #
