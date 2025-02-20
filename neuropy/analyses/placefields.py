@@ -227,7 +227,7 @@ class PlacefieldComputationParameters(SimplePrintable, KeypathsAccessibleMixin, 
         """ custom hash function that allows use in dictionary just based off of the values and not the object instance. """
         dict_rep = self.to_dict()
         member_names_tuple = list(dict_rep.keys())
-        values_tuple = list(dict_rep.values())
+        values_tuple = [tuple(v) if isinstance(v, list) else v for v in dict_rep.values()] ## convert any lists to tuples for comparions    
         combined_tuple = tuple(member_names_tuple + values_tuple)
         return hash(combined_tuple)
     
