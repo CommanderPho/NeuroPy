@@ -14,7 +14,7 @@ from neuropy.core.neuron_identities import NeuronExtendedIdentity, NeuronType
 from neuropy.utils.mixins.binning_helpers import BinningInfo # for add_binned_time_column
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter
 from .datawriter import DataWriter
-from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableObjectProtocol, TimeSlicableIndiciesMixin, TimeSlicedMixin
+from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableObjectProtocol, TimeSlicableIndiciesMixin, TimeSlicedMixin, TimePointEventAccessor
 from neuropy.utils.mixins.unit_slicing import NeuronUnitSlicableObjectProtocol
 from neuropy.utils.mixins.concatenatable import ConcatenationInitializable
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_field, serialized_attribute_field, non_serialized_field
@@ -25,7 +25,7 @@ _REQUIRE_FLAT_SPIKE_INDEX_COLUMN: bool = False
 
 
 @pd.api.extensions.register_dataframe_accessor("spikes")
-class SpikesAccessor(TimeSlicedMixin):
+class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
     """ Part of the December 2021 Rewrite of the neuropy.core classes to be Pandas DataFrame based and easily manipulatable """
     __time_variable_name = 't_rel_seconds' # currently hardcoded
     

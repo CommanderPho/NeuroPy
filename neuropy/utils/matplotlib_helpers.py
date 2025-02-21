@@ -1760,7 +1760,8 @@ def interactive_select_grid_bin_bounds_2D(curr_active_pipeline, epoch_name='maze
 
 
 # Title Helpers ______________________________________________________________________________________________________ #
-def perform_update_title_subtitle(fig=None, ax=None, title_string:Optional[str]=None, subtitle_string:Optional[str]=None, active_context=None, use_flexitext_titles=False):
+def perform_update_title_subtitle(fig=None, ax=None, title_string:Optional[str]=None, subtitle_string:Optional[str]=None, active_context=None, use_flexitext_titles=False,
+                                  top_margin=None, left_margin=None, right_margin=None, bottom_margin=None):
     """ Only updates the title/subtitle if the value is not None
     
     Usage:
@@ -1790,7 +1791,8 @@ def perform_update_title_subtitle(fig=None, ax=None, title_string:Optional[str]=
         from flexitext import flexitext ## flexitext version
         from neuropy.utils.matplotlib_helpers import FormattedFigureText
 
-        text_formatter = FormattedFigureText()
+        # text_formatter = FormattedFigureText()
+        text_formatter = FormattedFigureText.init_from_margins(top_margin=top_margin, left_margin=left_margin, right_margin=right_margin, bottom_margin=bottom_margin)
         # text_formatter.bottom_margin = 0.0 # No margin on the bottom
         # text_formatter.top_margin = 0.6 # doesn't change anything. Neither does subplot_adjust
         text_formatter.setup_margins(fig)
