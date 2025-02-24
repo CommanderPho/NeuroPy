@@ -614,7 +614,7 @@ def paired_individual_sorting(neuron_IDs_lists, sortable_values_lists):
 
 
 
-def find_nearest_time(df: pd.DataFrame, target_time: float, time_column_name:str='start', max_allowed_deviation:float=0.01, debug_print=False):
+def find_nearest_time(df_or_tarr: Union[NDArray, pd.DataFrame], target_time: float, time_column_name:str='start', max_allowed_deviation:float=0.01, debug_print=False) -> Tuple[Union[NDArray, pd.DataFrame], Optional[int], Optional[float], float]:
     """ finds the nearest time in the time_column_name matching the provided target_time
     
 
@@ -627,36 +627,65 @@ def find_nearest_time(df: pd.DataFrame, target_time: float, time_column_name:str
     df.iloc[closest_index]
 
     """
-    # Ensure the DataFrame is sorted (if you're not sure it's already sorted)
-    assert time_column_name in df.columns
-    if df[time_column_name].is_monotonic:
-        if debug_print:
-            print('The column is already sorted in ascending order.')
+    if isinstance(df_or_tarr, pd.DataFrame):
+        # DataFrame handling logic
+        # Ensure the DataFrame is sorted (if you're not sure it's already sorted)
+        assert time_column_name in df_or_tarr.columns
+        if df_or_tarr[time_column_name].is_monotonic:
+            if debug_print:
+                print('The column is already sorted in ascending order.')
+        else:
+            print(f'WARNING: The column is not sorted in ascending order. Sorting now...')
+            df_or_tarr = df_or_tarr.sort_values(by=time_column_name, inplace=False)
+            # Use searchsorted to find the insertion point for the target time
+            insertion_index = df_or_tarr[time_column_name].searchsorted(target_time)
+
+            # Since searchsorted returns the index where the target should be inserted to
+            # maintain order, the closest time could be at this index or the previous index.
+            # We need to compare both to find the nearest time.
+            if insertion_index == 0:
+                # The target_time is smaller than all elements, so closest is the first item
+                closest_index = 0
+            elif insertion_index == len(df_or_tarr):
+                # The target_time is bigger than all elements, so closest is the last item
+                closest_index = len(df_or_tarr) - 1
+            else:
+                # The target_time is between two elements, find the nearest one
+                prev_time = df_or_tarr[time_column_name].iloc[insertion_index - 1] # @DA#TODO 2024-03-11 17:49: - [ ] Is .iloc okay here under all circumstances?
+                next_time = df_or_tarr[time_column_name].iloc[insertion_index]
+                # Compare the absolute difference to determine which is closer
+                closest_index = insertion_index if (next_time - target_time) < (target_time - prev_time) else insertion_index - 1
+
+            # Now extract the closest time using the index
+            closest_time = df_or_tarr[time_column_name].iloc[closest_index] ## NOTE .iloc here!
+            
+    elif isinstance(df_or_tarr, NDArray):
+        # NumPy array handling logic
+        ## a numpy array
+        t_arr = df_or_tarr
+        # Use searchsorted to find the insertion point for the target time
+        insertion_index = t_arr.searchsorted(target_time)
+
+        # Since searchsorted returns the index where the target should be inserted to
+        # maintain order, the closest time could be at this index or the previous index.
+        # We need to compare both to find the nearest time.
+        if insertion_index == 0:
+            # The target_time is smaller than all elements, so closest is the first item
+            closest_index = 0
+        elif insertion_index == len(t_arr):
+            # The target_time is bigger than all elements, so closest is the last item
+            closest_index = len(t_arr) - 1
+        else:
+            # The target_time is between two elements, find the nearest one
+            prev_time = t_arr[insertion_index - 1] # @DA#TODO 2024-03-11 17:49: - [ ] Is .iloc okay here under all circumstances?
+            next_time = t_arr[insertion_index]
+            # Compare the absolute difference to determine which is closer
+            closest_index = insertion_index if (next_time - target_time) < (target_time - prev_time) else insertion_index - 1
+
+        # Now extract the closest time using the index
+        closest_time = t_arr[closest_index] 
     else:
-        print(f'WARNING: The column is not sorted in ascending order. Sorting now...')
-        df = df.sort_values(by=time_column_name, inplace=False)
-
-    # Use searchsorted to find the insertion point for the target time
-    insertion_index = df[time_column_name].searchsorted(target_time)
-
-    # Since searchsorted returns the index where the target should be inserted to
-    # maintain order, the closest time could be at this index or the previous index.
-    # We need to compare both to find the nearest time.
-    if insertion_index == 0:
-        # The target_time is smaller than all elements, so closest is the first item
-        closest_index = 0
-    elif insertion_index == len(df):
-        # The target_time is bigger than all elements, so closest is the last item
-        closest_index = len(df) - 1
-    else:
-        # The target_time is between two elements, find the nearest one
-        prev_time = df[time_column_name].iloc[insertion_index - 1] # @DA#TODO 2024-03-11 17:49: - [ ] Is .iloc okay here under all circumstances?
-        next_time = df[time_column_name].iloc[insertion_index]
-        # Compare the absolute difference to determine which is closer
-        closest_index = insertion_index if (next_time - target_time) < (target_time - prev_time) else insertion_index - 1
-
-    # Now extract the closest time using the index
-    closest_time = df[time_column_name].iloc[closest_index] ## NOTE .iloc here!
+        raise ValueError(f'Unknown input data type, expected pd.DataFrame or NDArray, but instead it was of type: {type(df_or_tarr)}. df: {df_or_tarr}')
 
     matched_time_difference = closest_time - target_time
     if (max_allowed_deviation is not None) and (abs(matched_time_difference) > max_allowed_deviation):
@@ -669,7 +698,7 @@ def find_nearest_time(df: pd.DataFrame, target_time: float, time_column_name:str
         if debug_print:
             print(f"The closest start time to {target_time} is {closest_time} at index {closest_index}. Deviating by {matched_time_difference}")
 
-    return df, closest_index, closest_time, matched_time_difference
+    return df_or_tarr, closest_index, closest_time, matched_time_difference
 
 
 def find_nearest_times(df: pd.DataFrame, target_times: np.ndarray, time_column_name: str='start', max_allowed_deviation: float=0.01, debug_print=False):
