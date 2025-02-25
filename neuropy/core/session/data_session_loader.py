@@ -11,6 +11,8 @@ class DataSessionLoader:
         This class allows clearly defining and documenting the requirements of a given format once it's been reverse-engineered.
         
         Primary usage methods:
+            from neuropy.core.session.data_session_loader import DataSessionLoader
+        
             DataSessionLoader.bapun_data_session(basedir)
             DataSessionLoader.kdiba_old_format_session(basedir)
     """    
