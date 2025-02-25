@@ -217,6 +217,8 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
     
         If the epoch is shorter than the bin_size the time_bins returned should be the edges of the epoch
         
+    2025-02-20 12:06 Gemni 2.0 Suggestion for fix: "The most robust solution is to always use the single-bin-per-epoch approach when the epoch is shorter than the bin size, even when use_single_time_bin_per_epoch is false. This ensures consistency and avoids the sliding_window_view issues.:"
+    
         
     """
     ...

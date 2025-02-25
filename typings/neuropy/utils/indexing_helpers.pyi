@@ -377,7 +377,7 @@ def paired_individual_sorting(neuron_IDs_lists, sortable_values_lists): # -> lis
     """
     ...
 
-def find_nearest_time(df: pd.DataFrame, target_time: float, time_column_name: str = ..., max_allowed_deviation: float = ..., debug_print=...): # -> tuple[DataFrame[Any], int | None, Any | None, Any]:
+def find_nearest_time(df_or_tarr: Union[NDArray, pd.DataFrame], target_time: float, time_column_name: str = ..., max_allowed_deviation: float = ..., debug_print=...) -> Tuple[Union[NDArray, pd.DataFrame], Optional[int], Optional[float], float]:
     """ finds the nearest time in the time_column_name matching the provided target_time
     
 

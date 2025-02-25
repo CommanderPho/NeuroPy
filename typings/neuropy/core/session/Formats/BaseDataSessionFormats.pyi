@@ -64,6 +64,7 @@ class DataSessionFormatRegistryHolder(type):
 	
 	@classmethod
 	def get_registry(cls): # -> dict[str, DataSessionFormatRegistryHolder]:
+		""" this has keys like `['DataSessionFormatBaseRegisteredClass', 'KDibaOldDataSessionFormatRegisteredClass']` """
 		...
 	
 	@classmethod

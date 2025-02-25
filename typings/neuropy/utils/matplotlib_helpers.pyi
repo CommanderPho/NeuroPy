@@ -543,7 +543,7 @@ def interactive_select_grid_bin_bounds_2D(curr_active_pipeline, epoch_name=..., 
     """
     ...
 
-def perform_update_title_subtitle(fig=..., ax=..., title_string: Optional[str] = ..., subtitle_string: Optional[str] = ..., active_context=..., use_flexitext_titles=...): # -> AnnotationBbox | None:
+def perform_update_title_subtitle(fig=..., ax=..., title_string: Optional[str] = ..., subtitle_string: Optional[str] = ..., active_context=..., use_flexitext_titles=..., top_margin=..., left_margin=..., right_margin=..., bottom_margin=...): # -> AnnotationBbox | None:
     """ Only updates the title/subtitle if the value is not None
     
     Usage:

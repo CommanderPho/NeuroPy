@@ -95,7 +95,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         ...
     
     @classmethod
-    def get_hardcoded_specific_session_override_dict(cls) -> dict:
+    def get_hardcoded_specific_session_override_dict(cls, debug_print: bool = ...) -> dict:
         """ ## Create a dictionary of overrides that have been specified manually for a given session:
             # Used in `build_lap_only_short_long_bin_aligned_computation_configs`
             History: Extracted from `neuropy.core.session.Formats.Specific.KDibaOldDataSessionFormat` 
