@@ -683,6 +683,14 @@ class PlacefieldND(PfnConfigMixin, PfnDMixin):
 
 
 
+class MissingGridBinBoundsError(Exception):
+    def __init__(self, message="Grid bin bounds must be specified", config=None):
+        self.message = message
+        self.config = config
+        msg = f"{message}"
+        if config is not None:
+            msg += f" (config: {config})"
+        super().__init__(msg)
 
 
 # First, interested in answering the question "where did the animal spend its time on the track" to assess the relative frequency of events that occur in a given region. If the animal spends a lot of time in a certain region,
@@ -774,6 +782,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
             self.xbin, self.ybin, self.bin_info
         """
         use_modern_speed_threshold_filtering_preserving_occupancy: bool = True
+        should_require_specific_grid_bin_bounds: bool = False # True for KDIBA sessions, False otherwise.
 
         # Set the dimensionality of the PfND object from the position's dimensionality
         self.ndim = position.ndim
@@ -867,8 +876,13 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
                 # Use grid_bin_bounds:
                 if ((self.config.grid_bin_bounds[0] is None) or (self.config.grid_bin_bounds[1] is None)):
                     print(f'WARN: computing pf2D with set self.config.grid_bin_bounds but one of the compoenents is None! self.config.grid_bin_bounds: {self.config.grid_bin_bounds}.\n\trecomputing from positions and ignoring set grid_bin_bounds!')
-                    raise NotImplementedError(f'thrown by Pho Hale on 2025-02-12 to ensure the correct grid_bin_bounds is always retrieved and used.')
-                    # grid_bin_bounds = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), self.filtered_pos_df.y.to_numpy())
+                    if should_require_specific_grid_bin_bounds:
+                        raise MissingGridBinBoundsError(f"Grid bin bounds missing in configuration for PfND", config=self.config)
+                        # raise NotImplementedError(f'thrown by Pho Hale on 2025-02-12 to ensure the correct grid_bin_bounds is always retrieved and used.')
+                    else:
+                        # don't require grid_bin_bounds
+                        print(f'WARN: if this is KDIBA session, there is a CRITICAL ERROR, the correct grid_bin_bounds are missing! (by Pho Hale on 2025-02-12). Otherwise, carefully continuing.')
+                        grid_bin_bounds = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), self.filtered_pos_df.y.to_numpy())
                 else:
                     if debug_print:
                         print(f'using self.config.grid_bin_bounds: {self.config.grid_bin_bounds}')
@@ -879,8 +893,17 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         else:
             # 1D case
             if self.config.grid_bin_bounds_1D is None:
-                raise NotImplementedError(f'thrown by Pho Hale on 2025-02-12 to ensure the correct grid_bin_bounds is always retrieved and used.')
-                # grid_bin_bounds_1D = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), None)[0]
+                
+                # from neuropy.utils.matplotlib_helpers import interactive_select_grid_bin_bounds_2D
+                # fig, ax, rect_selector, set_extents, reset_extents = interactive_select_grid_bin_bounds_2D(curr_active_pipeline, epoch_name='maze')
+                if should_require_specific_grid_bin_bounds:
+                    raise MissingGridBinBoundsError(f"Grid bin bounds missing in configuration for PfND", config=self.config)
+                    # raise NotImplementedError(f'thrown by Pho Hale on 2025-02-12 to ensure the correct grid_bin_bounds is always retrieved and used.')
+                else:
+                    # don't require grid_bin_bounds
+                    print(f'WARN: if this is KDIBA session, there is a CRITICAL ERROR, the correct grid_bin_bounds are missing! (by Pho Hale on 2025-02-12). Otherwise, carefully continuing.')
+                    grid_bin_bounds_1D = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), None)[0]
+                
             else:
                 if debug_print:
                     print(f'using self.config.grid_bin_bounds_1D: {self.config.grid_bin_bounds_1D}')
@@ -1895,7 +1918,7 @@ def perform_compute_placefields(active_session_spikes_df, active_pos, computatio
         progress_logger = lambda x, end='\n': print(x, end=end)
     ## Linearized (1D) Position Placefields:
     if ((active_epoch_placefields1D is None) or should_force_recompute_placefields):
-        progress_logger('Recomputing active_epoch_placefields...', end=' ')
+        progress_logger('Recomputing active_epoch_placefields1D...', end=' ')
         spikes_df = deepcopy(active_session_spikes_df).spikes.sliced_by_neuron_type('PYRAMIDAL') # Only use PYRAMIDAL neurons
         active_epoch_placefields1D = PfND.from_config_values(spikes_df, deepcopy(active_pos.linear_pos_obj), epochs=included_epochs,
                                           speed_thresh=computation_config.speed_thresh, frate_thresh=computation_config.frate_thresh,

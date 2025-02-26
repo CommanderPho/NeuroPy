@@ -1,3 +1,4 @@
+from copy import deepcopy
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -47,7 +48,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
     """
     _session_class_name = 'bapun'
     _session_default_relative_basedir = r'data/Bapun/Day5TwoNovel'
-    _session_default_basedir = r'R:\data\Bapun\Day5TwoNovel' # WINDOWS
+    _session_default_basedir = r'W:\data\Bapun\Day5TwoNovel' # WINDOWS
     # _session_default_basedir = r'/run/media/halechr/MoverNew/data/Bapun/Day5TwoNovel'
     _session_basepath_to_context_parsing_keys = ['format_name','animal', 'session_name']
 
@@ -85,6 +86,51 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         session.paradigm = Epoch.from_file(filepath)  # "epoch" field of file
         return session
     
+
+
+    @classmethod
+    def _bapun_session_fixup_epochs_to_be_non_overlapping(cls, bapun_epochs: Epoch) -> Epoch:
+        """ fixes up the loaded epochs
+        has two conflicting (overlapping) epochs:
+        "maze"
+        "sprinkle"
+        
+        
+                start   stop     label  duration
+        0      0   7407       pre      7407
+        1   7423  11483      maze      4060
+        3  10186  11483  sprinkle      1297
+        2  11497  25987      post     14490
+
+        [4 rows x 4 columns]
+
+        --- we want to compute the disjoint set 'roam', 'sprinkle'
+        
+        
+        Usage:
+        
+        
+        bapun_epochs: Epoch = deepcopy(curr_active_pipeline.sess.epochs)
+        bapun_epochs = BapunDataSessionFormatRegisteredClass._bapun_session_fixup_epochs_to_be_non_overlapping(bapun_epochs=bapun_epochs)
+        
+        """
+        
+        bapun_epochs_df: pd.DataFrame = bapun_epochs.to_dataframe()
+        assert len(bapun_epochs_df) == 4
+        bapun_epochs_arr = bapun_epochs_df.to_numpy()
+        new_roam_row = [bapun_epochs_arr[1, 0], (bapun_epochs_arr[2, 0]-1), 'roam', 0.0] # ['start', 'stop', 'label', 'duration']
+        
+        # bapun_epochs_arr[1, 1] = bapun_epochs_arr[2, 0] - 1 # overwrite the "maze" portion's end-time
+        fixed_bapun_epochs_arr = deepcopy(bapun_epochs_arr)
+        fixed_bapun_epochs_arr[1, :] = new_roam_row ## replace the entire 2nd row (the 'maze' row) with the new 'roam' row.
+        # build final epochs_df from fixed_bapun_epochs_arr
+        bapun_epochs_df: pd.DataFrame = pd.DataFrame(fixed_bapun_epochs_arr, columns=['start', 'stop', 'label', 'duration'])
+        bapun_epochs_df[['start', 'stop', 'duration']] = bapun_epochs_df[['start', 'stop', 'duration']].astype(float)
+        bapun_epochs_df['duration'] = bapun_epochs_df['stop'] - bapun_epochs_df['start']
+        return Epoch(bapun_epochs_df, metadata=bapun_epochs.metadata)
+
+
+
     
     # Not limited:
     @classmethod

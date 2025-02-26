@@ -749,7 +749,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         user_annotations[IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-26_13-51-50')] = dict(unit_grid_bin_bounds=(((0.12884392935982347, 0.8711479028697573), (0.4287341963762006, 0.4508472184892227))), cm_grid_bin_bounds=(((37.0773897438341, 250.69004399129707), (123.37674715861888, 129.74020675948856))))
         user_annotations[IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_12-38-13')] = dict(unit_grid_bin_bounds=(((0.12884392935982347, 0.8711479028697573), (0.43365665079857674, 0.4538040709459968))), cm_grid_bin_bounds=(((37.0773897438341, 250.69004399129707), (124.79328080534583, 130.59109955280485))))
         user_annotations[IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_17-6-14')] = dict(unit_grid_bin_bounds=(((0.12884392935982347, 0.8711479028697573), (0.4279922589909162, 0.447893978892636))), cm_grid_bin_bounds=(((37.0773897438341, 250.69004399129707), (123.16323999738597, 128.89035363816865))))
-
+        
         # ================================================================================================================================================================================ #
         # Override with the absolute outermost grid_bin_bounds [0.0, 1.0]                                                                                                                  #
         # ================================================================================================================================================================================ #
@@ -809,6 +809,16 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
 
         
         ## override with the "real" bounds
+        
+
+    
+        # ==================================================================================================================== #
+        # Bapun Annotations 2025-02-26 11:07                                                                                   #
+        # ==================================================================================================================== #
+        user_annotations[IdentifyingContext(format_name='bapun',animal='RatN', session_name='Day4OpenField')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-120.0, 120.0), (-120.0, 120.0))))
+        # user_annotations[IdentifyingContext(format_name='bapun',animal='RatN', session_name='Day4OpenField')].update(track_start_t=8.9677370000004, track_end_t=1139.771152)
+
+
 
         # ==================================================================================================================== #
         # 2024-11-05 16:05 Produced programmatically from exported matlab csv                                                 #
@@ -876,6 +886,8 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         user_annotations[IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54')].update(track_start_t=13.4352230000004, track_end_t=3031.404034)
         user_annotations[IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-03_20-28-3')].update(track_start_t=16.0465110000005, track_end_t=1085.451218)
         user_annotations[IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-04_21-20-3')].update(track_start_t=8.9677370000004, track_end_t=1139.771152)
+        
+
 
         return user_annotations
 
