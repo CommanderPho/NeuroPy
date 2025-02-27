@@ -2,6 +2,7 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from neuropy.core.epoch import Epoch, EpochsAccessor, NamedTimerange, ensure_dataframe, ensure_Epoch
 from neuropy.core.session.Formats.BaseDataSessionFormats import DataSessionFormatBaseRegisteredClass
 from neuropy.core.session.dataSession import DataSession
 from neuropy.core.session.Formats.SessionSpecifications import SessionFolderSpec, SessionFileSpec
@@ -89,7 +90,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
 
     @classmethod
-    def _bapun_session_fixup_epochs_to_be_non_overlapping(cls, bapun_epochs: Epoch) -> Epoch:
+    def _bapun_session_fixup_epochs_to_be_non_overlapping(cls, bapun_epochs: Epoch, enable_global_epoch: bool=True) -> Epoch:
         """ fixes up the loaded epochs
         has two conflicting (overlapping) epochs:
         "maze"
@@ -127,6 +128,11 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         bapun_epochs_df: pd.DataFrame = pd.DataFrame(fixed_bapun_epochs_arr, columns=['start', 'stop', 'label', 'duration'])
         bapun_epochs_df[['start', 'stop', 'duration']] = bapun_epochs_df[['start', 'stop', 'duration']].astype(float)
         bapun_epochs_df['duration'] = bapun_epochs_df['stop'] - bapun_epochs_df['start']
+
+        if enable_global_epoch:
+            # maze_epochs_df = deepcopy(curr_active_pipeline.sess.epochs).to_dataframe()
+            bapun_epochs_df = bapun_epochs_df.epochs.adding_global_epoch_row()
+
         return Epoch(bapun_epochs_df, metadata=bapun_epochs.metadata)
 
 
