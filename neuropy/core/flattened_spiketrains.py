@@ -1,5 +1,6 @@
 from collections import OrderedDict
-from typing import Sequence, Union
+from typing import Dict, List, Tuple, Sequence, Optional, Callable, Union, Any
+from nptyping import NDArray
 # from warnings import warn
 import logging
 
@@ -9,6 +10,7 @@ import numpy as np
 import pandas as pd
 import h5py
 from copy import deepcopy
+
 
 from neuropy.core.neuron_identities import NeuronExtendedIdentity, NeuronType
 from neuropy.utils.mixins.binning_helpers import BinningInfo # for add_binned_time_column
@@ -282,7 +284,7 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
             print("\t done updating 'fragile_linear_neuron_IDX' and 'neuron_IDX'.")
         return self._obj
 
-    def add_binned_time_column(self, time_window_edges, time_window_edges_binning_info:BinningInfo, debug_print:bool=False): ## CONFORMANCE: TimePointEventAccessor
+    def add_binned_time_column(self, time_window_edges: NDArray, time_window_edges_binning_info:BinningInfo, debug_print:bool=False): ## CONFORMANCE: TimePointEventAccessor
         """ adds a 'binned_time' column to spikes_df given the time_window_edges and time_window_edges_binning_info provided 
         
         """
@@ -295,6 +297,50 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
         bin_labels = time_window_edges_binning_info.bin_indicies[1:] # edge bin indicies: [0,     1,     2, ..., 11878, 11879, 11880][1:] -> [ 1,     2, ..., 11878, 11879, 11880]
         self._obj['binned_time'] = pd.cut(self._obj[spike_timestamp_column_name].to_numpy(), bins=time_window_edges, include_lowest=True, labels=bin_labels) # same shape as the input data (time_binned_self._obj: (69142,))
         return self._obj
+
+
+    # @function_attributes(short_name=None, tags=['unit-spike-counts', 'mask', 'time-bin', 'spikes'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-03-04 10:09', related_items=[])
+    def compute_unit_time_binned_spike_counts_and_mask(self, time_bin_edges: NDArray, min_num_spikes_per_bin_to_be_considered_active:int=1, min_num_unique_active_neurons_per_time_bin:int=2) -> Tuple[NDArray, Tuple[NDArray, NDArray, NDArray]]:
+        """ Computes the number of neurons in each spike time bin (specified by time_bin_edges) and threshold based on some criteria
+
+        Usage:    
+            from pyphoplacecellanalysis.SpecificResults.PendingNotebookCode import compute_unit_time_binned_spike_counts_and_mask
+            
+            time_bin_edges: NDArray = deepcopy(results1D.continuous_results['global'].time_bin_edges[0])
+            spikes_df: pd.DataFrame = deepcopy(get_proper_global_spikes_df(curr_active_pipeline))
+            unit_specific_time_binned_spike_counts, unique_units, (is_time_bin_active, inactive_mask, mask_rgba) = spikes_df.spikes.compute_unit_time_binned_spike_counts_and_mask(time_bin_edges=time_bin_edges)
+            
+        """
+        spikes_df: pd.DataFrame = deepcopy(self._obj)
+        unique_units: NDArray = np.unique(spikes_df['aclu']) # sorted
+        unit_specific_time_binned_spike_counts: NDArray = np.array([
+            np.histogram(spikes_df.loc[spikes_df['aclu'] == unit, 't_rel_seconds'], bins=time_bin_edges)[0]
+            for unit in unique_units
+        ])
+        # unique_units.shape
+        # unit_specific_time_binned_spike_counts # .shape (n_aclus, n_time_bins)
+        total_spikes_per_time_bin = np.sum(unit_specific_time_binned_spike_counts, axis=0)
+        unique_active_cells_per_time_bin = np.sum((unit_specific_time_binned_spike_counts >= min_num_spikes_per_bin_to_be_considered_active), axis=0)
+
+        ## OUTPUTS: total_spikes_per_time_bin, unique_active_cells_per_time_bin
+        # require 3 neurons to fire in a timebin for it to be considered active.
+
+        is_time_bin_active = (unique_active_cells_per_time_bin >= min_num_unique_active_neurons_per_time_bin)
+
+        ## OUTPUTS: is_time_bin_active - a bool that specifies whether each time bin is active (included) or not. If it's not, it should be masked out with a dark black box or something
+
+        ## OUTPUTS: total_spikes_per_time_bin, unique_active_cells_per_time_bin
+        
+        ## INPUTS: is_time_bin_active
+        # Create mask of inactive time bins
+        inactive_mask = ~is_time_bin_active
+        mask_rgba = np.zeros((1, len(is_time_bin_active), 4), dtype=np.uint8)
+        mask_rgba[0, inactive_mask, :] = [0, 0, 0, 200]  # Black with 80% opacity for inactive bins
+
+        ## OUTPUTS: mask_rgba
+        return unit_specific_time_binned_spike_counts, unique_units, (is_time_bin_active, inactive_mask, mask_rgba)
+
+
 
     def adding_lap_identity_column(self, laps_epoch_df, epoch_id_key_name:str='new_lap_IDX'):  ## CONFORMANCE: TimePointEventAccessor
         """ Adds the lap IDX column to the spikes df from a set of lap epochs.
