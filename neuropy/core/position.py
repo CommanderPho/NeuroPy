@@ -180,7 +180,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         return computed_column_labels
     
     @staticmethod
-    def _perform_compute_higher_order_derivatives(pos_df: pd.DataFrame, component_label: str, time_variable_name: str = 't'):
+    def _perform_compute_higher_order_derivatives(pos_df: pd.DataFrame, component_label: str, time_variable_name: str = 't') -> pd.DataFrame:
         """Computes the higher-order positional derivatives for a single component (given by component_label) of the pos_df
         Args:
             pos_df (pd.DataFrame): [description]
@@ -207,7 +207,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         
         return pos_df
     
-    def compute_higher_order_derivatives(self):
+    def compute_higher_order_derivatives(self) -> pd.DataFrame:
         """Computes the higher-order positional derivatives for all spatial dimensional components of self.df. Adds the dt, velocity, and acceleration columns
         """
         for dim_i in np.arange(self.ndim):
@@ -234,7 +234,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         return smoothed_column_labels
     
     @staticmethod
-    def _perform_compute_smoothed_position_info(pos_df: pd.DataFrame, non_smoothed_column_labels,  N: int = 20):
+    def _perform_compute_smoothed_position_info(pos_df: pd.DataFrame, non_smoothed_column_labels,  N: int = 20) -> pd.DataFrame:
         """Computes the smoothed quantities for a single component (given by component_label) of the pos_df
         Args:
             pos_df (pd.DataFrame): [description]
@@ -252,7 +252,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         pos_df[smoothed_column_names] = pos_df[non_smoothed_column_labels].rolling(window=N).mean()
         return pos_df
     
-    def compute_smoothed_position_info(self, N: int = 20, non_smoothed_column_labels=None):
+    def compute_smoothed_position_info(self, N: int = 20, non_smoothed_column_labels=None) -> pd.DataFrame:
         """Computes smoothed position variables and adds them as columns to the internal dataframe
         Args:
             N (int, optional): Number of previous samples to smooth over. Defaults to 20.
@@ -304,6 +304,22 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         # self._data['lin_pos'] = out_linear_position_obj.to_dataframe()['lin_pos'] # add the `lin_pos` column to the pos_df
         self.df = position_util.linearize_position_df(self.df, method=method, **kwargs) # adds 'lin_pos' column to `self.df`
         return self
+    
+
+    def adding_approx_head_dir_columns(self, N:int=15) -> pd.DataFrame:
+        """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
+        `active_computation_config` is not used/needed if the appropriate xbin_edges/ybin_edges are provided.
+        Internally uses: `cls.perform_add_binned_position_columns(...)`
+        
+        Usage:
+            global_pos_obj: Position = deepcopy(global_session.position)
+
+        """
+        self.df = self.compute_higher_order_derivatives().position.compute_smoothed_position_info(N=N)
+        self.df['approx_head_dir_degrees'] = ((np.rad2deg(np.arctan2(self.df['velocity_y_smooth'], self.df['velocity_x_smooth'])) + 360) % 360) # arctan2 is required to get the angle right
+        self.df = self.df.dropna(axis='index', subset=['approx_head_dir_degrees'])
+        return self.df
+            
     
     ## Computed Variable Properties:
     @property
