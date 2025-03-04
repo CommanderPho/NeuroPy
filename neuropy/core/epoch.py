@@ -1783,8 +1783,31 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
         return df
     
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, metadata=None):
+    def from_dataframe(cls, df: pd.DataFrame, metadata=None) -> "Epoch":
         return cls(df, metadata=metadata)
+
+
+    @classmethod
+    def from_starts_stops_arrays(cls, starts: NDArray, stops: NDArray, labels: Optional[NDArray]=None, metadata=None) -> "Epoch":
+        """ initalizes from equal length starts/stops arrays 
+        
+        Usage:
+            
+            from neuropy.core.epoch import Epoch
+
+            starts = deepcopy(results1D.continuous_results['global'].time_bin_containers[0].left_edges)
+            stops = deepcopy(results1D.continuous_results['global'].time_bin_containers[0].right_edges)
+            an_epoch: Epoch = Epoch.from_starts_stops_arrays(starts=starts, stops=stops)
+            an_epoch
+        """
+        assert len(starts) == len(stops)
+        if labels is not None:
+            assert len(labels) == len(starts)
+        else:
+            labels = np.arange(len(starts)) ## ascending indexes
+        df = pd.DataFrame(dict(start=deepcopy(starts), stop=deepcopy(stops), label=labels))
+        df[['start', 'stop']] = df[['start', 'stop']].astype(float)
+        return cls.from_dataframe(df=df, metadata=metadata)
 
 
     # ==================================================================================================================== #
