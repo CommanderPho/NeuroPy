@@ -646,6 +646,14 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
         """ Tries to load the dict using previous versions of this code. """
         # Legacy fallback:
         print(f'Position falling back to legacy loading protocol...: dict_rep: {dict_rep}')
+        traces_rot = dict_rep.pop('traces_rot', None)
+        if traces_rot is not None:
+            print(f'WARNING: Position class does not currently suppport "traces_rot", but they were passed in. Easy to implement.')
+
+        speed = dict_rep.pop('speed', None)
+        if speed is not None:
+            print(f'WARNING: Position class does not currently suppport "speed", but they were passed in. Easy to implement.')
+
         return Position.init(**({'computed_traces': None, 't_start': 0, 'sampling_rate': 120, 'metadata': None} | dict_rep))
         
     # for PositionDimDataMixin
