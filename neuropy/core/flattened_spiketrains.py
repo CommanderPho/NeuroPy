@@ -98,6 +98,13 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
         """ returns a list of NeuronExtendedIdentity tuples where the first element is the shank_id and the second is the cluster_id. Returned in the same order as self.neuron_ids """
         # groupby the multi-index [shank, cluster]:
         # shank_cluster_grouped_spikes_df = self._obj.groupby(['shank','cluster'])
+        if 'shank' not in self._obj.columns:
+            self._obj['shank'] = -1
+        if 'cluster' not in self._obj.columns:
+            self._obj['cluster'] = -1
+        if 'qclu' not in self._obj.columns:
+            self._obj['qclu'] = -1
+
         aclu_grouped_spikes_df = self._obj.groupby(['aclu'])
         shank_cluster_reference_df = aclu_grouped_spikes_df[['aclu','shank','cluster','qclu']].first() # returns a df indexed by 'aclu' with only the 'shank' and 'cluster' columns
         # output_tuples_list = [NeuronExtendedIdentityTuple(an_id.shank, an_id.cluster, an_id.aclu) for an_id in shank_cluster_reference_df.itertuples()] # returns a list of tuples where the first element is the shank_id and the second is the cluster_id. Returned in the same order as self.neuron_ids
