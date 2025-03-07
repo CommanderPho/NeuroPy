@@ -197,6 +197,12 @@ class PlacefieldND(PfnConfigMixin, PfnDMixin):
     ...
 
 
+class MissingGridBinBoundsError(Exception):
+    def __init__(self, message=..., config=...) -> None:
+        ...
+    
+
+
 @define(slots=False)
 class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresentingMixin, PeakLocationRepresentingMixin, NeuronUnitSlicableObjectProtocol, BinnedPositionsMixin, PfnConfigMixin, PfnDMixin, PfnDPlottingMixin):
     """Represents a collection of placefields over binned,  N-dimensional space. 
@@ -221,8 +227,8 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
     #TODO 2025-02-12 01:23: - [ ] Why are none of these defined as proper attrs-fields?
     
     """
-    spikes_df: pd.DataFrame
-    position: Position
+    spikes_df: pd.DataFrame = ...
+    position: Position = ...
     epochs: Epoch = ...
     config: PlacefieldComputationParameters = ...
     position_srate: float = ...
@@ -577,7 +583,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         ...
     
     @classmethod
-    def determine_pf_aclus_filtered_by_frate_and_qclu(cls, pf_dict: Dict[str, PfND], minimum_inclusion_fr_Hz: Optional[float] = ..., included_qclu_values: Optional[List] = ...): # -> tuple[dict[str, PfND], list[NDArray[Any]]]:
+    def determine_pf_aclus_filtered_by_frate_and_qclu(cls, pf_dict: Dict[str, PfND], minimum_inclusion_fr_Hz: Optional[float] = ..., included_qclu_values: Optional[List] = ...): # -> tuple[dict[str, PfND], list[NDArray[Any]] | list[ndarray[Any, dtype[Any]] | Any]]:
         """ Filters the included neuron_ids by their `tuning_curve_unsmoothed_peak_firing_rates` (a property of their `.pf.ratemap`)
         minimum_inclusion_fr_Hz: float = 5.0
         modified_long_LR_decoder = filtered_by_frate(track_templates.long_LR_decoder, minimum_inclusion_fr_Hz=minimum_inclusion_fr_Hz, debug_print=True)

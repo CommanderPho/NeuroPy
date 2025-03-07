@@ -644,7 +644,7 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
         ...
     
     @classmethod
-    def from_neuroscope(cls, in_filepath, metadata=...): # -> Self:
+    def from_neuroscope(cls, in_filepath, metadata=...): # -> Epoch:
         """ imports from a Neuroscope compatible .evt file.
         Usage:
             from neuropy.core.epoch import Epoch
@@ -736,7 +736,22 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
         ...
     
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, metadata=...): # -> Self:
+    def from_dataframe(cls, df: pd.DataFrame, metadata=...) -> Epoch:
+        ...
+    
+    @classmethod
+    def from_starts_stops_arrays(cls, starts: NDArray, stops: NDArray, labels: Optional[NDArray] = ..., metadata=...) -> Epoch:
+        """ initalizes from equal length starts/stops arrays 
+        
+        Usage:
+            
+            from neuropy.core.epoch import Epoch
+
+            starts = deepcopy(results1D.continuous_results['global'].time_bin_containers[0].left_edges)
+            stops = deepcopy(results1D.continuous_results['global'].time_bin_containers[0].right_edges)
+            an_epoch: Epoch = Epoch.from_starts_stops_arrays(starts=starts, stops=stops)
+            an_epoch
+        """
         ...
     
     def to_Epoch(self) -> Epoch:

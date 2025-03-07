@@ -129,7 +129,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         """
         ...
     
-    def compute_higher_order_derivatives(self): # -> DataFrame[Any]:
+    def compute_higher_order_derivatives(self) -> pd.DataFrame:
         """Computes the higher-order positional derivatives for all spatial dimensional components of self.df. Adds the dt, velocity, and acceleration columns
         """
         ...
@@ -142,7 +142,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         """
         ...
     
-    def compute_smoothed_position_info(self, N: int = ..., non_smoothed_column_labels=...): # -> DataFrame[Any]:
+    def compute_smoothed_position_info(self, N: int = ..., non_smoothed_column_labels=...) -> pd.DataFrame:
         """Computes smoothed position variables and adds them as columns to the internal dataframe
         Args:
             N (int, optional): Number of previous samples to smooth over. Defaults to 20.
@@ -170,6 +170,17 @@ class PositionComputedDataMixin(PositionSlicedMixin):
     
     def compute_linearized_position(self, method=..., **kwargs) -> Position:
         """ computes and adds the linear position to this Position object """
+        ...
+    
+    def adding_approx_head_dir_columns(self, N: int = ...) -> pd.DataFrame:
+        """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
+        `active_computation_config` is not used/needed if the appropriate xbin_edges/ybin_edges are provided.
+        Internally uses: `cls.perform_add_binned_position_columns(...)`
+        
+        Usage:
+            global_pos_obj: Position = deepcopy(global_session.position)
+
+        """
         ...
     
     @property
