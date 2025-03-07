@@ -461,8 +461,8 @@ def find_epochs_overlapping_other_epochs(epochs_df: pd.DataFrame, epochs_df_requ
     """ 
     For example, you might wonder which epochs occur during laps:
 
-        from neuropy.core.epoch import find_epoch_times_to_data_indicies_map
-        
+        from neuropy.core.epoch import find_epochs_overlapping_other_epochs
+
         ## INPUTS: time_bin_containers, global_laps
         left_edges = deepcopy(time_bin_containers.left_edges)
         right_edges = deepcopy(time_bin_containers.right_edges)
