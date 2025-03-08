@@ -141,9 +141,9 @@ class BinningInfo(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsBasedC
         from neuropy.utils.mixins.binning_helpers import BinningInfo, BinningContainer
     
     """
-    variable_extents: Tuple = serialized_field(is_computable=False) # serialized_field
-    step: float = serialized_attribute_field(is_computable=False)
-    num_bins: int = serialized_attribute_field(is_computable=False)
+    variable_extents: Tuple[float, float] = serialized_field(is_computable=False, repr=True) # serialized_field
+    step: float = serialized_attribute_field(is_computable=False, repr=True)
+    num_bins: int = serialized_attribute_field(is_computable=False, repr=True)
     bin_indicies: NDArray = serialized_field(init=False, repr=False, is_computable=True, metadata={'shape':('num_bins',)}) # , eq=attrs.cmp_using(eq=np.array_equal)
     
     def _validate_variable_extents(self):
@@ -170,6 +170,16 @@ class BinningInfo(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsBasedC
         self.bin_indicies = np.arange(self.num_bins)
         assert len(self.bin_indicies) == self.num_bins, f"len(self.bin_indicies): {len(self.bin_indicies)} does not equal self.num_bins: {self.num_bins}!! Something is wrong"
         # self.num_bins = len(self.bin_indicies) # update from bin_indicies
+    
+
+    @classmethod
+    def combining(cls, lhs: "BinningInfo", rhs: "BinningInfo") -> "BinningInfo":
+        variable_extents = (min(lhs.variable_extents[0], rhs.variable_extents[0]), max(lhs.variable_extents[1], rhs.variable_extents[1]))
+        assert lhs.step == rhs.step, f"lhs.step: {lhs.step} != rhs.step: {rhs.step}"
+        step = lhs.step
+        num_bins: int = lhs.num_bins + rhs.num_bins
+        bin_indicies = lhs.bin_indicies + rhs.bin_indicies
+        return cls(variable_extents=variable_extents, step=step, num_bins=num_bins, bin_indicies=bin_indicies) ## return a joined copy
     
     
     # @property
@@ -272,7 +282,7 @@ class BinningContainer(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsB
             
             
     @classmethod
-    def build_edge_binning_info(cls, edges: NDArray):
+    def build_edge_binning_info(cls, edges: NDArray) -> BinningInfo:
         # Otherwise try to reverse engineer edge_info
         try:
             actual_window_size = edges[2] - edges[1] # if at least 3 bins long, safer to use the 2nd and 3rd bin to determine the actual_window_size
@@ -286,7 +296,7 @@ class BinningContainer(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsB
         return BinningInfo(variable_extents=variable_extents, step=actual_window_size, num_bins=len(edges))
     
     @classmethod
-    def build_center_binning_info(cls, centers: NDArray, variable_extents):
+    def build_center_binning_info(cls, centers: NDArray, variable_extents: Tuple[float, float]) -> BinningInfo:
         # Otherwise try to reverse engineer center_info
         assert len(centers) > 1, f"centers must be of at least length 2 to re-derive center_info, but it is of length {len(centers)}. centers: {centers}\n\tCannot continue!"
             
