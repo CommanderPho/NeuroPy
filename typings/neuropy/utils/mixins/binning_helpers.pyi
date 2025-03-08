@@ -93,12 +93,16 @@ class BinningInfo(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsBasedC
         from neuropy.utils.mixins.binning_helpers import BinningInfo, BinningContainer
     
     """
-    variable_extents: Tuple = ...
+    variable_extents: Tuple[float, float] = ...
     step: float = ...
     num_bins: int = ...
     bin_indicies: NDArray = ...
     def __attrs_post_init__(self): # -> None:
         """ validate and build bin_indicies """
+        ...
+    
+    @classmethod
+    def combining(cls, lhs: BinningInfo, rhs: BinningInfo) -> BinningInfo:
         ...
     
     def __getstate__(self): # -> dict[str, Any]:
@@ -157,11 +161,11 @@ class BinningContainer(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsB
         ...
     
     @classmethod
-    def build_edge_binning_info(cls, edges: NDArray): # -> BinningInfo:
+    def build_edge_binning_info(cls, edges: NDArray) -> BinningInfo:
         ...
     
     @classmethod
-    def build_center_binning_info(cls, centers: NDArray, variable_extents): # -> BinningInfo:
+    def build_center_binning_info(cls, centers: NDArray, variable_extents: Tuple[float, float]) -> BinningInfo:
         ...
     
     @classmethod
@@ -369,7 +373,7 @@ def build_df_discretized_binned_position_columns(active_df, bin_values=..., posi
     """
     ...
 
-def transition_matrix(state_sequence, markov_order: int = ..., max_state_index: int = ..., nan_entries_replace_value: Optional[float] = ..., should_validate_normalization: bool = ...): # -> tuple[Any, Any | NDArray[Any] | float | generic | bool | int | complex | str | bytes | memoryview[int]]:
+def transition_matrix(state_sequence, markov_order: int = ..., max_state_index: int = ..., nan_entries_replace_value: Optional[float] = ..., should_validate_normalization: bool = ...): # -> tuple[Any, Any | float | generic | bool | int | complex | str | bytes | memoryview[int] | NDArray[Any]]:
     """" Computes the transition matrix from Markov chain sequence of order `n`.
     See https://stackoverflow.com/questions/58048810/building-n-th-order-markovian-transition-matrix-from-a-given-sequence
 
