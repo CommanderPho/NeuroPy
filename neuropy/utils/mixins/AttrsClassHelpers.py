@@ -43,7 +43,7 @@ def shape_only_repr(instance):
     return repr(instance)
 
 
-def array_values_preview_repr(instance, ndecimals=3):
+def array_values_preview_repr(instance, ndecimals=6):
     """ Specifies that this field prints its shape and a brief preview of the values, not its full contents.
     Shows the first 2 elements and the last element with ellipsis in between for 1D arrays.
     For multidimensional arrays, only shows the shape and total size.

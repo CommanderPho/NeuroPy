@@ -204,7 +204,7 @@ class BinningInfo(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
 
 
 
-@custom_define(slots=False, repr=True, eq=False)
+@custom_define(slots=False, repr=False , eq=False)
 class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     """A container that allows accessing either bin_edges (self.edges) or bin_centers (self.centers) 
     Factored out of pyphocorehelpers.indexing_helpers.BinningContainer
@@ -358,8 +358,9 @@ class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
 
         """
         # Get the string representations of each field
-        edges_repr = array_preview_repr(self.edges)
-        centers_repr = array_preview_repr(self.centers)
+        n_decimals: int = 6
+        edges_repr = array_values_preview_repr(self.edges, ndecimals=n_decimals)
+        centers_repr = array_values_preview_repr(self.centers, ndecimals=n_decimals)
         edge_info_repr = repr(self.edge_info)
         center_info_repr = repr(self.center_info)
         
