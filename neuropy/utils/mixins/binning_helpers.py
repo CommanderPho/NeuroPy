@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple, Optional, Callable, Union, Any, NewType, T
 from typing_extensions import TypeAlias
 from copy import deepcopy
 import numpy as np
+import nptyping as ND
 from nptyping import NDArray
 import pandas as pd
 import attrs

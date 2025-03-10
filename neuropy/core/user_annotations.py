@@ -2,6 +2,7 @@ import sys
 from copy import deepcopy
 from typing import List, Dict, Any, Tuple, Optional, Callable
 from attrs import define, field, Factory, asdict
+import nptyping as ND
 from nptyping import NDArray
 from pathlib import Path
 import numpy as np

@@ -7,6 +7,7 @@ import time
 import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Callable, Union, Any
 from typing_extensions import TypeAlias
+import nptyping as ND
 from nptyping import NDArray
 import neuropy.utils.type_aliases as types
 import numpy as np

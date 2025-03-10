@@ -5,6 +5,7 @@ from importlib import metadata
 import warnings
 from warnings import warn
 import numpy as np
+import nptyping as ND
 from nptyping import NDArray
 import pandas as pd
 import portion as P # Required for interval search: portion~=2.3.0

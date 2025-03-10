@@ -18,6 +18,7 @@ from matplotlib.widgets import SpanSelector
 from neuropy.utils.misc import AutoNameEnum, compute_paginated_grid_config, RowColTuple
 
 from typing import TYPE_CHECKING, Dict, List, Tuple, Optional, Callable, Union, Any
+import nptyping as ND
 from nptyping import NDArray
 
 if TYPE_CHECKING:

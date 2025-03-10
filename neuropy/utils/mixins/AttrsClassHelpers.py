@@ -472,6 +472,7 @@ import pathlib
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Callable, Union, Any
 from typing_extensions import TypeAlias
+import nptyping as ND
 from nptyping import NDArray
 import attrs
 from attrs import define, field, Factory, astuple, asdict, fields

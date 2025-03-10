@@ -1,4 +1,5 @@
 from typing import Optional, List, Dict, Tuple, Union
+import nptyping as ND
 from nptyping import NDArray
 import numpy as np
 import pandas as pd

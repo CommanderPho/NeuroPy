@@ -1,5 +1,6 @@
 from copy import deepcopy
 from typing import Union, Tuple, List, Dict, Set, Any, Optional, OrderedDict  # for OrderedMeta
+import nptyping as ND
 from nptyping import NDArray
 from contextlib import contextmanager, ContextDecorator
 
