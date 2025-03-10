@@ -775,21 +775,52 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
     
     
         
-    ## Handling overlapping
+    # ==================================================================================================================== #
+    # Handling overlapping                                                                                                 #
+    # ==================================================================================================================== #
+
+    def is_gapless_overlap_df(self) -> bool:
+        """ checks whether all of epochs are back-to-back with no intermediate overlaps, returning true if they are 
+        """
+        # Early exit for empty or single-element dataframes
+        if len(self._obj) <= 1:
+            return True
+        
+        # The dataframe is already sorted in __init__ method, so we can use it directly
+        # Get numpy arrays of starts and stops for fast operations
+        starts = self._obj['start'].values
+        stops = self._obj['stop'].values
+        
+        # Vectorized check for back-to-back epochs:
+        # stops[:-1] = all stop times except the last one
+        # starts[1:] = all start times except the first one
+        # If the epochs are back-to-back, these should be equal
+        return np.array_equal(stops[:-1], starts[1:])
+
+
+
+
     def get_non_overlapping_df(self, debug_print=False) -> pd.DataFrame:
         """ Returns a dataframe with overlapping epochs removed. """
-        ## 2023-02-23 - PortionInterval approach to ensuring uniqueness:
-        from neuropy.utils.efficient_interval_search import convert_PortionInterval_to_epochs_df, _convert_start_end_tuples_list_to_PortionInterval
-        ## Capture dataframe properties beyond just the start/stop times:
-        P_Interval_kwargs = {'merge_on_adjacent': False, 'enable_auto_simplification': True}
 
-        ## Post-2024-04-01 13:11: - [ ] with auto-simplification disabled and such:
-        # P_Interval_kwargs = {'merge_on_adjacent': False, 'enable_auto_simplification': False}
+        if self.is_gapless_overlap_df():
+            ## for a gapless dataframe, subtract a small offset from each of the 'stop' values so that they just barely don't overlap
+            gap_epsilon_size: float = 1e-9
 
-        # _intermedia_start_end_tuples_list = self.get_start_stop_tuples_list()
-        _intermediate_portions_interval: P.Interval = _convert_start_end_tuples_list_to_PortionInterval(zip(self.starts, self.stops))
-        filtered_epochs_df = convert_PortionInterval_to_epochs_df(_intermediate_portions_interval)
-        # is_epoch_included = np.array([(a_tuple.start, a_tuple.stop) in _intermedia_start_end_tuples_list for a_tuple in list(filtered_epochs_df.itertuples(index=False))])
+            filtered_epochs_df = ...
+        else:
+            ## 2023-02-23 - PortionInterval approach to ensuring uniqueness:
+            from neuropy.utils.efficient_interval_search import convert_PortionInterval_to_epochs_df, _convert_start_end_tuples_list_to_PortionInterval
+            ## Capture dataframe properties beyond just the start/stop times:
+            P_Interval_kwargs = {'merge_on_adjacent': False, 'enable_auto_simplification': True}
+
+            ## Post-2024-04-01 13:11: - [ ] with auto-simplification disabled and such:
+            # P_Interval_kwargs = {'merge_on_adjacent': False, 'enable_auto_simplification': False}
+
+            # _intermedia_start_end_tuples_list = self.get_start_stop_tuples_list()
+            _intermediate_portions_interval: P.Interval = _convert_start_end_tuples_list_to_PortionInterval(zip(self.starts, self.stops))
+            filtered_epochs_df = convert_PortionInterval_to_epochs_df(_intermediate_portions_interval)
+            # is_epoch_included = np.array([(a_tuple.start, a_tuple.stop) in _intermedia_start_end_tuples_list for a_tuple in list(filtered_epochs_df.itertuples(index=False))])
 
         if debug_print:
             before_num_rows = self.n_epochs
@@ -800,6 +831,10 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             return filtered_epochs_df
         else:
             return filtered_epochs_df
+
+
+
+
 
     def get_epochs_longer_than(self, minimum_duration, debug_print=False) -> pd.DataFrame:
         """ returns a copy of the dataframe contining only epochs longer than the specified minimum_duration. """
