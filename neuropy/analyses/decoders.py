@@ -483,13 +483,20 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
 
     # Handle extracting the spiketrains, which are a list with one entry for each neuron and each list containing the timestamps of the spike event
     if isinstance(neurons, core.Neurons):
-        spiketrains = neurons.spiketrains
+        spiketrains: NDArray = neurons.spiketrains
     elif isinstance(neurons, pd.DataFrame):
         # a spikes_df is passed in, build the spiketrains
         spikes_df = neurons
-        spiketrains = spikes_df.spikes.get_unit_spiketrains(included_neuron_ids=included_neuron_ids)
+        spiketrains: NDArray = spikes_df.spikes.get_unit_spiketrains(included_neuron_ids=included_neuron_ids)
     else:
         raise NotImplementedError
+
+    if included_neuron_ids is None:
+        unique_units: NDArray[ND.Shape["N_ACLUS"], ND.Int] = np.unique(spikes_df['aclu']) # sorted
+        included_neuron_ids = unique_units
+
+    spikes_df = spikes_df.spikes.get_by_id(included_neuron_ids)
+    
 
     # Handle either core.Epoch or pd.DataFrame objects:
     epoch_df = ensure_dataframe(epochs)
@@ -621,5 +628,5 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
             
         spkcount.append(slide_view)
 
-    return spkcount, nbins, time_bin_containers_list
+    return spkcount, included_neuron_ids, nbins, time_bin_containers_list # Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]
 
