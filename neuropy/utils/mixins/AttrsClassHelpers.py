@@ -473,18 +473,15 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Callable, Union, Any
 from typing_extensions import TypeAlias
 from nptyping import NDArray
-import pyphoplacecellanalysis.General.type_aliases as types
-from pyphocorehelpers.programming_helpers import metadata_attributes
-from pyphocorehelpers.function_helpers import function_attributes
 import attrs
 from attrs import define, field, Factory, astuple, asdict, fields
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_attribute_field, serialized_field, non_serialized_field
 from neuropy.utils.mixins.HDF5_representable import HDF_SerializationMixin
 from neuropy.core.parameters import BaseConfig
-from pyphocorehelpers.DataStructure.dynamic_parameters import DynamicParameters
-from pyphocorehelpers.function_helpers import get_fn_kwargs_with_defaults, get_decorated_function_attributes, fn_best_name
-from pyphocorehelpers.print_helpers import strip_type_str_to_classname
-from pyphoplacecellanalysis.General.Model.Configs.ParamConfigs import BasePlotDataParams
+# from pyphocorehelpers.DataStructure.dynamic_parameters import DynamicParameters
+# from pyphocorehelpers.function_helpers import get_fn_kwargs_with_defaults, get_decorated_function_attributes, fn_best_name
+# from pyphocorehelpers.print_helpers import strip_type_str_to_classname
+# from pyphoplacecellanalysis.General.Model.Configs.ParamConfigs import BasePlotDataParams
 
 
 class AttrsWithParamParameterizedHelpers:
@@ -502,7 +499,7 @@ class AttrsWithParamParameterizedHelpers:
                     }
 
 
-    @function_attributes(short_name=None, tags=['parameters', 'attrs'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-02-11 02:56', related_items=[])
+    # @function_attributes(short_name=None, tags=['parameters', 'attrs'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-02-11 02:56', related_items=[])
     @classmethod
     def _perform_attrs_to_parameters(cls, cls_to_decorate, should_fallback_to_default_paramParameter:bool=False):
         """ uses: `cls.attrs_to_params_type_map`
@@ -567,7 +564,7 @@ class AttrsWithParamParameterizedHelpers:
     #         setattr(cls, field.name, param.ClassSelector(class_=field_type, default=default))
     #     return cls
 
-    @function_attributes(short_name=None, tags=['parameters', 'attrs'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-02-11 02:56', related_items=[])
+    # @function_attributes(short_name=None, tags=['parameters', 'attrs'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-02-11 02:56', related_items=[])
     @classmethod
     def attrs_to_parameters_container(cls, cls_to_decorate):
         """ all fields should be `param.Parameterized` subclasses """
