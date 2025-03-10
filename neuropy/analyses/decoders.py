@@ -800,6 +800,11 @@ def compare_epochs_spkcount_implementations(spikes_df: pd.DataFrame, epochs: pd.
         debug_print=debug_print
     )
     
+    old_outputs = (old_spkcount, old_included_neuron_ids, old_nbins, old_time_bin_containers_list)
+    new_outputs = (new_spkcount, new_included_neuron_ids, new_nbins, new_time_bin_containers_list)
+    # raw_outputs_tuple = (new_outputs,
+    #                old_outputs)
+    
         # Prepare results dictionary
     results = {
         "same_neuron_ids": np.array_equal(new_included_neuron_ids, old_included_neuron_ids),
@@ -932,7 +937,7 @@ def compare_epochs_spkcount_implementations(spikes_df: pd.DataFrame, epochs: pd.
     # Call the detailed differences function
     print_detailed_epoch_differences(results)
         
-    return results
+    return results, new_outputs, old_outputs
 
 
 def print_detailed_epoch_differences(results: Dict[str, Any], max_items: int = 5):
