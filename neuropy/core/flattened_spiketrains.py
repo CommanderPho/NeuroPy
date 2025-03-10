@@ -319,7 +319,7 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
             
         unit_specific_time_binned_spike_counts: NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int] = np.array([
             np.histogram(spikes_df.loc[spikes_df['aclu'] == unit, spike_timestamp_column_name], bins=time_bin_edges)[0]
-            for unit in unique_units
+            for unit in included_neuron_ids
         ])
         # unit_specific_time_binned_spike_counts # .shape (n_aclus, n_time_bins)
         return unit_specific_time_binned_spike_counts, included_neuron_ids

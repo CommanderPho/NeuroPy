@@ -444,14 +444,13 @@ def column_shift(arr, shifts=None):
 
 
 # @function_attributes(short_name=None, tags=['IMPROVED', 'FIXED'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-03-10 15:03', related_items=[])
-def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False) -> Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]:
+def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False) -> Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]:
     """Binning events and calculating spike counts
 
     Args:
-        neurons (Union[core.Neurons, pd.DataFrame]): _description_
+        spikes (Union[pd.DataFrame, core.Neurons]): _description_
         epochs (Union[core.Epoch, pd.DataFrame]): _description_
         bin_size (float, optional): _description_. Defaults to 0.01.
-        slideby (_type_, optional): _description_. Defaults to None.
         export_time_bins (bool, optional): If True returns a list of the actual time bin centers for each epoch in time_bins. Defaults to False.
         included_neuron_ids (bool, optional): Only relevent if using a spikes_df for the neurons input. Ensures there is one spiketrain built for each neuron in included_neuron_ids, even if there are no spikes.
         debug_print (bool, optional): _description_. Defaults to False.
@@ -481,8 +480,11 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
     2025-03-10 Replacing the old epochs_spkcount (backed-up to `_OLD_epochs_spkcount`) with new, much simpler version
     
     Usage:
+        from pyphoplacecellanalysis.General.Pipeline.Stages.ComputationFunctions.MultiContextComputationFunctions.DirectionalPlacefieldGlobalComputationFunctions import get_proper_global_spikes_df
         from neuropy.analyses.decoders import epochs_spkcount
-        spkcount, included_neuron_ids, nbins, time_bin_containers_list = 
+        
+        spikes_df = get_proper_global_spikes_df(curr_active_pipeline)
+        spkcount, included_neuron_ids, nbins, time_bin_containers_list = epochs_spkcount(spikes_df, epochs=filter_epochs, bin_size=decoding_time_bin_size, slideby=decoding_time_bin_size, export_time_bins=True, included_neuron_ids=neuron_IDs, use_single_time_bin_per_epoch=use_single_time_bin_per_epoch, debug_print=debug_print)
     
         
     """
@@ -492,12 +494,12 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
     if use_single_time_bin_per_epoch:
         assert bin_size is None, f"use_single_time_bin_per_epoch is True but bin_size = {bin_size} has been provided. This bin_size will not be used as each epoch will be treated as a single time bin (meaning different epochs will have different length time bins). Set to None to continue 2025-03-10 15:01."
 
-    if isinstance(neurons, core.Neurons):
+    if isinstance(spikes, core.Neurons):
         # spiketrains: NDArray = neurons.spiketrains
-        spikes_df: pd.DataFrame = neurons.to_dataframe()
-    elif isinstance(neurons, pd.DataFrame):
+        spikes_df: pd.DataFrame = spikes.to_dataframe()
+    elif isinstance(spikes, pd.DataFrame):
         # a spikes_df is passed in, build the spiketrains
-        spikes_df: pd.DataFrame = neurons
+        spikes_df: pd.DataFrame = spikes
     else:
         raise NotImplementedError
 
@@ -505,7 +507,7 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
         unique_units: NDArray[ND.Shape["N_ACLUS"], ND.Int] = np.unique(spikes_df['aclu']) # sorted
         included_neuron_ids = unique_units
 
-    spikes_df = spikes_df.spikes.get_by_id(included_neuron_ids)
+    spikes_df = spikes_df.spikes.sliced_by_neuron_id(included_neuron_ids)
 
     # Handle either core.Epoch or pd.DataFrame objects:
     epoch_df: pd.DataFrame = ensure_dataframe(epochs)
@@ -526,7 +528,7 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
         else:
             ## Binning with Fixed Bin Sizes: fixed time-bin duration -> variable num time bins per epoch depending on epoch length
             time_bin_edges, time_bin_edges_binning_info = compute_spanning_bins(variable_values=None, bin_size=bin_size, variable_start_value=epoch.start, variable_end_value=epoch.stop) # fixed_step mode
-        nbins[i] = len(time_bin_edges-1) ## #TODO 2025-03-10 14:57: - [ ] MAJOR: !!! is this supposed to be centers, or edges?!?
+        nbins[i] = (len(time_bin_edges) -1 ) ## #TODO 2025-03-10 14:57: - [ ] MAJOR: !!! is this supposed to be centers, or edges?!?
  
         unit_specific_time_binned_spike_counts, _included_neuron_ids = spikes_df.spikes.compute_unit_time_binned_spike_counts(time_bin_edges=time_bin_edges, included_neuron_ids=included_neuron_ids)
         
@@ -545,8 +547,6 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
 
     # END for i, epoch in enumerate(epoch_df.itertuples())
     return spkcount, included_neuron_ids, nbins, time_bin_containers_list # Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]
-
-
 
 def _OLD_epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, slideby=None, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False):
     """Binning events and calculating spike counts
@@ -574,8 +574,6 @@ def _OLD_epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Uni
     
         spkcount, nbins, time_bin_containers_list = 
         
-    
-        
     Extra:
     
         If the epoch is shorter than the bin_size the time_bins returned should be the edges of the epoch
@@ -599,7 +597,7 @@ def _OLD_epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Uni
             unique_units: NDArray[ND.Shape["N_ACLUS"], ND.Int] = np.unique(spikes_df['aclu']) # sorted
             included_neuron_ids = unique_units
         else:
-            spikes_df = spikes_df.spikes.get_by_id(included_neuron_ids)
+            spikes_df = spikes_df.spikes.sliced_by_neuron_id(included_neuron_ids)
         spiketrains: NDArray = spikes_df.spikes.get_unit_spiketrains(included_neuron_ids=included_neuron_ids)
     else:
         raise NotImplementedError
@@ -739,3 +737,269 @@ def _OLD_epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Uni
 
     return spkcount, included_neuron_ids, nbins, time_bin_containers_list # Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]
 
+
+
+# ==================================================================================================================== #
+# Evaluate the differences between `epochs_spkcount` and `_OLD_epochs_spkcount`                                        #
+# ==================================================================================================================== #
+
+import numpy as np
+import pandas as pd
+from typing import Dict, List, Tuple, Optional, Union, Any
+from neuropy.analyses.decoders import epochs_spkcount, _OLD_epochs_spkcount
+from neuropy.utils.mixins.binning_helpers import BinningContainer
+
+def compare_epochs_spkcount_implementations(spikes_df: pd.DataFrame, epochs: pd.DataFrame, bin_size: float = 0.01, export_time_bins: bool = True, included_neuron_ids = None, use_single_time_bin_per_epoch: bool = False, debug_print: bool = False) -> Dict[str, Any]:
+    """
+    Evaluates both the new and old epochs_spkcount implementations with identical parameters
+    and compares their outputs to identify any differences.
+    
+    Parameters:
+    -----------
+    spikes_df : pd.DataFrame
+        The dataframe containing spike data
+    epochs : pd.DataFrame
+        The dataframe containing epoch data
+    bin_size : float, optional
+        Size of time bins for analysis, defaults to 0.01
+    export_time_bins : bool, optional
+        Whether to export time bin information, defaults to True
+    included_neuron_ids : array-like, optional
+        Specific neuron IDs to include, defaults to None (all neurons)
+    use_single_time_bin_per_epoch : bool, optional
+        If True, uses a single time bin per epoch, defaults to False
+    debug_print : bool, optional
+        Whether to print debug information, defaults to False
+        
+    Returns:
+    --------
+    Dict[str, Any]
+        Dictionary containing comparison results
+    """
+    # Run new implementation
+    print("Running new implementation...")
+    new_spkcount, new_included_neuron_ids, new_nbins, new_time_bin_containers_list = epochs_spkcount(
+        spikes_df, 
+        epochs=epochs, 
+        bin_size=bin_size if not use_single_time_bin_per_epoch else None, 
+        export_time_bins=export_time_bins, 
+        included_neuron_ids=included_neuron_ids,
+        use_single_time_bin_per_epoch=use_single_time_bin_per_epoch, 
+        debug_print=debug_print
+    )
+    
+    # Run old implementation
+    print("Running old implementation...")
+    old_spkcount, old_included_neuron_ids, old_nbins, old_time_bin_containers_list = _OLD_epochs_spkcount(
+        spikes_df, 
+        epochs=epochs, 
+        bin_size=bin_size, 
+        slideby=bin_size,  # Set slideby equal to bin_size as in the example
+        export_time_bins=export_time_bins, 
+        included_neuron_ids=included_neuron_ids,
+        use_single_time_bin_per_epoch=use_single_time_bin_per_epoch, 
+        debug_print=debug_print
+    )
+    
+        # Prepare results dictionary
+    results = {
+        "same_neuron_ids": np.array_equal(new_included_neuron_ids, old_included_neuron_ids),
+        "nbins_comparison": {
+            "match": np.array_equal(new_nbins, old_nbins),
+            "new_nbins": new_nbins,
+            "old_nbins": old_nbins,
+            "difference_count": np.sum(new_nbins != old_nbins),
+            "mean_difference": np.mean(np.abs(new_nbins - old_nbins)) if len(new_nbins) == len(old_nbins) else None
+        },
+        "epoch_count": len(epochs),
+        "epoch_differences": []
+    }
+    
+    # Compare spkcount arrays (one per epoch)
+    n_epochs = min(len(new_spkcount), len(old_spkcount))
+    
+    results["spkcount_arrays"] = {
+        "length_match": len(new_spkcount) == len(old_spkcount),
+        "new_length": len(new_spkcount),
+        "old_length": len(old_spkcount)
+    }
+    
+    # Compare each epoch's spike counts
+    for i in range(n_epochs):
+        new_shape = new_spkcount[i].shape
+        old_shape = old_spkcount[i].shape
+        
+        epoch_diff = {
+            "epoch_index": i,
+            "shapes_match": new_shape == old_shape,
+            "new_shape": new_shape,
+            "old_shape": old_shape,
+            "values_match": False  # Default to False, will set to True if applicable
+        }
+        
+        if new_shape == old_shape:
+            # Check if the actual values match
+            is_equal = np.array_equal(new_spkcount[i], old_spkcount[i])
+            epoch_diff["values_match"] = is_equal
+            
+            if not is_equal:
+                # Calculate statistics of differences
+                diff = new_spkcount[i] - old_spkcount[i]
+                epoch_diff["max_diff"] = np.max(np.abs(diff))
+                epoch_diff["mean_diff"] = np.mean(np.abs(diff))
+                epoch_diff["nonzero_diff_count"] = np.count_nonzero(diff)
+                epoch_diff["nonzero_diff_percentage"] = 100 * np.count_nonzero(diff) / diff.size
+                epoch_diff["total_count_diff"] = np.sum(new_spkcount[i]) - np.sum(old_spkcount[i])
+        else:
+            # Different shapes means different binning approach or different count
+            epoch_diff["new_total_count"] = np.sum(new_spkcount[i])
+            epoch_diff["old_total_count"] = np.sum(old_spkcount[i])
+            epoch_diff["total_count_diff"] = epoch_diff["new_total_count"] - epoch_diff["old_total_count"]
+            
+        results["epoch_differences"].append(epoch_diff)
+    
+    # Compare time bin containers if they exist
+    if export_time_bins:
+        bin_container_diffs = []
+        
+        n_containers = min(len(new_time_bin_containers_list), len(old_time_bin_containers_list))
+        results["bin_containers"] = {
+            "length_match": len(new_time_bin_containers_list) == len(old_time_bin_containers_list),
+            "new_length": len(new_time_bin_containers_list),
+            "old_length": len(old_time_bin_containers_list)
+        }
+        
+        for i in range(n_containers):
+            new_container = new_time_bin_containers_list[i]
+            old_container = old_time_bin_containers_list[i]
+            
+            container_diff = {
+                "epoch_index": i,
+                "edges_match": False,
+                "centers_match": False,
+                "new_edges_len": len(new_container.edges),
+                "old_edges_len": len(old_container.edges),
+                "new_centers_len": len(new_container.centers),
+                "old_centers_len": len(old_container.centers),
+                "new_step": new_container.center_info.step,
+                "old_step": old_container.center_info.step,
+                "steps_match": np.isclose(new_container.center_info.step, old_container.center_info.step)
+            }
+            
+            # Check if edges match
+            if len(new_container.edges) == len(old_container.edges):
+                container_diff["edges_match"] = np.allclose(new_container.edges, old_container.edges)
+                if not container_diff["edges_match"]:
+                    container_diff["max_edge_diff"] = np.max(np.abs(new_container.edges - old_container.edges))
+            
+            # Check if centers match
+            if len(new_container.centers) == len(old_container.centers):
+                container_diff["centers_match"] = np.allclose(new_container.centers, old_container.centers)
+                if not container_diff["centers_match"]:
+                    container_diff["max_center_diff"] = np.max(np.abs(new_container.centers - old_container.centers))
+            
+            bin_container_diffs.append(container_diff)
+                
+        results["bin_container_differences"] = bin_container_diffs
+    
+    # Generate summary statistics
+    matching_epoch_counts = sum(1 for d in results["epoch_differences"] if d["values_match"])
+    results["summary_stats"] = {
+        "matching_epoch_counts": matching_epoch_counts,
+        "matching_epoch_percentage": 100 * matching_epoch_counts / len(results["epoch_differences"]) if results["epoch_differences"] else 0
+    }
+    
+    if export_time_bins:
+        matching_containers = sum(1 for d in results["bin_container_differences"] if d["edges_match"] and d["centers_match"])
+        results["summary_stats"]["matching_containers"] = matching_containers
+        results["summary_stats"]["matching_containers_percentage"] = 100 * matching_containers / len(results["bin_container_differences"]) if results["bin_container_differences"] else 0
+    
+    # Print summary
+    print("\nCOMPARISON SUMMARY:")
+    print(f"  Neuron IDs match: {results['same_neuron_ids']}")
+    
+    if results["nbins_comparison"]["match"]:
+        print(f"  Bin counts match for all {len(new_nbins)} epochs")
+    else:
+        print(f"  Bin counts differ in {results['nbins_comparison']['difference_count']} out of {len(new_nbins)} epochs")
+        if results["nbins_comparison"]["mean_difference"] is not None:
+            print(f"  Average bin count difference: {results['nbins_comparison']['mean_difference']:.2f}")
+    
+    print(f"  Epochs with identical spike counts: {matching_epoch_counts} out of {len(results['epoch_differences'])}")
+    
+    if export_time_bins:
+        print(f"  Epochs with identical time bins: {matching_containers} out of {len(results['bin_container_differences'])}")
+    
+    # Call the detailed differences function
+    print_detailed_epoch_differences(results)
+        
+    return results
+
+
+def print_detailed_epoch_differences(results: Dict[str, Any], max_items: int = 5):
+    """
+    Prints detailed information about differences between epoch results.
+    
+    Parameters:
+    -----------
+    results : Dict[str, Any]
+        Results dictionary from compare_epochs_spkcount_implementations
+    max_items : int, optional
+        Maximum number of items to show in each section, defaults to 5
+    """
+    print("\nDETAILED DIFFERENCES:")
+    
+    # Bin count differences
+    if not results["nbins_comparison"]["match"]:
+        print("\n  BIN COUNT DIFFERENCES:")
+        new_nbins = results["nbins_comparison"]["new_nbins"]
+        old_nbins = results["nbins_comparison"]["old_nbins"]
+        
+        diff_indices = np.where(new_nbins != old_nbins)[0]
+        for i, idx in enumerate(diff_indices[:max_items]):
+            print(f"    Epoch {idx}: New: {new_nbins[idx]}, Old: {old_nbins[idx]}, Diff: {new_nbins[idx] - old_nbins[idx]}")
+        
+        if len(diff_indices) > max_items:
+            print(f"    ... and {len(diff_indices) - max_items} more differences")
+    
+    # Shape differences
+    shape_mismatches = [d for d in results["epoch_differences"] if not d["shapes_match"]]
+    if shape_mismatches:
+        print("\n  SHAPE DIFFERENCES:")
+        for i, diff in enumerate(shape_mismatches[:max_items]):
+            print(f"    Epoch {diff['epoch_index']}: New shape: {diff['new_shape']}, Old shape: {diff['old_shape']}")
+            if "new_total_count" in diff:
+                print(f"      Total spike counts - New: {diff['new_total_count']}, Old: {diff['old_total_count']}, Diff: {diff['total_count_diff']}")
+        
+        if len(shape_mismatches) > max_items:
+            print(f"    ... and {len(shape_mismatches) - max_items} more epochs with shape differences")
+    
+    # Value differences (same shape but different values)
+    value_diffs = [d for d in results["epoch_differences"] if d["shapes_match"] and not d["values_match"]]
+    if value_diffs:
+        print("\n  VALUE DIFFERENCES (same shapes but different counts):")
+        
+        # Sort by maximum difference
+        if value_diffs and "max_diff" in value_diffs[0]:
+            value_diffs.sort(key=lambda x: x.get("max_diff", 0), reverse=True)
+        
+        for i, diff in enumerate(value_diffs[:max_items]):
+            print(f"    Epoch {diff['epoch_index']} (shape {diff['new_shape']}):")
+            print(f"      Max difference: {diff['max_diff']}")
+            print(f"      Mean difference: {diff['mean_diff']:.4f}")
+            print(f"      Cells with differences: {diff['nonzero_diff_count']} ({diff['nonzero_diff_percentage']:.2f}%)")
+            print(f"      Total count difference: {diff['total_count_diff']}")
+        
+        if len(value_diffs) > max_items:
+            print(f"    ... and {len(value_diffs) - max_items} more epochs with value differences")
+    
+    # Bin container differences
+    if "bin_container_differences" in results:
+        edge_diffs = [d for d in results["bin_container_differences"] if not d["edges_match"]]
+        center_diffs = [d for d in results["bin_container_differences"] if not d["centers_match"]]
+        
+        if edge_diffs or center_diffs:
+            print("\n  TIME BIN DIFFERENCES:")
+            
+            if edge_diffs:
+                print("\n    EDGE DIFFERENCES:")
