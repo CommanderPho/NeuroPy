@@ -603,8 +603,7 @@ def _OLD_epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Uni
         raise NotImplementedError
 
     assert included_neuron_ids is not None
-
-
+    
     # Handle either core.Epoch or pd.DataFrame objects:
     epoch_df = ensure_dataframe(epochs)
     n_epochs = np.shape(epoch_df)[0] # there is one row per epoch
