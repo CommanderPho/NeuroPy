@@ -443,7 +443,112 @@ def column_shift(arr, shifts=None):
     return arr[rows_indx, columns_indx]
 
 
-def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, slideby=None, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False):
+# @function_attributes(short_name=None, tags=['IMPROVED', 'FIXED'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-03-10 15:03', related_items=[])
+def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False) -> Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]:
+    """Binning events and calculating spike counts
+
+    Args:
+        neurons (Union[core.Neurons, pd.DataFrame]): _description_
+        epochs (Union[core.Epoch, pd.DataFrame]): _description_
+        bin_size (float, optional): _description_. Defaults to 0.01.
+        slideby (_type_, optional): _description_. Defaults to None.
+        export_time_bins (bool, optional): If True returns a list of the actual time bin centers for each epoch in time_bins. Defaults to False.
+        included_neuron_ids (bool, optional): Only relevent if using a spikes_df for the neurons input. Ensures there is one spiketrain built for each neuron in included_neuron_ids, even if there are no spikes.
+        debug_print (bool, optional): _description_. Defaults to False.
+        use_single_time_bin_per_epoch (bool, optional): If True, a single time bin is used per epoch instead of using the provided `bin_size`. This means that each epoch will have exactly one bin, but it will be variablely-sized depending on the epoch's duration. Defaults to false.
+        
+    Raises:
+        NotImplementedError: _description_
+        NotImplementedError: _description_
+
+    Returns:
+        list: spkcount - one for each epoch in filter_epochs
+        list: nbins - A count of the number of time bins that compose each decoding epoch e.g. nbins: [7 2 7 1 5 2 7 6 8 5 8 4 1 3 5 6 6 6 3 3 4 3 6 7 2 6 4 1 7 7 5 6 4 8 8 5 2 5 5 8]
+        list: time_bin_containers_list - None unless export_time_bins is True. 
+        
+    Usage:
+    
+        spkcount, nbins, time_bin_containers_list = 
+        
+    
+        
+    Extra:
+    
+        If the epoch is shorter than the bin_size the time_bins returned should be the edges of the epoch
+        
+    2025-02-20 12:06 Gemni 2.0 Suggestion for fix: "The most robust solution is to always use the single-bin-per-epoch approach when the epoch is shorter than the bin size, even when use_single_time_bin_per_epoch is false. This ensures consistency and avoids the sliding_window_view issues.:"
+    
+    2025-03-10 Replacing the old epochs_spkcount (backed-up to `_OLD_epochs_spkcount`) with new, much simpler version
+    
+    Usage:
+        from neuropy.analyses.decoders import epochs_spkcount
+        spkcount, included_neuron_ids, nbins, time_bin_containers_list = 
+    
+        
+    """
+    from neuropy.core.epoch import ensure_dataframe
+    from neuropy.utils.mixins.binning_helpers import compute_spanning_bins, BinningContainer, BinningInfo
+    
+    if use_single_time_bin_per_epoch:
+        assert bin_size is None, f"use_single_time_bin_per_epoch is True but bin_size = {bin_size} has been provided. This bin_size will not be used as each epoch will be treated as a single time bin (meaning different epochs will have different length time bins). Set to None to continue 2025-03-10 15:01."
+
+    if isinstance(neurons, core.Neurons):
+        # spiketrains: NDArray = neurons.spiketrains
+        spikes_df: pd.DataFrame = neurons.to_dataframe()
+    elif isinstance(neurons, pd.DataFrame):
+        # a spikes_df is passed in, build the spiketrains
+        spikes_df: pd.DataFrame = neurons
+    else:
+        raise NotImplementedError
+
+    if included_neuron_ids is None:
+        unique_units: NDArray[ND.Shape["N_ACLUS"], ND.Int] = np.unique(spikes_df['aclu']) # sorted
+        included_neuron_ids = unique_units
+
+    spikes_df = spikes_df.spikes.get_by_id(included_neuron_ids)
+
+    # Handle either core.Epoch or pd.DataFrame objects:
+    epoch_df: pd.DataFrame = ensure_dataframe(epochs)
+    n_epochs: int = np.shape(epoch_df)[0] # there is one row per epoch
+
+    spkcount: List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]] = []
+    if export_time_bins:
+        time_bin_containers_list = []
+    else:
+        time_bin_containers_list = None
+
+    nbins: NDArray[ND.Shape['N_EPOCHS'], Any] = np.zeros(n_epochs, dtype="int")
+
+    for i, epoch in enumerate(epoch_df.itertuples()):
+        
+        if use_single_time_bin_per_epoch:
+            time_bin_edges = np.array([epoch.start, epoch.stop]) # two edges for the epoch
+        else:
+            ## Binning with Fixed Bin Sizes: fixed time-bin duration -> variable num time bins per epoch depending on epoch length
+            time_bin_edges, time_bin_edges_binning_info = compute_spanning_bins(variable_values=None, bin_size=bin_size, variable_start_value=epoch.start, variable_end_value=epoch.stop) # fixed_step mode
+        nbins[i] = len(time_bin_edges-1) ## #TODO 2025-03-10 14:57: - [ ] MAJOR: !!! is this supposed to be centers, or edges?!?
+ 
+        unit_specific_time_binned_spike_counts, _included_neuron_ids = spikes_df.spikes.compute_unit_time_binned_spike_counts(time_bin_edges=time_bin_edges, included_neuron_ids=included_neuron_ids)
+        
+        spkcount.append(unit_specific_time_binned_spike_counts)
+        
+        if debug_print:
+            print(f'i: {i}, epoch: [{epoch.start}, {epoch.stop}], bins: {np.shape(time_bin_edges)}, np.shape(unit_specific_time_binned_spike_counts): {np.shape(unit_specific_time_binned_spike_counts)}')
+
+        if export_time_bins:
+            if debug_print:
+                print(f'nbins[i]: {nbins[i]}') # nbins: 20716
+
+            bin_container = BinningContainer.init_from_edges(edges=time_bin_edges, edge_info=time_bin_edges_binning_info)
+            assert len(bin_container.centers) == nbins[i], f"The length of the produced bin_container.centers and the nbins[i] should be the same, but len(bin_container.centers): {len(bin_container.centers)} and nbins[i]: {nbins[i]}!"
+            time_bin_containers_list.append(bin_container)
+
+    # END for i, epoch in enumerate(epoch_df.itertuples())
+    return spkcount, included_neuron_ids, nbins, time_bin_containers_list # Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]
+
+
+
+def _OLD_epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, slideby=None, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False):
     """Binning events and calculating spike counts
 
     Args:
@@ -483,20 +588,24 @@ def epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[co
 
     # Handle extracting the spiketrains, which are a list with one entry for each neuron and each list containing the timestamps of the spike event
     if isinstance(neurons, core.Neurons):
-        spiketrains: NDArray = neurons.spiketrains
+        if included_neuron_ids is None:
+            included_neuron_ids = deepcopy(neurons.neuron_ids)
+
+        spiketrains: NDArray = neurons.get_by_id(included_neuron_ids).spiketrains
     elif isinstance(neurons, pd.DataFrame):
         # a spikes_df is passed in, build the spiketrains
         spikes_df = neurons
+        if included_neuron_ids is None:
+            unique_units: NDArray[ND.Shape["N_ACLUS"], ND.Int] = np.unique(spikes_df['aclu']) # sorted
+            included_neuron_ids = unique_units
+        else:
+            spikes_df = spikes_df.spikes.get_by_id(included_neuron_ids)
         spiketrains: NDArray = spikes_df.spikes.get_unit_spiketrains(included_neuron_ids=included_neuron_ids)
     else:
         raise NotImplementedError
 
-    if included_neuron_ids is None:
-        unique_units: NDArray[ND.Shape["N_ACLUS"], ND.Int] = np.unique(spikes_df['aclu']) # sorted
-        included_neuron_ids = unique_units
+    assert included_neuron_ids is not None
 
-    spikes_df = spikes_df.spikes.get_by_id(included_neuron_ids)
-    
 
     # Handle either core.Epoch or pd.DataFrame objects:
     epoch_df = ensure_dataframe(epochs)
