@@ -117,15 +117,15 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
 
 
     @property
-    def n_total_spikes(self):
+    def n_total_spikes(self) -> int:
         return np.shape(self._obj)[0]
 
     @property
-    def n_neurons(self):
+    def n_neurons(self) -> int:
         return len(self.neuron_ids)
     
     
-    def get_split_by_unit(self, included_neuron_ids=None):
+    def get_split_by_unit(self, included_neuron_ids=None) -> List[pd.DataFrame]:
         """ returns a list containing the spikes dataframe split by the 'aclu' column. """
         # self.neuron_ids is the list of 'aclu' values found in the spikes_df table.
         if included_neuron_ids is None:
@@ -138,7 +138,7 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
             included_neuron_ids = self.neuron_ids
         return self._obj[self._obj['aclu'].isin(included_neuron_ids)] ## restrict to only the shared aclus for both short and long
         
-    def get_unit_spiketrains(self, included_neuron_ids=None):
+    def get_unit_spiketrains(self, included_neuron_ids=None) -> NDArray:
         """ returns an array of the spiketrains (an array of the times that each spike occured) for each unit """
         return np.asarray([a_unit_spikes_df[self.time_variable_name].to_numpy() for a_unit_spikes_df in self.get_split_by_unit(included_neuron_ids=included_neuron_ids)])
         

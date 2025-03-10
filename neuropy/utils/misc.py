@@ -330,7 +330,7 @@ def numpyify_array(sequences) -> NDArray:
 # ==================================================================================================================== #
 # Pandas Helpers                                                                                                       #
 # ==================================================================================================================== #
-def safe_pandas_get_group(dataframe_group, key):
+def safe_pandas_get_group(dataframe_group, key) -> pd.DataFrame:
     """ returns an empty dataframe if the key isn't found in the group.
     Usage:
         from neuropy.utils.misc import safe_pandas_get_group

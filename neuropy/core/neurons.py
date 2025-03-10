@@ -354,7 +354,7 @@ class Neurons(HDF_SerializationMixin, NeuronUnitSlicableObjectProtocol, StartSto
             metadata=d["metadata"],
         )
 
-    def to_dataframe(self):
+    def to_dataframe(self) -> pd.DataFrame:
         df = self._spikes_df.copy()
         # df['t_start'] = self.t_start
         return df
