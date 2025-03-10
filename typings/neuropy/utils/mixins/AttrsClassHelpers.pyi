@@ -6,7 +6,6 @@ import param
 from enum import Enum, unique
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from attrs import field
-from pyphocorehelpers.function_helpers import function_attributes
 from neuropy.core.parameters import BaseConfig
 
 def keys_only_repr(instance): # -> str:
@@ -157,7 +156,6 @@ class AttrsWithParamParameterizedHelpers:
     def attrs_to_parameters_with_fallback(cls, cls_to_decorate):
         ...
     
-    @function_attributes(short_name=None, tags=['parameters', 'attrs'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-02-11 02:56', related_items=[])
     @classmethod
     def attrs_to_parameters_container(cls, cls_to_decorate):
         """ all fields should be `param.Parameterized` subclasses """

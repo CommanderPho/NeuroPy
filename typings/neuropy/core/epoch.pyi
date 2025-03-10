@@ -168,6 +168,8 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
     """ A Pandas pd.DataFrame representation of [start, stop, label] epoch intervals """
     _time_column_name_synonyms = ...
     _required_column_names = ...
+    EPSILON_OVERLAP_COMPARE_TOL_SEC: float = ...
+    EPSILON_GAP_SIZE_SEC: float = ...
     def __init__(self, pandas_obj) -> None:
         ...
     
@@ -241,8 +243,32 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         """ gets a validated copy of the dataframe. Looks better than doing `epochs_df.epochs._obj` """
         ...
     
+    def is_gapless_overlap_df(self) -> bool:
+        """ checks whether all of epochs are back-to-back with no intermediate overlaps, returning true if they are 
+        """
+        ...
+    
     def get_non_overlapping_df(self, debug_print=...) -> pd.DataFrame:
-        """ Returns a dataframe with overlapping epochs removed. """
+        """ 
+        Returns a dataframe with overlapping epochs removed.
+        
+        The algorithm:
+        1. Identifies and handles gapless epoch pairs by applying a small epsilon offset
+        2. For any remaining overlaps, uses PortionInterval to resolve them
+        
+        Parameters:
+        -----------
+        debug_print : bool, optional
+            If True, prints debug information about the processing. Default is False.
+            
+        Returns:
+        --------
+        pd.DataFrame
+            A dataframe with no overlapping epochs
+
+
+        NOTE: Code generated with aid of AI - Claude 3.7 - 2025-03-10 09:23
+        """
         ...
     
     def get_epochs_longer_than(self, minimum_duration, debug_print=...) -> pd.DataFrame:
