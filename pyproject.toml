@@ -39,6 +39,7 @@ portion = {git = "https://github.com/CommanderPho/portion.git"}
 flexitext = {git = "https://github.com/CommanderPho/flexitext.git", rev = "main"}
 cupy-cuda12x = "^13.4.0"
 nptyping = {extras = ["complete"], version = "^2.5.0"}
+beartype = "^0.20.0"
 
 [tool.poetry.group.dev.dependencies]
 pip = "^24.0"

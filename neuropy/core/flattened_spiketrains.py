@@ -1,6 +1,8 @@
 from collections import OrderedDict
 from typing import Dict, List, Tuple, Sequence, Optional, Callable, Union, Any
+import nptyping as ND
 from nptyping import NDArray
+
 # from warnings import warn
 import logging
 
@@ -288,7 +290,7 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
         """ adds a 'binned_time' column to spikes_df given the time_window_edges and time_window_edges_binning_info provided 
         
         """
-        spike_timestamp_column_name = self.time_variable_name # 't_rel_seconds'
+        spike_timestamp_column_name: str = self.time_variable_name # 't_rel_seconds'
         if debug_print:
             print(f'self._obj[time_variable_name]: {np.shape(self._obj[spike_timestamp_column_name])}\ntime_window_edges: {np.shape(time_window_edges)}')
             # assert (np.shape(out_digitized_variable_bins)[0] == np.shape(self._obj)[0]), f'np.shape(out_digitized_variable_bins)[0]: {np.shape(out_digitized_variable_bins)[0]} should equal np.shape(self._obj)[0]: {np.shape(self._obj)[0]}'
@@ -298,9 +300,33 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
         self._obj['binned_time'] = pd.cut(self._obj[spike_timestamp_column_name].to_numpy(), bins=time_window_edges, include_lowest=True, labels=bin_labels) # same shape as the input data (time_binned_self._obj: (69142,))
         return self._obj
 
+    # @function_attributes(short_name=None, tags=['time-binning'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-03-10 10:13', related_items=[])
+    def compute_unit_time_binned_spike_counts(self, time_bin_edges: NDArray, included_neuron_ids: Optional[NDArray[ND.Shape["N_ACLUS"], ND.Int]]=None) -> Tuple[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int], NDArray[ND.Shape["N_ACLUS"], ND.Int]]:
+        """ Computes the number of neurons in each spike time bin (specified by time_bin_edges) and threshold based on some criteria
 
+        Usage:    
+            time_bin_edges: NDArray = deepcopy(results1D.continuous_results['global'].time_bin_edges[0])
+            spikes_df: pd.DataFrame = deepcopy(get_proper_global_spikes_df(curr_active_pipeline))
+            unit_specific_time_binned_spike_counts, included_neuron_ids = spikes_df.spikes.compute_unit_time_binned_spike_counts(time_bin_edges=time_bin_edges)
+            
+        """
+        spike_timestamp_column_name: str = self.time_variable_name # 't_rel_seconds'
+        spikes_df: pd.DataFrame = deepcopy(self._obj)
+        if included_neuron_ids is None:
+            unique_units: NDArray[ND.Shape["N_ACLUS"], ND.Int] = np.unique(spikes_df['aclu']) # sorted
+            included_neuron_ids = unique_units
+            
+        unit_specific_time_binned_spike_counts: NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int] = np.array([
+            np.histogram(spikes_df.loc[spikes_df['aclu'] == unit, spike_timestamp_column_name], bins=time_bin_edges)[0]
+            for unit in unique_units
+        ])
+        # unit_specific_time_binned_spike_counts # .shape (n_aclus, n_time_bins)
+        return unit_specific_time_binned_spike_counts, included_neuron_ids
+    
+        
+        
     # @function_attributes(short_name=None, tags=['unit-spike-counts', 'mask', 'time-bin', 'spikes'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-03-04 10:09', related_items=[])
-    def compute_unit_time_binned_spike_counts_and_mask(self, time_bin_edges: NDArray, min_num_spikes_per_bin_to_be_considered_active:int=1, min_num_unique_active_neurons_per_time_bin:int=2) -> Tuple[NDArray, Tuple[NDArray, NDArray, NDArray]]:
+    def compute_unit_time_binned_spike_counts_and_mask(self, time_bin_edges: NDArray, included_neuron_ids: Optional[NDArray[ND.Shape["N_ACLUS"], ND.Int]]=None, min_num_spikes_per_bin_to_be_considered_active:int=1, min_num_unique_active_neurons_per_time_bin:int=2) -> Tuple[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int], NDArray[ND.Shape["N_ACLUS"], ND.Int], Tuple[NDArray[ND.Shape["N_TIME_BINS"], Any], NDArray[ND.Shape["N_TIME_BINS"], Any], NDArray[ND.Shape["1, N_TIME_BINS, 4"], np.uint8]]]:
         """ Computes the number of neurons in each spike time bin (specified by time_bin_edges) and threshold based on some criteria
 
         Usage:    
@@ -312,12 +338,11 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
             
         """
         spikes_df: pd.DataFrame = deepcopy(self._obj)
-        unique_units: NDArray = np.unique(spikes_df['aclu']) # sorted
-        unit_specific_time_binned_spike_counts: NDArray = np.array([
-            np.histogram(spikes_df.loc[spikes_df['aclu'] == unit, 't_rel_seconds'], bins=time_bin_edges)[0]
-            for unit in unique_units
-        ])
-        # unique_units.shape
+        if included_neuron_ids is None:
+            unique_units: NDArray[ND.Shape["N_ACLUS"], ND.Int] = np.unique(spikes_df['aclu']) # sorted
+            included_neuron_ids = unique_units
+        
+        unit_specific_time_binned_spike_counts, included_neuron_ids = self.compute_unit_time_binned_spike_counts(time_bin_edges=time_bin_edges, included_neuron_ids=included_neuron_ids)        
         # unit_specific_time_binned_spike_counts # .shape (n_aclus, n_time_bins)
         total_spikes_per_time_bin = np.sum(unit_specific_time_binned_spike_counts, axis=0)
         unique_active_cells_per_time_bin = np.sum((unit_specific_time_binned_spike_counts >= min_num_spikes_per_bin_to_be_considered_active), axis=0)
@@ -325,7 +350,7 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
         ## OUTPUTS: total_spikes_per_time_bin, unique_active_cells_per_time_bin
         # require 3 neurons to fire in a timebin for it to be considered active.
 
-        is_time_bin_active = (unique_active_cells_per_time_bin >= min_num_unique_active_neurons_per_time_bin)
+        is_time_bin_active: NDArray[ND.Shape["N_TIME_BINS"], Any] = (unique_active_cells_per_time_bin >= min_num_unique_active_neurons_per_time_bin)
 
         ## OUTPUTS: is_time_bin_active - a bool that specifies whether each time bin is active (included) or not. If it's not, it should be masked out with a dark black box or something
 
@@ -333,12 +358,12 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
         
         ## INPUTS: is_time_bin_active
         # Create mask of inactive time bins
-        inactive_mask = ~is_time_bin_active
-        mask_rgba = np.zeros((1, len(is_time_bin_active), 4), dtype=np.uint8)
+        inactive_mask: NDArray[ND.Shape["N_TIME_BINS"], Any]  = ~is_time_bin_active
+        mask_rgba: NDArray[ND.Shape["1, N_TIME_BINS, 4"], np.uint8] = np.zeros((1, len(is_time_bin_active), 4), dtype=np.uint8)
         mask_rgba[0, inactive_mask, :] = [0, 0, 0, 200]  # Black with 80% opacity for inactive bins
 
         ## OUTPUTS: mask_rgba
-        return unit_specific_time_binned_spike_counts, unique_units, (is_time_bin_active, inactive_mask, mask_rgba)
+        return unit_specific_time_binned_spike_counts, included_neuron_ids, (is_time_bin_active, inactive_mask, mask_rgba)
 
 
 
