@@ -1,5 +1,5 @@
 import unittest
-from neuropy.utils.mixins.binning_helpers import BinningContainer
+# from neuropy.utils.mixins.binning_helpers import BinningContainer
 import numpy as np
 import pandas as pd
 # import the package
