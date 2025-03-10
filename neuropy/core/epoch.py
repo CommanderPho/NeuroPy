@@ -801,37 +801,128 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
 
 
     def get_non_overlapping_df(self, debug_print=False) -> pd.DataFrame:
-        """ Returns a dataframe with overlapping epochs removed. """
+        """ 
+        Returns a dataframe with overlapping epochs removed.
+        
+        The algorithm:
+        1. Identifies and handles gapless epoch pairs by applying a small epsilon offset
+        2. For any remaining overlaps, uses PortionInterval to resolve them
+        
+        Parameters:
+        -----------
+        debug_print : bool, optional
+            If True, prints debug information about the processing. Default is False.
+            
+        Returns:
+        --------
+        pd.DataFrame
+            A dataframe with no overlapping epochs
 
-        if self.is_gapless_overlap_df():
-            ## for a gapless dataframe, subtract a small offset from each of the 'stop' values so that they just barely don't overlap
-            gap_epsilon_size: float = 1e-9
 
-            filtered_epochs_df = ...
+        NOTE: Code generated with aid of AI - Claude 3.7 - 2025-03-10 09:23
+        """
+        # Quick return for empty or single-element dataframes
+        if len(self._obj) <= 1:
+            return self._obj.copy()
+        
+        # Preserve DataFrame metadata/attributes if present
+        df_metadata = None
+        if hasattr(self._obj, 'attrs') and self._obj.attrs is not None:
+            from copy import deepcopy
+            df_metadata = deepcopy(self._obj.attrs)
+        
+        # Define constants for numerical precision
+        EPSILON_TOL = 1e-15  # Tolerance for numerical comparisons
+        gap_epsilon_size = 1e-9  # Amount to subtract from stop times
+        
+        # Create a copy of the dataframe to modify
+        modified_df = self._obj.copy()
+        # Find pairs where stop[i] == start[i+1] (gapless)
+        stops = modified_df['stop'].values[:-1]  # all except last
+        next_starts = modified_df['start'].values[1:]  # all except first
+        # Create a boolean mask for gapless pairs - use vectorized comparison
+        gapless_mask = np.isclose(stops, next_starts, rtol=EPSILON_TOL, atol=EPSILON_TOL)
+        
+        # Only proceed with gapless handling if gapless pairs exist
+        if np.any(gapless_mask):
+            # Get indices of epochs that end at exactly the start of the next epoch
+            gapless_indices = np.where(gapless_mask)[0]
+            
+            # Apply epsilon to the stop times of gapless epochs - use vectorized operation
+            modified_df.iloc[gapless_indices, modified_df.columns.get_loc('stop')] -= gap_epsilon_size
+            
+            # Only recalculate duration if it exists - use vectorized operation
+            if 'duration' in modified_df.columns:
+                modified_df['duration'] = modified_df['stop'] - modified_df['start']
+            
+            if debug_print:
+                print(f'Applied gapless optimization to {len(gapless_indices)} epoch pairs')
+        
+        # Check if any epochs still overlap after the gapless handling
+        # This allows us to skip the PortionInterval processing if possible
+        if len(modified_df) <= 1:
+            result_df = modified_df
         else:
-            ## 2023-02-23 - PortionInterval approach to ensuring uniqueness:
-            from neuropy.utils.efficient_interval_search import convert_PortionInterval_to_epochs_df, _convert_start_end_tuples_list_to_PortionInterval
-            ## Capture dataframe properties beyond just the start/stop times:
-            P_Interval_kwargs = {'merge_on_adjacent': False, 'enable_auto_simplification': True}
+            # Sort the dataframe by start time (should already be sorted, but ensure it)
+            modified_df = modified_df.sort_values(by=["start"]).reset_index(drop=True)
+            # Check if any epochs overlap after gapless handling
+            # This is a fast check that can avoid the more expensive PortionInterval processing
+            remaining_stops = modified_df['stop'].values[:-1]
+            remaining_next_starts = modified_df['start'].values[1:]
+            any_overlaps = np.any(remaining_stops > remaining_next_starts)
+            # Only use PortionInterval if there are still overlaps
+            if any_overlaps:
+                from neuropy.utils.efficient_interval_search import convert_PortionInterval_to_epochs_df, _convert_start_end_tuples_list_to_PortionInterval
+                # Set up PortionInterval kwargs based on codebase patterns
+                P_Interval_kwargs = {'merge_on_adjacent': False, 'enable_auto_simplification': True}
+                # Get a list of extra columns that aren't part of the standard epochs columns
+                extra_columns = [col for col in modified_df.columns if col not in ['start', 'stop', 'label', 'duration']]
+                # Convert modified dataframe to PortionInterval
+                _intermediate_portions_interval = _convert_start_end_tuples_list_to_PortionInterval(zip(modified_df['start'].values, modified_df['stop'].values), **P_Interval_kwargs)
+                # Convert back to dataframe, resolving any remaining overlaps
+                result_df = convert_PortionInterval_to_epochs_df(_intermediate_portions_interval)
+                # Handle extra columns if possible
+                if extra_columns:
+                    # Find correspondences between old and new rows if possible
+                    # This is a simple approach - more complex matching might be needed for some cases
+                    if debug_print and len(result_df) != len(modified_df):
+                        print(f"Warning: Row count changed from {len(modified_df)} to {len(result_df)}. Extra columns may not be preserved correctly.")
+                    
+                    # Try to preserve extra column data using the epochs.find_data_indicies_from_epoch_times method if available
+                    try:
+                        if hasattr(result_df, 'epochs') and hasattr(result_df.epochs, 'find_data_indicies_from_epoch_times'):
+                            epoch_times = result_df[['start', 'stop']].to_numpy()
+                            indices = result_df.epochs.find_data_indicies_from_epoch_times(epoch_times, atol=gap_epsilon_size*10)
+                            # Copy extra columns from original dataframe where indices were found
+                            for col in extra_columns:
+                                if len(indices) > 0:
+                                    result_df[col] = modified_df.iloc[indices][col].reset_index(drop=True)
+                        else:
+                            # Fallback for simpler cases where row count doesn't change
+                            if len(result_df) == len(modified_df):
+                                for col in extra_columns:
+                                    result_df[col] = modified_df[col].values
+                    except Exception as e:
+                        if debug_print:
+                            print(f"Error preserving extra columns: {e}")
+    
+                if debug_print:
+                    before_num_rows = self.n_epochs
+                    after_num_rows = np.shape(result_df)[0]
+                    changed_num_rows = after_num_rows - before_num_rows
+                    print(f'Dataframe Changed from {before_num_rows} -> {after_num_rows} ({changed_num_rows = })')
+            else:
+                # No overlaps remain, so we can return the modified dataframe directly
+                if debug_print:
+                    print(f'No overlaps found after gapless processing, skipping PortionInterval')
 
-            ## Post-2024-04-01 13:11: - [ ] with auto-simplification disabled and such:
-            # P_Interval_kwargs = {'merge_on_adjacent': False, 'enable_auto_simplification': False}
-
-            # _intermedia_start_end_tuples_list = self.get_start_stop_tuples_list()
-            _intermediate_portions_interval: P.Interval = _convert_start_end_tuples_list_to_PortionInterval(zip(self.starts, self.stops))
-            filtered_epochs_df = convert_PortionInterval_to_epochs_df(_intermediate_portions_interval)
-            # is_epoch_included = np.array([(a_tuple.start, a_tuple.stop) in _intermedia_start_end_tuples_list for a_tuple in list(filtered_epochs_df.itertuples(index=False))])
-
-        if debug_print:
-            before_num_rows = self.n_epochs
-            filtered_epochs_df = convert_PortionInterval_to_epochs_df(_intermediate_portions_interval)
-            after_num_rows = np.shape(filtered_epochs_df)[0]
-            changed_num_rows = after_num_rows - before_num_rows
-            print(f'Dataframe Changed from {before_num_rows} -> {after_num_rows} ({changed_num_rows = })')
-            return filtered_epochs_df
-        else:
-            return filtered_epochs_df
-
+                result_df = modified_df
+        
+        # Apply metadata to the result before returning
+        if df_metadata is not None and hasattr(result_df, 'attrs'):
+            result_df.attrs = df_metadata
+        
+        return result_df
 
 
 
