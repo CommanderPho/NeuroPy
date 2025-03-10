@@ -404,8 +404,6 @@ class NumpyHelpers:
         """ a version of np.vstack that doesn't throw a ValueError on empty lists
         Usually thows: `ValueError: need at least one array to concatenate`
             
-            from pyphocorehelpers.indexing_helpers import safe_np_vstack
-
             NumpyHelpers.safe_vstack(...)
         
         """
@@ -1057,10 +1055,10 @@ class PandasHelpers:
         
             from neuropy.utils.indexing_helpers import PandasHelpers
             dict(zip(['Long_LR_evidence', 'Long_RL_evidence', 'Short_LR_evidence', 'Short_RL_evidence'], np.arange(4)+4))
-            PandasHelpers.reorder_columns(merged_complete_epoch_stats_df, column_name_desired_index_dict=dict(zip(['Long_LR_evidence', 'Long_RL_evidence', 'Short_LR_evidence', 'Short_RL_evidence'], np.arange(4)+4)))
+            PandasHelpers.reordering_columns(merged_complete_epoch_stats_df, column_name_desired_index_dict=dict(zip(['Long_LR_evidence', 'Long_RL_evidence', 'Short_LR_evidence', 'Short_RL_evidence'], np.arange(4)+4)))
             
             ## Move the "height" columns to the end
-            result_df = PandasHelpers.reorder_columns(result_df, column_name_desired_index_dict=dict(zip(list(filter(lambda column: column.endswith('_peak_heights'), result_df.columns)), np.arange(len(result_df.columns)-4, len(result_df.columns)))))
+            result_df = PandasHelpers.reordering_columns(result_df, column_name_desired_index_dict=dict(zip(list(filter(lambda column: column.endswith('_peak_heights'), result_df.columns)), np.arange(len(result_df.columns)-4, len(result_df.columns)))))
             result_df
                     
         """

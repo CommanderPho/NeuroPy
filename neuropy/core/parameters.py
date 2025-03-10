@@ -63,7 +63,7 @@ class ParametersContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin, Ba
     
     def __repr__(self):
         """ 2024-01-11 - Renders only the fields and their sizes  """
-        from pyphocorehelpers.print_helpers import strip_type_str_to_classname
+        from neuropy.utils.print_helpers import strip_type_str_to_classname
         # content = ",\n\t".join([f"{a.name}: {strip_type_str_to_classname(type(getattr(self, a.name)))}" for a in self.__attrs_attrs__])
         # return f"{type(self).__name__}({content}\n)"
         attr_reprs = []

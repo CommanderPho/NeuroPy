@@ -19,6 +19,8 @@ from neuropy.utils.mixins.peak_location_representing import PeakLocationRepresen
 from neuropy.utils.misc import is_iterable
 from . import DataWriter
 from neuropy.utils.mixins.binning_helpers import GridBinDebuggableMixin, DebugBinningInfo
+from neuropy.utils.indexing_helpers import PandasHelpers
+
 
 class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, ContinuousPeakLocationRepresentingMixin, PeakLocationRepresentingMixin, NeuronUnitSlicableObjectProtocol, BinnedPositionsMixin, DataWriter):
     """A Ratemap holds information about each unit's firing rate across binned positions. 
@@ -244,10 +246,9 @@ class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, Co
                 peaks_results_df
 
             """
-            from pyphocorehelpers.indexing_helpers import reorder_columns
             peaks_results_df = super().get_tuning_curve_peak_df(peak_mode=peak_mode, **find_peaks_kwargs)
             peaks_results_df['aclu'] = peaks_results_df.series_idx.map(lambda x: self.neuron_ids[x])
-            peaks_results_df = reorder_columns(peaks_results_df, column_name_desired_index_dict=dict(zip(['aclu'], np.array([0]))))
+            peaks_results_df = PandasHelpers.reordering_columns(peaks_results_df, column_name_desired_index_dict=dict(zip(['aclu'], np.array([0]))))
             return peaks_results_df
 
     # Other ______________________________________________________________________________________________________________ #

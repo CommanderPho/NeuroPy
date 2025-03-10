@@ -357,7 +357,7 @@ class SimpleFieldSizesReprMixin:
     def __repr__(self):
         """ 2024-01-11 - Renders only the fields and their sizes
         """
-        from pyphocorehelpers.print_helpers import strip_type_str_to_classname
+        from neuropy.utils.print_helpers import strip_type_str_to_classname
         attr_reprs = []
         for a in self.__attrs_attrs__:
             attr_type = strip_type_str_to_classname(type(getattr(self, a.name)))
@@ -414,7 +414,7 @@ def convert_attrs_inline_class_instance_to_normal_class_defn(an_instance, class_
         print(content)
     
     """
-    from pyphocorehelpers.print_helpers import strip_type_str_to_classname
+    from neuropy.utils.print_helpers import strip_type_str_to_classname
     
     if class_name_replace_dict is None:
         class_name_replace_dict = _default_class_name_dict_replace
@@ -473,9 +473,9 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Callable, Union, Any
 from typing_extensions import TypeAlias
 from nptyping import NDArray
-import pyphoplacecellanalysis.General.type_aliases as types
-from pyphocorehelpers.programming_helpers import metadata_attributes
-from pyphocorehelpers.function_helpers import function_attributes
+# import pyphoplacecellanalysis.General.type_aliases as types
+# from pyphocorehelpers.programming_helpers import metadata_attributes
+# from pyphocorehelpers.function_helpers import function_attributes
 import attrs
 from attrs import define, field, Factory, astuple, asdict, fields
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_attribute_field, serialized_field, non_serialized_field
@@ -483,7 +483,7 @@ from neuropy.utils.mixins.HDF5_representable import HDF_SerializationMixin
 from neuropy.core.parameters import BaseConfig
 from pyphocorehelpers.DataStructure.dynamic_parameters import DynamicParameters
 from pyphocorehelpers.function_helpers import get_fn_kwargs_with_defaults, get_decorated_function_attributes, fn_best_name
-from pyphocorehelpers.print_helpers import strip_type_str_to_classname
+from neuropy.utils.print_helpers import strip_type_str_to_classname
 from pyphoplacecellanalysis.General.Model.Configs.ParamConfigs import BasePlotDataParams
 
 
@@ -634,7 +634,7 @@ class BaseAttrsParameterizedParameters(BaseConfig, param.Parameterized):
 
     def __repr__(self):
         """ 2024-01-11 - Renders only the fields and their sizes  """
-        from pyphocorehelpers.print_helpers import strip_type_str_to_classname
+        from neuropy.utils.print_helpers import strip_type_str_to_classname
         attr_reprs = []
         for a in self.__attrs_attrs__:
             attr_type = strip_type_str_to_classname(type(getattr(self, a.name)))
