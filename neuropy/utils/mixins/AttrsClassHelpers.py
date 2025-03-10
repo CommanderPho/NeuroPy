@@ -28,6 +28,84 @@ def keys_only_repr(instance):
     return repr(instance)
 
 
+def shape_only_repr(instance):
+    """ specifies that this field only prints its .shape, not its values.
+    
+    # Usage (within attrs class):
+        computed_data: Optional[DynamicParameters] = serialized_field(default=None, repr=shape_only_repr)
+        accumulated_errors: Optional[DynamicParameters] = non_serialized_field(default=Factory(DynamicParameters), is_computable=True, repr=shape_only_repr)
+    
+    """
+    if isinstance(instance, NDArray):
+        return f"shape={np.shape(instance)}"
+    elif hasattr(instance, 'shape'):
+        return f"shape={instance.shape}"
+    return repr(instance)
+
+
+def array_values_preview_repr(instance):
+    """ specifies that this field only prints its .shape and a brief preview of the values of an array, not its full contents.
+    Shows the first 2 elements and the last element with ellipsis in between for 1D arrays.
+    For multidimensional arrays, only shows the shape and total size.
+    """
+    if isinstance(instance, np.ndarray):
+        # Handle NumPy arrays
+        shape_str = f"shape={instance.shape}"
+        
+        # For multidimensional arrays, just print shape and size
+        if instance.ndim > 1:
+            return f"{shape_str} - size={instance.size}"
+        
+        # For 1D arrays, show preview of elements
+        if instance.size == 0:
+            return f"{shape_str} - []"
+        elif instance.size == 1:
+            return f"{shape_str} - [{instance.flat[0]}]"
+        elif instance.size == 2:
+            return f"{shape_str} - [{instance.flat[0]}, {instance.flat[1]}]"
+        else:
+            return f"{shape_str} - [{instance.flat[0]}, {instance.flat[1]}, ..., {instance.flat[-1]}]"
+            
+    elif hasattr(instance, '__iter__') and not isinstance(instance, (str, bytes, bytearray)):
+        # Handle other iterables (lists, tuples, etc.)
+        try:
+            instance_list = list(instance)
+            length = len(instance_list)
+            
+            # Get shape if available
+            shape_str = f"shape=({length},)"
+            if hasattr(instance, 'shape'):
+                shape_str = f"shape={instance.shape}"
+                
+            # Check if it might be multidimensional
+            is_multidimensional = False
+            if hasattr(instance, 'ndim') and instance.ndim > 1:
+                is_multidimensional = True
+            elif length > 0 and hasattr(instance_list[0], '__iter__') and not isinstance(instance_list[0], (str, bytes, bytearray)):
+                is_multidimensional = True
+                
+            if is_multidimensional:
+                return f"{shape_str} - size={length}"
+                
+            # Regular 1D preview for simple iterables
+            if length == 0:
+                return f"{shape_str} - []"
+            elif length == 1:
+                return f"{shape_str} - [{instance_list[0]}]"
+            elif length == 2:
+                return f"{shape_str} - [{instance_list[0]}, {instance_list[1]}]"
+            else:
+                return f"{shape_str} - [{instance_list[0]}, {instance_list[1]}, ..., {instance_list[-1]}]"
+                
+        except (TypeError, IndexError):
+            # Fall back if iteration fails
+            return repr(instance)
+            
+    # For non-iterables, return standard representation
+    return repr(instance)
+
+
+
 ## Custom __repr__ for attrs-classes:
 
 # def __repr__(self):

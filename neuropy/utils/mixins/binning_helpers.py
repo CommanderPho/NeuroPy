@@ -7,7 +7,7 @@ from nptyping import NDArray
 import pandas as pd
 import attrs
 from attrs import define, field, Factory
-from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, custom_define, serialized_field, serialized_attribute_field, non_serialized_field, keys_only_repr, SimpleFieldSizesReprMixin
+from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, custom_define, serialized_field, serialized_attribute_field, non_serialized_field, keys_only_repr, shape_only_repr, array_values_preview_repr, SimpleFieldSizesReprMixin
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
 
     
@@ -130,8 +130,8 @@ class GridBinDebuggableMixin:
 
 
  
-@custom_define(slots=False, repr=False, eq=False)
-class BinningInfo(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsBasedClassHelperMixin):
+@custom_define(slots=False, repr=True, eq=False)
+class BinningInfo(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     """ Factored out of pyphocorehelpers.indexing_helpers.BinningInfo
     
     2024-08-07: refactored from `dataclass` to attrs
@@ -145,7 +145,7 @@ class BinningInfo(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsBasedC
     variable_extents: Tuple[float, float] = serialized_field(is_computable=False, repr=True) # serialized_field
     step: float = serialized_attribute_field(is_computable=False, repr=True)
     num_bins: int = serialized_attribute_field(is_computable=False, repr=True)
-    bin_indicies: NDArray = serialized_field(init=False, repr=False, is_computable=True, metadata={'shape':('num_bins',)}) # , eq=attrs.cmp_using(eq=np.array_equal)
+    bin_indicies: NDArray = serialized_field(init=False, repr=shape_only_repr, is_computable=True, metadata={'shape':('num_bins',)}) # , eq=attrs.cmp_using(eq=np.array_equal)
     
     def _validate_variable_extents(self):
         variable_extents = deepcopy(self.variable_extents)
@@ -204,8 +204,8 @@ class BinningInfo(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsBasedC
 
 
 
-@custom_define(slots=False, repr=False, eq=False)
-class BinningContainer(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsBasedClassHelperMixin):
+@custom_define(slots=False, repr=True, eq=False)
+class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     """A container that allows accessing either bin_edges (self.edges) or bin_centers (self.centers) 
     Factored out of pyphocorehelpers.indexing_helpers.BinningContainer
     
@@ -230,17 +230,16 @@ class BinningContainer(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsB
     
 
     """
-    edges: NDArray = serialized_field(repr=False, is_computable=True, metadata={'shape':('num_bins+1',)})
-    centers: NDArray = serialized_field(repr=False, is_computable=True, metadata={'shape':('num_bins',)})
+    edges: NDArray = serialized_field(repr=array_values_preview_repr, is_computable=True, metadata={'shape':('num_bins+1',)})
+    centers: NDArray = serialized_field(repr=array_values_preview_repr, is_computable=True, metadata={'shape':('num_bins',)})
     
-    edge_info: BinningInfo = serialized_field(is_computable=True)
-    center_info: BinningInfo = serialized_field(is_computable=False)
+    edge_info: BinningInfo = serialized_field(is_computable=True, repr=True)
+    center_info: BinningInfo = serialized_field(is_computable=False, repr=True)
     
     @property
     def num_bins(self) -> int:
         return self.center_info.num_bins
         # return len(self.centers)`
-
 
     @property
     def left_edges(self) -> NDArray:
@@ -345,6 +344,34 @@ class BinningContainer(SimpleFieldSizesReprMixin, HDF_SerializationMixin, AttrsB
             center_info = cls.build_center_binning_info(centers, variable_extents=deepcopy(edge_info.variable_extents)) # BinningContainer.build_center_binning_info(centers, variable_extents=self.edge_info.variable_extents)
         
         return cls(edges=edges, edge_info=edge_info, centers=centers, center_info=center_info)
+
+
+    def __repr__(self):
+        """Custom multi-line representation for BinningContainer
+        renders like:
+        ```
+        BinningContainer(edges=shape=(3,) - [42.65807735896669, 42.68307735896669, ..., 42.70807735896669],
+            centers=shape=(2,) - [42.670577358966696, 42.69557735896669],
+            edge_info=BinningInfo(variable_extents=(42.65807735896669, 42.690456222509965), step=0.025, num_bins=3, bin_indicies=shape=(3,)),
+            center_info=BinningInfo(variable_extents=(42.65807735896669, 42.690456222509965), step=0.024999999999991473, num_bins=2, bin_indicies=shape=(2,)))
+        ```
+
+        """
+        # Get the string representations of each field
+        edges_repr = array_preview_repr(self.edges)
+        centers_repr = array_preview_repr(self.centers)
+        edge_info_repr = repr(self.edge_info)
+        center_info_repr = repr(self.center_info)
+        
+        # Format with indentation and line breaks
+        return (f"BinningContainer(\n"
+                f"    edges={edges_repr},\n"
+                f"    centers={centers_repr},\n"
+                f"    edge_info={edge_info_repr},\n"
+                f"    center_info={center_info_repr}\n"
+                f")")
+    
+
 
 def compute_spanning_bins(variable_values, num_bins:int=None, bin_size:float=None, variable_start_value:float=None, variable_end_value:float=None) -> Tuple[NDArray, BinningInfo]:
     """Extracted from pyphocorehelpers.indexing_helpers import compute_position_grid_size for use in BaseDataSessionFormats

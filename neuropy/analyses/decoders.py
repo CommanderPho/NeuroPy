@@ -444,7 +444,7 @@ def column_shift(arr, shifts=None):
 
 
 # @function_attributes(short_name=None, tags=['IMPROVED', 'FIXED'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-03-10 15:03', related_items=[])
-def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False) -> Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]:
+def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False, debug_careful_validate_shapes: bool=False) -> Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]:
     """Binning events and calculating spike counts
 
     Args:
@@ -542,7 +542,8 @@ def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[cor
                 print(f'nbins[i]: {nbins[i]}') # nbins: 20716
 
             bin_container = BinningContainer.init_from_edges(edges=time_bin_edges, edge_info=time_bin_edges_binning_info)
-            assert len(bin_container.centers) == nbins[i], f"The length of the produced bin_container.centers and the nbins[i] should be the same, but len(bin_container.centers): {len(bin_container.centers)} and nbins[i]: {nbins[i]}!"
+            if debug_careful_validate_shapes:
+                assert len(bin_container.centers) == nbins[i], f"The length of the produced bin_container.centers and the nbins[i] should be the same, but len(bin_container.centers): {len(bin_container.centers)} and nbins[i]: {nbins[i]}!"
             time_bin_containers_list.append(bin_container)
 
     # END for i, epoch in enumerate(epoch_df.itertuples())
