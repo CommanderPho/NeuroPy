@@ -519,7 +519,7 @@ def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[cor
     else:
         time_bin_containers_list = None
 
-    nbins: NDArray[ND.Shape['N_EPOCHS'], Any] = np.zeros(n_epochs, dtype="int")
+    n_tbin_centers: NDArray[ND.Shape['N_EPOCHS'], Any] = np.zeros(n_epochs, dtype="int")
 
     for i, epoch in enumerate(epoch_df.itertuples()):
         
@@ -528,7 +528,7 @@ def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[cor
         else:
             ## Binning with Fixed Bin Sizes: fixed time-bin duration -> variable num time bins per epoch depending on epoch length
             time_bin_edges, time_bin_edges_binning_info = compute_spanning_bins(variable_values=None, bin_size=bin_size, variable_start_value=epoch.start, variable_end_value=epoch.stop) # fixed_step mode
-        nbins[i] = (len(time_bin_edges) -1 ) ## #TODO 2025-03-10 14:57: - [ ] MAJOR: !!! is this supposed to be centers, or edges?!?
+        n_tbin_centers[i] = (len(time_bin_edges) -1 ) ## #TODO 2025-03-10 14:57: - [ ] MAJOR: !!! is this supposed to be centers, or edges?!?
  
         unit_specific_time_binned_spike_counts, _included_neuron_ids = spikes_df.spikes.compute_unit_time_binned_spike_counts(time_bin_edges=time_bin_edges, included_neuron_ids=included_neuron_ids)
         
@@ -539,15 +539,15 @@ def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[cor
 
         if export_time_bins:
             if debug_print:
-                print(f'nbins[i]: {nbins[i]}') # nbins: 20716
+                print(f'nbins[i]: {n_tbin_centers[i]}') # nbins: 20716
 
             bin_container = BinningContainer.init_from_edges(edges=time_bin_edges, edge_info=time_bin_edges_binning_info)
             if debug_careful_validate_shapes:
-                assert len(bin_container.centers) == nbins[i], f"The length of the produced bin_container.centers and the nbins[i] should be the same, but len(bin_container.centers): {len(bin_container.centers)} and nbins[i]: {nbins[i]}!"
+                assert len(bin_container.centers) == n_tbin_centers[i], f"The length of the produced bin_container.centers and the nbins[i] should be the same, but len(bin_container.centers): {len(bin_container.centers)} and nbins[i]: {n_tbin_centers[i]}!"
             time_bin_containers_list.append(bin_container)
 
     # END for i, epoch in enumerate(epoch_df.itertuples())
-    return spkcount, included_neuron_ids, nbins, time_bin_containers_list # Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]
+    return spkcount, included_neuron_ids, n_tbin_centers, time_bin_containers_list # Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]
 
 def _OLD_epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, slideby=None, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False):
     """Binning events and calculating spike counts
