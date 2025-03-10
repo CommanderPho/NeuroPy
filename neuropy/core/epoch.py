@@ -659,6 +659,11 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
 
     _required_column_names = ['start', 'stop', 'label', 'duration']
 
+
+    # Define constants for numerical precision
+    EPSILON_OVERLAP_COMPARE_TOL_SEC: float = 1e-15  # Tolerance for numerical comparisons
+    EPSILON_GAP_SIZE_SEC: float = 1e-9  # Amount to subtract from stop times
+
     def __init__(self, pandas_obj):
         pandas_obj = self.renaming_synonym_columns_if_needed(pandas_obj, required_columns_synonym_dict=self._time_column_name_synonyms)       #@IgnoreException 
         pandas_obj = self._validate(pandas_obj)
@@ -773,8 +778,6 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
     #     ## Check their upper bounds for overlap
 
     
-    
-        
     # ==================================================================================================================== #
     # Handling overlapping                                                                                                 #
     # ==================================================================================================================== #
@@ -796,9 +799,6 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         # starts[1:] = all start times except the first one
         # If the epochs are back-to-back, these should be equal
         return np.array_equal(stops[:-1], starts[1:])
-
-
-
 
     def get_non_overlapping_df(self, debug_print=False) -> pd.DataFrame:
         """ 
@@ -830,18 +830,14 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         if hasattr(self._obj, 'attrs') and self._obj.attrs is not None:
             from copy import deepcopy
             df_metadata = deepcopy(self._obj.attrs)
-        
-        # Define constants for numerical precision
-        EPSILON_TOL = 1e-15  # Tolerance for numerical comparisons
-        gap_epsilon_size = 1e-9  # Amount to subtract from stop times
-        
+                
         # Create a copy of the dataframe to modify
         modified_df = self._obj.copy()
         # Find pairs where stop[i] == start[i+1] (gapless)
         stops = modified_df['stop'].values[:-1]  # all except last
         next_starts = modified_df['start'].values[1:]  # all except first
         # Create a boolean mask for gapless pairs - use vectorized comparison
-        gapless_mask = np.isclose(stops, next_starts, rtol=EPSILON_TOL, atol=EPSILON_TOL)
+        gapless_mask = np.isclose(stops, next_starts, rtol=self.__class__.EPSILON_OVERLAP_COMPARE_TOL_SEC, atol=self.__class__.EPSILON_OVERLAP_COMPARE_TOL_SEC)
         
         # Only proceed with gapless handling if gapless pairs exist
         if np.any(gapless_mask):
@@ -849,7 +845,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             gapless_indices = np.where(gapless_mask)[0]
             
             # Apply epsilon to the stop times of gapless epochs - use vectorized operation
-            modified_df.iloc[gapless_indices, modified_df.columns.get_loc('stop')] -= gap_epsilon_size
+            modified_df.iloc[gapless_indices, modified_df.columns.get_loc('stop')] -= self.__class__.EPSILON_GAP_SIZE_SEC
             
             # Only recalculate duration if it exists - use vectorized operation
             if 'duration' in modified_df.columns:
@@ -892,7 +888,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
                     try:
                         if hasattr(result_df, 'epochs') and hasattr(result_df.epochs, 'find_data_indicies_from_epoch_times'):
                             epoch_times = result_df[['start', 'stop']].to_numpy()
-                            indices = result_df.epochs.find_data_indicies_from_epoch_times(epoch_times, atol=gap_epsilon_size*10)
+                            indices = result_df.epochs.find_data_indicies_from_epoch_times(epoch_times, atol=self.__class__.EPSILON_GAP_SIZE_SEC*10)
                             # Copy extra columns from original dataframe where indices were found
                             for col in extra_columns:
                                 if len(indices) > 0:
@@ -923,8 +919,6 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             result_df.attrs = df_metadata
         
         return result_df
-
-
 
 
     def get_epochs_longer_than(self, minimum_duration, debug_print=False) -> pd.DataFrame:

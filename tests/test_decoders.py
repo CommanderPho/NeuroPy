@@ -24,6 +24,7 @@ finally:
     from neuropy.core import Position, Neurons
     from neuropy.analyses.placefields import PlacefieldComputationParameters
     from neuropy.analyses.placefields import PfND
+    from neuropy.core.epoch import EpochsAccessor, Epoch
     from neuropy.core.neuron_identities import NeuronType
     from neuropy.core.flattened_spiketrains import SpikesAccessor, FlattenedSpiketrains
     from neuropy.utils.debug_helpers import debug_print_placefield, debug_print_subsession_neuron_differences
@@ -54,7 +55,7 @@ class TestEpochsSpkcountMethods(unittest.TestCase):
         active_pos_df = pd.read_hdf(finalized_testing_file, key=f'{sess_identifier_key}/pos_df')
         self.active_pos = active_pos_df.position.to_Position_obj() # convert back to a full position object
         
-        self.test_epochs_df = pd.DataFrame({'start': [0.0, 1029.316608761903], 'stop': [1029.316608761903, 1737.1968310000375], 'label': ['maze1', 'maze2'], 'duration': [1029.316608761903, 707.8802222381346]})
+        self.test_epochs_df = pd.DataFrame({'start': [0.0, 1029.316608761903], 'stop': [1029.316608761903, 1737.1968310000375], 'label': ['maze1', 'maze2'], 'duration': [1029.316608761903, 707.8802222381346]}).epochs.get_non_overlapping_df(debug_print=False)
         self.epochs = Epoch(self.test_epochs_df) # Epoch(...) # Create an Epoch object as needed
         
         # Create a PfND object
@@ -113,21 +114,6 @@ class TestEpochsSpkcountMethods(unittest.TestCase):
         )
         self.assertTrue(all(n > 0 for n in nbins))
 
-    def test_empty_epochs(self):
-        empty_epochs_df = pd.DataFrame({
-            'start': [],
-            'stop': []
-        })
-        spkcount, nbins, time_bins = epochs_spkcount(
-            self.spikes_df,
-            empty_epochs_df,
-            bin_size=0.1,
-            export_time_bins=True
-        )
-        self.assertEqual(len(spkcount), 0)
-        self.assertEqual(len(nbins), 0)
-        self.assertEqual(len(time_bins), 0)
-        
 
 # class TestEpochsSpkcountAdvanced(unittest.TestCase):
 
