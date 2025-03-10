@@ -43,11 +43,20 @@ def shape_only_repr(instance):
     return repr(instance)
 
 
-def array_values_preview_repr(instance):
-    """ specifies that this field only prints its .shape and a brief preview of the values of an array, not its full contents.
+def array_values_preview_repr(instance, ndecimals=3):
+    """ Specifies that this field prints its shape and a brief preview of the values, not its full contents.
     Shows the first 2 elements and the last element with ellipsis in between for 1D arrays.
     For multidimensional arrays, only shows the shape and total size.
+    
+    Args:
+        instance: The array or iterable to format
+        ndecimals: Number of significant digits to show for floating point values
     """
+    def format_value(val):
+        if isinstance(val, float):
+            return f"{val:.{ndecimals}g}"
+        return str(val)
+        
     if isinstance(instance, np.ndarray):
         # Handle NumPy arrays
         shape_str = f"shape={instance.shape}"
@@ -56,15 +65,15 @@ def array_values_preview_repr(instance):
         if instance.ndim > 1:
             return f"{shape_str} - size={instance.size}"
         
-        # For 1D arrays, show preview of elements
+        # For 1D arrays, show preview of elements with formatted values
         if instance.size == 0:
             return f"{shape_str} - []"
         elif instance.size == 1:
-            return f"{shape_str} - [{instance.flat[0]}]"
+            return f"{shape_str} - [{format_value(instance.flat[0])}]"
         elif instance.size == 2:
-            return f"{shape_str} - [{instance.flat[0]}, {instance.flat[1]}]"
+            return f"{shape_str} - [{format_value(instance.flat[0])}, {format_value(instance.flat[1])}]"
         else:
-            return f"{shape_str} - [{instance.flat[0]}, {instance.flat[1]}, ..., {instance.flat[-1]}]"
+            return f"{shape_str} - [{format_value(instance.flat[0])}, {format_value(instance.flat[1])}, ..., {format_value(instance.flat[-1])}]"
             
     elif hasattr(instance, '__iter__') and not isinstance(instance, (str, bytes, bytearray)):
         # Handle other iterables (lists, tuples, etc.)
@@ -91,11 +100,11 @@ def array_values_preview_repr(instance):
             if length == 0:
                 return f"{shape_str} - []"
             elif length == 1:
-                return f"{shape_str} - [{instance_list[0]}]"
+                return f"{shape_str} - [{format_value(instance_list[0])}]"
             elif length == 2:
-                return f"{shape_str} - [{instance_list[0]}, {instance_list[1]}]"
+                return f"{shape_str} - [{format_value(instance_list[0])}, {format_value(instance_list[1])}]"
             else:
-                return f"{shape_str} - [{instance_list[0]}, {instance_list[1]}, ..., {instance_list[-1]}]"
+                return f"{shape_str} - [{format_value(instance_list[0])}, {format_value(instance_list[1])}, ..., {format_value(instance_list[-1])}]"
                 
         except (TypeError, IndexError):
             # Fall back if iteration fails
@@ -103,6 +112,7 @@ def array_values_preview_repr(instance):
             
     # For non-iterables, return standard representation
     return repr(instance)
+
 
 
 
