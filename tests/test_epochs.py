@@ -264,6 +264,193 @@ class TestEpochMethods(unittest.TestCase):
     #         split_array(arr, sub_element_lengths)
 
 
+    def test_get_non_overlapping_df_empty(self):
+        """Test with an empty dataframe."""
+        empty_df = pd.DataFrame(columns=['start', 'stop', 'label', 'duration'])
+        result = empty_df.epochs.get_non_overlapping_df()
+        self.assertEqual(len(result), 0, "Empty dataframe should return empty result")
+
+    def test_get_non_overlapping_df_single_epoch(self):
+        """Test with a single epoch."""
+        # Extract the first epoch from the existing test data
+        if len(self.original_epochs_df) > 0:
+            single_epoch_df = self.original_epochs_df.iloc[[0]].reset_index(drop=True)
+            result = single_epoch_df.epochs.get_non_overlapping_df()
+            self.assertEqual(len(result), 1, "Single epoch should be preserved")
+            self.assertEqual(result.iloc[0]['start'], single_epoch_df.iloc[0]['start'])
+            self.assertEqual(result.iloc[0]['stop'], single_epoch_df.iloc[0]['stop'])
+
+    def test_get_non_overlapping_df_non_overlapping(self):
+        """Test with non-overlapping epochs."""
+        # Create non-overlapping epochs from existing test data by ensuring gaps
+        if len(self.original_epochs_df) >= 3:
+            indices = [0, 10, 20]  # Assuming these indices exist and are non-overlapping
+            non_overlapping_df = self.original_epochs_df.iloc[indices].copy().reset_index(drop=True)
+            
+            # Ensure they don't overlap
+            for i in range(len(non_overlapping_df)-1):
+                if non_overlapping_df.iloc[i]['stop'] >= non_overlapping_df.iloc[i+1]['start']:
+                    non_overlapping_df.at[i, 'stop'] = non_overlapping_df.iloc[i+1]['start'] - 0.1
+                    non_overlapping_df.at[i, 'duration'] = non_overlapping_df.iloc[i]['stop'] - non_overlapping_df.iloc[i]['start']
+            
+            result = non_overlapping_df.epochs.get_non_overlapping_df()
+            self.assertEqual(len(result), len(non_overlapping_df), "Non-overlapping epochs should all be preserved")
+            self.assertTrue(np.array_equal(result['start'].values, non_overlapping_df['start'].values))
+            self.assertTrue(np.array_equal(result['stop'].values, non_overlapping_df['stop'].values))
+
+    def test_get_non_overlapping_df_gapless(self):
+        """Test with gapless epochs (stop[i] == start[i+1])."""
+        # Create gapless epochs
+        gapless_df = pd.DataFrame({
+            'start': [0.0, 1.0, 2.0],
+            'stop': [1.0, 2.0, 3.0],
+            'label': ['0', '1', '2'],
+            'duration': [1.0, 1.0, 1.0]
+        })
+        
+        result = gapless_df.epochs.get_non_overlapping_df()
+        
+        # Should apply epsilon to make them non-overlapping
+        self.assertEqual(len(result), 3, "All gapless epochs should be preserved")
+        
+        # Check that stop times have been modified slightly
+        # The first two stops should be slightly less than the original values
+        self.assertLess(result.iloc[0]['stop'], 1.0)
+        self.assertLess(result.iloc[1]['stop'], 2.0)
+        
+        # But they should be very close to the original values
+        self.assertTrue(np.isclose(result.iloc[0]['stop'], 1.0, rtol=1e-8))
+        self.assertTrue(np.isclose(result.iloc[1]['stop'], 2.0, rtol=1e-8))
+        
+        # The last stop should be unchanged
+        self.assertEqual(result.iloc[2]['stop'], 3.0)
+
+    def test_get_non_overlapping_df_overlapping(self):
+        """Test with overlapping epochs."""
+        # Create overlapping epochs
+        overlapping_df = pd.DataFrame({
+            'start': [0.0, 1.0, 2.0],
+            'stop': [1.5, 2.5, 3.0],
+            'label': ['0', '1', '2'],
+            'duration': [1.5, 1.5, 1.0]
+        })
+        
+        result = overlapping_df.epochs.get_non_overlapping_df()
+        
+        # PortionInterval should handle the overlaps
+        self.assertTrue(len(result) > 0, "Should have some epochs")
+        
+        # Check that result does not have overlaps
+        for i in range(len(result) - 1):
+            self.assertLessEqual(result.iloc[i]['stop'], result.iloc[i+1]['start'], 
+                                "Result should not have overlapping epochs")
+
+    def test_get_non_overlapping_df_mixed(self):
+        """Test with a mix of gapless and overlapping epochs."""
+        mixed_df = pd.DataFrame({
+            'start': [0.0, 1.0, 1.8, 3.0],
+            'stop':  [1.0, 2.0, 3.0, 4.0],
+            'label': ['0', '1', '2', '3'],
+            'duration': [1.0, 1.0, 1.2, 1.0]
+        })
+        
+        result = mixed_df.epochs.get_non_overlapping_df()
+        
+        # The function should handle both gapless and overlapping cases
+        self.assertTrue(len(result) > 0, "Should have some epochs")
+        
+        # Check that result does not have overlaps
+        for i in range(len(result) - 1):
+            self.assertLessEqual(result.iloc[i]['stop'], result.iloc[i+1]['start'], 
+                                "Result should not have overlapping epochs")
+
+    def test_get_non_overlapping_df_metadata_preservation(self):
+        """Test that metadata is preserved."""
+        # Clone existing dataframe and add metadata
+        df_with_metadata = self.original_epochs_df.iloc[:2].copy().reset_index(drop=True)
+        test_metadata = {'test_key': 'test_value'}
+        df_with_metadata.attrs = test_metadata
+        
+        result = df_with_metadata.epochs.get_non_overlapping_df()
+        self.assertTrue(hasattr(result, 'attrs'), "Result should have attrs attribute")
+        self.assertEqual(result.attrs, test_metadata, "Metadata should be preserved")
+
+    def test_get_non_overlapping_df_extra_columns(self):
+        """Test that extra columns are preserved when possible."""
+        # Clone existing dataframe and add extra columns
+        df_with_extra = self.original_epochs_df.iloc[:3].copy().reset_index(drop=True)
+        
+        # Ensure non-overlapping for simple test
+        for i in range(len(df_with_extra)-1):
+            if df_with_extra.iloc[i]['stop'] >= df_with_extra.iloc[i+1]['start']:
+                df_with_extra.at[i, 'stop'] = df_with_extra.iloc[i+1]['start'] - 0.1
+                df_with_extra.at[i, 'duration'] = df_with_extra.iloc[i]['stop'] - df_with_extra.iloc[i]['start']
+        
+        # Add extra columns
+        df_with_extra['test_column'] = range(len(df_with_extra))
+        df_with_extra['another_column'] = [f"value_{i}" for i in range(len(df_with_extra))]
+        
+        result = df_with_extra.epochs.get_non_overlapping_df()
+        
+        # Should preserve all columns in the simple non-overlapping case
+        self.assertIn('test_column', result.columns, "Column 'test_column' should be preserved")
+        self.assertIn('another_column', result.columns, "Column 'another_column' should be preserved")
+        if len(result) == len(df_with_extra):
+            self.assertTrue(np.array_equal(result['test_column'].values, df_with_extra['test_column'].values),
+                        "Values in column 'test_column' should be preserved")
+
+    def test_get_non_overlapping_df_with_debug_print(self):
+        """Test the debug_print parameter."""
+        # Use existing test data with debug_print=True
+        if len(self.filtered_epochs_df) > 0:
+            test_df = self.filtered_epochs_df.iloc[:2].copy().reset_index(drop=True)
+            result = test_df.epochs.get_non_overlapping_df(debug_print=True)
+            self.assertEqual(len(result), len(test_df), "Should preserve epochs with debug_print=True")
+
+    def test_get_non_overlapping_df_with_epoch_object(self):
+        """Test integration with the Epoch class."""
+        if len(self.original_epochs_df) > 0:
+            # Create an Epoch object from existing test data
+            from neuropy.core.epoch import Epoch
+            epoch_df = self.original_epochs_df.iloc[:3].copy().reset_index(drop=True)
+            
+            # Create some overlap to test the functionality
+            if len(epoch_df) >= 2:
+                epoch_df.at[0, 'stop'] = epoch_df.iloc[1]['start'] + 0.1
+                epoch_df.at[0, 'duration'] = epoch_df.iloc[0]['stop'] - epoch_df.iloc[0]['start']
+            
+            epoch_obj = Epoch(epoch_df)
+            
+            # Get non-overlapping epochs
+            result_epoch = epoch_obj.get_non_overlapping(debug_print=self.enable_debug_printing)
+            
+            # Check the result
+            self.assertIsInstance(result_epoch, Epoch, "Result should be an Epoch object")
+            self.assertTrue(len(result_epoch) > 0, "Result should have epochs")
+            
+            # Verify no overlaps in result
+            result_df = result_epoch.to_dataframe()
+            for i in range(len(result_df) - 1):
+                self.assertLessEqual(result_df.iloc[i]['stop'], result_df.iloc[i+1]['start'], 
+                                    "Result should not have overlapping epochs")
+
+    def test_get_non_overlapping_df_with_real_data(self):
+        """Test with real data from the test fixtures."""
+        # Use the self.original_epochs_df directly
+        if self.enable_debug_printing:
+            print(f"Testing with original epochs data: {len(self.original_epochs_df)} epochs")
+        
+        result = self.original_epochs_df.epochs.get_non_overlapping_df(debug_print=self.enable_debug_printing)
+        
+        # Check that result has no overlaps
+        for i in range(len(result) - 1):
+            self.assertLessEqual(result.iloc[i]['stop'], result.iloc[i+1]['start'], 
+                            "Result should not have overlapping epochs")
+        
+        if self.enable_debug_printing:
+            print(f"Result has {len(result)} non-overlapping epochs")
+
+
 
 if __name__ == '__main__':
     unittest.main()
