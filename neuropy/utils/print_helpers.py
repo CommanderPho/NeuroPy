@@ -32,7 +32,6 @@ import objsize # python -m pip install objsize==0.6.1
 
 # from pyphocorehelpers.function_helpers import function_attributes # # function_attributes causes circular import issue :[
 import numpy as np
-import dask.array as da
 from IPython.display import Image, display, HTML
 
 from io import BytesIO
@@ -1965,6 +1964,7 @@ def array_preview_with_graphical_shape_repr_html(arr):
     display(arr)
 
     """
+    import dask.array as da
     if isinstance(arr, np.ndarray):
         arr = da.array(arr)
         return display(arr)

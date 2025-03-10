@@ -44,6 +44,8 @@ nptyping = {extras = ["complete"], version = "^2.5.0"}
 pip = "^24.0"
 ipdb = "^0.13.11"
 dvc = {version = "^3.59.0", extras = ["gdrive"], optional = false}
+portion = {git = "https://github.com/CommanderPho/portion.git"}
+pyphocorehelpers = {path = "../pyPhoCoreHelpers", develop=true}
 
 [tool.poetry.extras]
 gui = ["tqdm"]
