@@ -11,7 +11,7 @@ from attrs import field, Factory, fields, fields_dict, asdict
 
 """ 
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, custom_define, serialized_field, serialized_attribute_field, non_serialized_field
-from neuropy.utils.mixins.AttrsClassHelpers import keys_only_repr
+from neuropy.utils.mixins.AttrsClassHelpers import keys_only_repr, shape_only_repr, array_values_preview_repr
 
 """
 

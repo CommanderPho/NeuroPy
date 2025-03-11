@@ -1468,7 +1468,7 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
             # Example:
             #     Error line `laps_df[['lap_id']] = laps_df[['lap_id']].astype('int')`                
             raise IndexError(f"PHO: you're probably trying to treat the epochs as if they are in the pd.DataFrame format but they are an Epoch object! Use `actual_laps_df = incorrectly_assumed_laps_df.epochs.to_dataframe()` to convert.")
-
+            
         else:
             return np.vstack((self.starts[slice_], self.stops[slice_])).T
 
