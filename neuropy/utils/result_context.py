@@ -32,7 +32,7 @@ Humans need things with distinct, visual groupings. Inclusion Sets, Exceptions (
 """
 import re # used in try_extract_date_from_session_name
 import copy
-from typing import Any, List, Dict, Optional, Union, Protocol
+from typing import Any, List, Dict, Optional, Tuple, Union, Protocol
 from enum import Enum
 from functools import wraps # used for decorators
 from attrs import define, field, Factory
@@ -166,6 +166,58 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
 
         return relevant_entries
 
+
+    @classmethod
+    def find_best_matching_context(cls, target_context: "IdentifyingContext", context_iterable: Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]]) -> Optional[Tuple["IdentifyingContext", int]]:
+        """
+        Find the context key in the dictionary that has the maximum number of matching attributes with the target context.
+        
+        Parameters:
+        -----------
+        target_context : IdentifyingContext
+            The context to match against
+        context_iterable : Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]]
+            Dictionary with IdentifyingContext keys or list of IdentifyingContext objects
+            
+        Returns:
+        --------
+        Tuple[IdentifyingContext, int] or None
+            The best matching context and the number of matches, or None if context_iterable is empty
+        """
+        if not context_iterable:
+            return None
+        
+        target_dict = target_context.to_dict()
+        best_match = None
+        max_matches = -1
+        
+        # Extract the contexts to compare based on input type
+        if isinstance(context_iterable, (list, tuple)):
+            contexts_to_compare = context_iterable
+        elif hasattr(context_iterable, 'keys'):
+            contexts_to_compare = context_iterable.keys()
+        else:
+            raise ValueError("context_iterable must be a list or dictionary")
+        
+        # Find the best matching context
+        for context_key in contexts_to_compare:
+            key_dict = context_key.to_dict()
+            
+            # Count matching attributes
+            match_count = 0
+            for attr_name, attr_value in target_dict.items():
+                if attr_name in key_dict and key_dict[attr_name] == attr_value:
+                    match_count += 1
+            
+            # Update best match if current is better
+            if match_count > max_matches:
+                max_matches = match_count
+                best_match = context_key
+        
+        return (best_match, max_matches) if best_match else None
+
+
+
     def query(self, criteria: Union[Dict[str, Any], "IdentifyingContext"]) -> bool:
         """
         Checks if the IdentifyingContext instance matches the given criteria.
@@ -185,6 +237,9 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             if not hasattr(self, key) or getattr(self, key) != value:
                 return False
         return True
+
+
+
 
     @classmethod
     def find_unique_values(cls, context_iterable: List["IdentifyingContext"]) -> dict:
