@@ -166,6 +166,94 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
 
         return relevant_entries
 
+    @classmethod
+    def find_best_matching_contexts(cls, target_context: "IdentifyingContext", context_iterable: Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]]) -> Tuple[List["IdentifyingContext"], int]:
+        """
+        Find all context keys in the iterable that have the maximum number of matching attributes with the target context.
+
+        Parameters:
+        -----------
+        target_context : IdentifyingContext
+            The context to match against
+        context_iterable : Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]]
+            Dictionary with IdentifyingContext keys or list of IdentifyingContext objects
+            
+        Returns:
+        --------
+        Tuple[List[IdentifyingContext], int]
+            A tuple containing (list of best matching contexts, number of matches)
+            or ([], -1) if context_iterable is empty
+
+
+        Usage:
+
+            from neuropy.utils.result_context import IdentifyingContext
+
+            # Your target context
+            a_target_context = IdentifyingContext(trained_compute_epochs='laps', pfND_ndim=1, time_bin_size=0.025, known_named_decoding_epochs_type='pbe', masked_time_bin_fill_type='ignore') # removed `decoder_identifier='long_LR', `
+
+            # Get the dictionary 
+            context_dict = a_new_fully_generic_result.filter_epochs_specific_decoded_result
+
+            # Find the best match
+            best_matches, match_count = IdentifyingContext.find_best_matching_contexts(a_target_context, context_dict)
+
+            if best_matches:
+                # print(f"Found best match with {match_count} matching attributes:")
+                print(f"best_matches list: {best_matches}\n")
+                
+                # Get the corresponding value
+                best_match_values = {a_best_match:context_dict[a_best_match] for a_best_match in best_matches}
+                # best_match_values
+            else:
+                print("No matches found in the dictionary.")
+
+        """
+        if not context_iterable:
+            return [], -1
+        
+        target_dict = target_context.to_dict()
+        best_matches = []
+        max_matches = -1
+        
+        # Extract the contexts to compare based on input type
+        if isinstance(context_iterable, (list, tuple)):
+            contexts_to_compare = context_iterable
+        elif hasattr(context_iterable, 'keys'):
+            contexts_to_compare = context_iterable.keys()
+        else:
+            raise ValueError("context_iterable must be a list or dictionary")
+        
+        # First pass: find the maximum number of matches
+        for context_key in contexts_to_compare:
+            key_dict = context_key.to_dict()
+            
+            # Count matching attributes
+            match_count = 0
+            for attr_name, attr_value in target_dict.items():
+                if attr_name in key_dict and key_dict[attr_name] == attr_value:
+                    match_count += 1
+            
+            # Update max matches
+            if match_count > max_matches:
+                max_matches = match_count
+        
+        # Second pass: collect all contexts with that max number of matches
+        for context_key in contexts_to_compare:
+            key_dict = context_key.to_dict()
+            
+            # Count matching attributes again
+            match_count = 0
+            for attr_name, attr_value in target_dict.items():
+                if attr_name in key_dict and key_dict[attr_name] == attr_value:
+                    match_count += 1
+            
+            # If this context has the max number of matches, add it
+            if match_count == max_matches:
+                best_matches.append(context_key)
+        
+        return best_matches, max_matches
+
 
     @classmethod
     def find_best_matching_context(cls, target_context: "IdentifyingContext", context_iterable: Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]]) -> Optional[Tuple["IdentifyingContext", int]]:
@@ -183,6 +271,32 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         --------
         Tuple[IdentifyingContext, int] or None
             The best matching context and the number of matches, or None if context_iterable is empty
+
+
+        Usage:
+
+            from neuropy.utils.result_context import IdentifyingContext
+
+            # Your target context
+            a_target_context = IdentifyingContext(trained_compute_epochs='laps', pfND_ndim=1, decoder_identifier='long_LR', time_bin_size=0.025, known_named_decoding_epochs_type='pbe', masked_time_bin_fill_type='ignore')
+
+            # Get the dictionary 
+            context_dict = a_new_fully_generic_result.filter_epochs_specific_decoded_result
+
+            # Find the best match
+            best_match, match_count = IdentifyingContext.find_best_matching_context(a_target_context, context_dict)
+
+            if best_match:
+                print(f"Found best match with {match_count} matching attributes:")
+                print(best_match)
+                
+                # Get the corresponding value
+                best_match_value = context_dict[best_match]
+                best_match_value
+            else:
+                print("No matches found in the dictionary.")
+
+
         """
         if not context_iterable:
             return None

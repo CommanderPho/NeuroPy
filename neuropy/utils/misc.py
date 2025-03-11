@@ -384,4 +384,3 @@ class DateTimeFormat(Enum):
             DateTimeFormat.WHOLE_SECONDS.now_string
         """
         return self.datetime_to_string(datetime.now())
-        
