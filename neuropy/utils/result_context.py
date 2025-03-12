@@ -400,7 +400,37 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         non_leaf_unique_values = {k:v[0] for k, v in unique_values_dict.items() if len(v) == 1}
         common_context = IdentifyingContext(**non_leaf_unique_values)
         return common_context
+
+
+    @classmethod
+    def get_sorted_by_context_lengths(cls, context_iterable: Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]]) -> Tuple[Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]], NDArray]:
+        """ sorts the context_iterable in descending order by their context length
+        
+        Usage:
+            sorted_any_matching_contexts_list, context_lengths = IdentifyingContext.get_sorted_by_context_lengths(any_matching_contexts_list)
+        
+        """
+        if isinstance(context_iterable, dict):
+            any_matching_contexts_list = list(context_iterable.keys())
+        else:
+            ## iterable (list-like)
+            any_matching_contexts_list = context_iterable
+        context_lenghts = np.array([len(v.to_dict()) for v in any_matching_contexts_list])
+        sorted_context_lengths_indicies = np.argsort(context_lenghts)
+        sorted_context_lengths = context_lenghts[sorted_context_lengths_indicies]
+        length_sorted_contexts: List[IdentifyingContext] = [any_matching_contexts_list[i] for i in sorted_context_lengths]
+        if isinstance(context_iterable, dict):
+            return {context_iterable:context_iterable[ctx] for ctx in length_sorted_contexts}, length_sorted_contexts ## return sorted dict
+    
+        else:
+            ## iterable (list-like)
+            return length_sorted_contexts, length_sorted_contexts
             
+
+
+
+
+
     @classmethod
     def converting_to_relative_contexts(cls, common_context: "IdentifyingContext", context_iterable: Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]]):
         """ returns the iterable contexts relative to the provided common_context
