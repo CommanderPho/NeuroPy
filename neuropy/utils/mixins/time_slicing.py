@@ -84,12 +84,12 @@ class TimeColumnAliasesProtocol:
 
         """
         if required_columns_synonym_dict is None:
-            required_columns_synonym_dict = cls._time_column_name_synonyms
+            required_columns_synonym_dict = cls._time_column_name_synonyms # use class defaults
         if not isinstance(df, pd.DataFrame):
             df = df.to_dataframe()
             
         if col_connonical_name in df.columns:
-            return col_connonical_name
+            return col_connonical_name ## cannonical column name already exists, just return that name
             
         ## otherwise try synonyms for that column
         assert col_connonical_name in required_columns_synonym_dict, f"col_connonical_name: '{col_connonical_name}' is missing from required_columns_synonym_dict: {required_columns_synonym_dict}"
