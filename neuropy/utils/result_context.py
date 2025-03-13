@@ -33,6 +33,8 @@ Humans need things with distinct, visual groupings. Inclusion Sets, Exceptions (
 import re # used in try_extract_date_from_session_name
 import copy
 from typing import Any, List, Dict, Optional, Tuple, Union, Protocol
+import nptyping as ND
+from nptyping import NDArray
 from enum import Enum
 from functools import wraps # used for decorators
 from attrs import define, field, Factory
