@@ -18,6 +18,27 @@ def keys_only_repr(instance): # -> str:
     """
     ...
 
+def shape_only_repr(instance): # -> str:
+    """ specifies that this field only prints its .shape, not its values.
+    
+    # Usage (within attrs class):
+        computed_data: Optional[DynamicParameters] = serialized_field(default=None, repr=shape_only_repr)
+        accumulated_errors: Optional[DynamicParameters] = non_serialized_field(default=Factory(DynamicParameters), is_computable=True, repr=shape_only_repr)
+    
+    """
+    ...
+
+def array_values_preview_repr(instance, ndecimals=...):
+    """ Specifies that this field prints its shape and a brief preview of the values, not its full contents.
+    Shows the first 2 elements and the last element with ellipsis in between for 1D arrays.
+    For multidimensional arrays, only shows the shape and total size.
+    
+    Args:
+        instance: The array or iterable to format
+        ndecimals: Number of significant digits to show for floating point values
+    """
+    ...
+
 @unique
 class HDF_SerializationType(Enum):
     """ Specifies how a serialized field is stored, as an HDF5 Dataset or Attribute """

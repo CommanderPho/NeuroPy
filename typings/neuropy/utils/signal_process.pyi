@@ -8,43 +8,43 @@ from .. import core
 
 class filter_sig:
     @staticmethod
-    def bandpass(signal, hf, lf, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
+    def bandpass(signal, hf, lf, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
         ...
     
     @staticmethod
-    def highpass(signal, cutoff, fs=..., order=..., ax=...): # -> NDArray[Any] | Any:
+    def highpass(signal, cutoff, fs=..., order=..., ax=...): # -> NDArray[Any]:
         ...
     
     @staticmethod
-    def lowpass(signal, cutoff, fs=..., order=..., ax=...): # -> NDArray[Any] | Any:
+    def lowpass(signal, cutoff, fs=..., order=..., ax=...): # -> NDArray[Any]:
         ...
     
     @staticmethod
-    def delta(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
+    def delta(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
         ...
     
     @staticmethod
-    def theta(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
+    def theta(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
         ...
     
     @staticmethod
-    def spindle(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
+    def spindle(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
         ...
     
     @staticmethod
-    def slowgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
+    def slowgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
         ...
     
     @staticmethod
-    def mediumgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
+    def mediumgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
         ...
     
     @staticmethod
-    def fastgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
+    def fastgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
         ...
     
     @staticmethod
-    def ripple(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
+    def ripple(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
         ...
     
 

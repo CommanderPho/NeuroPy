@@ -7,5 +7,4 @@ from .artifact import *
 from .brainstates import *
 from .spkepochs import *
 from .reactivation import ExplainedVariance, NeuronEnsembles
-from .decoders import Decode1d, Decode2d
 
