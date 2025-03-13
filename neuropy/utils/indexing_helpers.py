@@ -1302,7 +1302,80 @@ class PandasHelpers:
         potentially_updated_df[lhs_col_name] = deepcopy(potentially_updated_df[temp_col_name])
         potentially_updated_df.drop(columns=[temp_col_name], inplace=True)
         return potentially_updated_df
+
+# ==================================================================================================================== #
+# 2024-11-15 - `neuropy` dataframe helper                                                              #
+# ==================================================================================================================== #
+
+@pd.api.extensions.register_dataframe_accessor("neuropy")
+class NeuroPyDataframeAccessor:
+    """ Describes a dataframe with at least a neuron_id (aclu) column. Provides functionality regarding building globally (across-sessions) unique neuron identifiers.
+    
+
+    from pyphoplacecellanalysis.SpecificResults.AcrossSessionResults import AcrossSessionIdentityDataframeAccessor
+    from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+
+    """
+   
+    def __init__(self, pandas_obj: pd.DataFrame):
+        self._validate(pandas_obj)
+        self._df = pandas_obj
+
+    @staticmethod
+    def _validate(obj):
+        """ verify there is a column that identifies the spike's neuron, the type of cell of this neuron ('neuron_type'), and the timestamp at which each spike occured ('t'||'t_rel_seconds') """
+        if not isinstance(obj, pd.DataFrame):
+            raise ValueError(f"object must be a pandas Dataframe but is of type: {type(obj)}!\nobj: {obj}")
+
+
+    def constrain_df_cols(self, **constraining_kwargs) -> pd.DataFrame:
+        """ 
+        from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+        
+        filtered_single_FAT_df: pd.DataFrame = single_FAT_df.neuropy.constrain_df_cols(data_grain='per_time_bin', decoder_identifier='pseudo2D', masked_time_bin_fill_type=['ignore'], trained_compute_epochs='laps', known_named_decoding_epochs_type=['laps']) # long_RL=0, short_LR=0, short_RL=0
+        filtered_single_FAT_df
+
+        """
+        _out_df: pd.DataFrame = deepcopy(self._df)
+        for col_name, val in constraining_kwargs.items():
+            if isinstance(val, (list, tuple, set)):
+                _out_df = _out_df[_out_df[col_name].isin(val)]
+            else:
+                _out_df = _out_df[_out_df[col_name] == val]
+            _out_df.drop(columns=[col_name], inplace=True)        
+        # END for col_...
+        return _out_df
+
+
+    def split_session_key_col_to_fmt_animal_exper_cols(self, session_key_col: str = 'session_name') -> pd.DataFrame:
+        """ Split 'session_name' to the individual columns:
+            adds columns ['format_name', 'animal', 'exper_name', 'session_name'] based on 'session_name'
             
+            Usage: 
+                from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+                
+                df = df.neuropy.split_session_key_col_to_fmt_animal_exper_cols(session_key_col='session_name')
+            
+        """
+        df: pd.DataFrame = deepcopy(self._df)
+        _added_columns = []
+        if session_key_col in df:
+            if 'format_name' not in df.columns:
+                df['format_name'] = df[session_key_col].map(lambda x: x.split('_', maxsplit=3)[0]) ## add animal name
+            if 'animal' not in df.columns:
+                df['animal'] = df[session_key_col].map(lambda x: x.split('_', maxsplit=3)[1]) ## add animal name
+                ## strip the '01' suffix from each
+            if 'exper_name' not in df.columns:
+                df['exper_name'] = df[session_key_col].map(lambda x: x.split('_', maxsplit=3)[2]) # not needed
+            if (('session_name' not in df.columns) and ('session_name' != session_key_col)):
+                df['session_name'] = df[session_key_col].map(lambda x: x.split('_', maxsplit=3)[-1]) # not needed
+                
+        return df
+
+
+
+
+
 
         
 class ColumnTracker(ContextDecorator):
