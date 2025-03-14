@@ -1328,7 +1328,7 @@ class NeuroPyDataframeAccessor:
             raise ValueError(f"object must be a pandas Dataframe but is of type: {type(obj)}!\nobj: {obj}")
 
 
-    def constrain_df_cols(self, **constraining_kwargs) -> pd.DataFrame:
+    def constrain_df_cols(self, should_drop_constrained_columns: bool=True, **constraining_kwargs) -> pd.DataFrame:
         """ 
         from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
         
@@ -1342,7 +1342,10 @@ class NeuroPyDataframeAccessor:
                 _out_df = _out_df[_out_df[col_name].isin(val)]
             else:
                 _out_df = _out_df[_out_df[col_name] == val]
-            _out_df.drop(columns=[col_name], inplace=True)        
+                if should_drop_constrained_columns:
+                    ## only drop columns when the value was constrained to a single value
+                    _out_df.drop(columns=[col_name], inplace=True)
+                    
         # END for col_...
         return _out_df
 
