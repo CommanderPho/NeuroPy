@@ -329,25 +329,6 @@ files = [
 dev = ["freezegun (>=1.0,<2.0)", "pytest (>=6.0)", "pytest-cov"]
 
 [[package]]
-name = "beartype"
-version = "0.20.0"
-description = "Unbearably fast near-real-time hybrid runtime-static type-checking in pure Python."
-optional = false
-python-versions = ">=3.9"
-groups = ["main"]
-files = [
-    {file = "beartype-0.20.0-py3-none-any.whl", hash = "sha256:090d10e3540b3fca209a0ab5f1c15f9652a075da0a7249c2e6713011e9e5f6ef"},
-    {file = "beartype-0.20.0.tar.gz", hash = "sha256:599ecc86b88549bcb6d1af626f44d85ffbb9151ace5d7f9f3b493dce2ffee529"},
-]
-
-[package.extras]
-dev = ["autoapi (>=0.9.0)", "click", "coverage (>=5.5)", "equinox", "jax[cpu]", "jaxtyping", "langchain", "mypy (>=0.800)", "numba", "numpy", "pandera", "pydata-sphinx-theme (<=0.7.2)", "pygments", "pyright (>=1.1.370)", "pytest (>=4.0.0)", "sphinx", "sphinx (>=4.2.0,<6.0.0)", "sphinxext-opengraph (>=0.7.5)", "tox (>=3.20.1)", "typing-extensions (>=3.10.0.0)", "xarray"]
-doc-rtd = ["autoapi (>=0.9.0)", "pydata-sphinx-theme (<=0.7.2)", "sphinx (>=4.2.0,<6.0.0)", "sphinxext-opengraph (>=0.7.5)"]
-test = ["click", "coverage (>=5.5)", "equinox", "jax[cpu]", "jaxtyping", "langchain", "mypy (>=0.800)", "numba", "numpy", "pandera", "pygments", "pyright (>=1.1.370)", "pytest (>=4.0.0)", "sphinx", "tox (>=3.20.1)", "typing-extensions (>=3.10.0.0)", "xarray"]
-test-tox = ["click", "equinox", "jax[cpu]", "jaxtyping", "langchain", "mypy (>=0.800)", "numba", "numpy", "pandera", "pygments", "pyright (>=1.1.370)", "pytest (>=4.0.0)", "sphinx", "typing-extensions (>=3.10.0.0)", "xarray"]
-test-tox-coverage = ["coverage (>=5.5)"]
-
-[[package]]
 name = "billiard"
 version = "4.2.1"
 description = "Python multiprocessing fork with improvements and bugfixes"
@@ -7134,4 +7115,4 @@ gui = ["tqdm"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9,<3.12"
-content-hash = "c4e50c3b41b2a69bc986947e65d77ee94b10e9c0d30d35fe56011bcbc6a7b722"
+content-hash = "c13fe413e191f3e494814f6892bad9ebac99e67434cfa126f8013c686d5aab8c"
