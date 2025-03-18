@@ -192,7 +192,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         ...
     
     @property
-    def t_start(self): # -> Any | None:
+    def t_start(self):
         ...
     
     @t_start.setter

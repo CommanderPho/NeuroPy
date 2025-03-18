@@ -8,43 +8,43 @@ from .. import core
 
 class filter_sig:
     @staticmethod
-    def bandpass(signal, hf, lf, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
+    def bandpass(signal, hf, lf, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
         ...
     
     @staticmethod
-    def highpass(signal, cutoff, fs=..., order=..., ax=...): # -> NDArray[Any]:
+    def highpass(signal, cutoff, fs=..., order=..., ax=...): # -> NDArray[Any] | Any:
         ...
     
     @staticmethod
-    def lowpass(signal, cutoff, fs=..., order=..., ax=...): # -> NDArray[Any]:
+    def lowpass(signal, cutoff, fs=..., order=..., ax=...): # -> NDArray[Any] | Any:
         ...
     
     @staticmethod
-    def delta(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
+    def delta(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
         ...
     
     @staticmethod
-    def theta(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
+    def theta(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
         ...
     
     @staticmethod
-    def spindle(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
+    def spindle(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
         ...
     
     @staticmethod
-    def slowgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
+    def slowgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
         ...
     
     @staticmethod
-    def mediumgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
+    def mediumgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
         ...
     
     @staticmethod
-    def fastgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
+    def fastgamma(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
         ...
     
     @staticmethod
-    def ripple(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any]:
+    def ripple(signal, fs=..., order=..., ax=...): # -> Signal | NDArray[Any] | Any:
         ...
     
 

@@ -709,6 +709,65 @@ class PandasHelpers:
     
 
 
+@pd.api.extensions.register_dataframe_accessor("neuropy")
+class NeuroPyDataframeAccessor:
+    """ Describes a dataframe with at least a neuron_id (aclu) column. Provides functionality regarding building globally (across-sessions) unique neuron identifiers.
+    
+
+    from pyphoplacecellanalysis.SpecificResults.AcrossSessionResults import AcrossSessionIdentityDataframeAccessor
+    from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+
+    """
+    def __init__(self, pandas_obj: pd.DataFrame) -> None:
+        ...
+    
+    def get_column_unique_values_dict(self, columns_include_subset: Optional[List[str]] = ...) -> Dict[str, List]:
+        """ Returns a dict containing the column names as keys and a list of the unique values of that column as the values.
+
+        Usage:
+            from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+            
+            unique_values_dict = df.neuropy.get_column_unique_values_dict(columns_include_subset=['known_named_decoding_epochs_type', 'trained_compute_epochs', 'masked_time_bin_fill_type'])
+            unique_values_dict
+
+        """
+        ...
+    
+    def dropping_single_valued_columns(self, include_subset: Optional[List[str]] = ...) -> pd.DataFrame:
+        """ Returns a copy of the dataframe with any columns containing only a single value dropped.
+        
+        from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+        
+        filtered_single_FAT_df: pd.DataFrame = single_FAT_df.neuropy.constrain_df_cols(data_grain='per_time_bin', decoder_identifier='pseudo2D', masked_time_bin_fill_type=['ignore'], trained_compute_epochs='laps', known_named_decoding_epochs_type=['laps']) # long_RL=0, short_LR=0, short_RL=0
+        filtered_single_FAT_df
+
+        """
+        ...
+    
+    def constrain_df_cols(self, should_drop_constrained_columns: bool = ..., **constraining_kwargs) -> pd.DataFrame:
+        """ 
+        from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+        
+        filtered_single_FAT_df: pd.DataFrame = single_FAT_df.neuropy.constrain_df_cols(data_grain='per_time_bin', decoder_identifier='pseudo2D', masked_time_bin_fill_type=['ignore'], trained_compute_epochs='laps', known_named_decoding_epochs_type=['laps']) # long_RL=0, short_LR=0, short_RL=0
+        filtered_single_FAT_df
+
+        """
+        ...
+    
+    def split_session_key_col_to_fmt_animal_exper_cols(self, session_key_col: str = ...) -> pd.DataFrame:
+        """ Split 'session_name' to the individual columns:
+            adds columns ['format_name', 'animal', 'exper_name', 'session_name'] based on 'session_name'
+            
+            Usage: 
+                from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+                
+                df = df.neuropy.split_session_key_col_to_fmt_animal_exper_cols(session_key_col='session_name')
+            
+        """
+        ...
+    
+
+
 class ColumnTracker(ContextDecorator):
     """A context manager to track changes in the columns of DataFrames.
 
