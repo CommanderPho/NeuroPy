@@ -1328,6 +1328,54 @@ class NeuroPyDataframeAccessor:
             raise ValueError(f"object must be a pandas Dataframe but is of type: {type(obj)}!\nobj: {obj}")
 
 
+    def get_column_unique_values_dict(self, columns_include_subset: Optional[List[str]]=None) -> Dict[str, List]:
+        """ Returns a dict containing the column names as keys and a list of the unique values of that column as the values.
+
+        Usage:
+            from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+            
+            unique_values_dict = df.neuropy.get_column_unique_values_dict(columns_include_subset=['known_named_decoding_epochs_type', 'trained_compute_epochs', 'masked_time_bin_fill_type'])
+            unique_values_dict
+
+        """
+        if columns_include_subset is None:
+            columns_include_subset = list(self._df.columns) ## consider all columns        
+        unique_values_dict = {a_col_name:np.unique(self._df[a_col_name]).tolist() for a_col_name in columns_include_subset}
+        return unique_values_dict
+    
+
+
+    def dropping_single_valued_columns(self, include_subset: Optional[List[str]]=None) -> pd.DataFrame:
+        """ Returns a copy of the dataframe with any columns containing only a single value dropped.
+        
+        from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+        
+        filtered_single_FAT_df: pd.DataFrame = single_FAT_df.neuropy.constrain_df_cols(data_grain='per_time_bin', decoder_identifier='pseudo2D', masked_time_bin_fill_type=['ignore'], trained_compute_epochs='laps', known_named_decoding_epochs_type=['laps']) # long_RL=0, short_LR=0, short_RL=0
+        filtered_single_FAT_df
+
+        """
+        _out_df: pd.DataFrame = deepcopy(self._df)
+        if include_subset is None:
+            include_subset = list(_out_df.columns) ## consider all columns
+
+        # _column_names_to_drop = []  
+        _columns_to_drop_dict = {}            
+        for a_col_name in include_subset:        
+            a_col_unique_values = np.unique(_out_df[a_col_name])
+            if len(a_col_unique_values) < 2:
+                ## only one or zero unique values, drop the column
+                _columns_to_drop_dict[a_col_name] = a_col_unique_values
+        ## end for a_col...
+        _column_names_to_drop = list(_columns_to_drop_dict.keys())
+        if len(_column_names_to_drop) > 0:
+            ## perform the drop
+            ## only drop columns when the value was constrained to a single value
+            _out_df.drop(columns=_column_names_to_drop, inplace=True)   
+        # END if len(_column_names_to_dr....
+        return _out_df
+    
+
+
     def constrain_df_cols(self, should_drop_constrained_columns: bool=True, **constraining_kwargs) -> pd.DataFrame:
         """ 
         from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
