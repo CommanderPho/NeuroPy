@@ -42,6 +42,7 @@ from benedict import benedict # https://github.com/fabiocaccamo/python-benedict#
 from collections import defaultdict
 from neuropy.utils.mixins.diffable import OrderedSet
 from copy import deepcopy
+import warnings
 
 import numpy as np
 import pandas as pd # used for find_unique_values
@@ -666,15 +667,16 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         assert (IdentifyingContext(format_name='KDIBA',animal='gor01',exper_name='one',session_name='2006-6-07_11-26-53') == IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-07_11-26-53'))
         
         """
-        if isinstance(other, (IdentifyingContext, )):
+        if hasattr(other, 'to_dict'):
             # Convert both dictionaries to lowercase for case-insensitive comparison
             self_dict = {k: str(v).casefold() if isinstance(v, str) else v for k, v in self.to_dict().items()}
             other_dict = {k: str(v).casefold() if isinstance(v, str) else v for k, v in other.to_dict().items()}
             return dict(sorted(self_dict.items())) == dict(sorted(other_dict.items()))
             # return self.to_dict() == other.to_dict() # Python's dicts use element-wise comparison by default, so this is what we want.
-            # return dict(sorted(self.to_dict().items())) == dict(sorted(other.to_dict().items())) 
+            # return dict(sorted(self.to_dict().items())) == dict(sorted(other.to_dict().items()))         
         else:
-            raise NotImplementedError(f"type(other): {type(other)} not handled.")
+            warnings.warn(f"type(other): {type(other)} not handled in equality comparison", UserWarning)
+            return False
 
     
     @classmethod
@@ -1514,3 +1516,38 @@ class DisplaySpecifyingIdentifyingContext(IdentifyingContext):
     #         assert subset_excludelist is None, f"subset_excludelist MUST be None when a subset_includelist is provided, but instead it's {subset_excludelist}!"
     #         return [a_key for a_key in benedict(self.__dict__).subset(subset_includelist).keys() if a_key not in (subset_excludelist or [])]
         
+
+
+
+from neuropy.utils.result_context import IdentifyingContext
+
+# Store the original method
+original_str = IdentifyingContext.__str__
+
+# Create a configuration function
+def set_context_print_options(include_property_names=True, key_value_separator=':', separator='|', replace_separator_in_property_names='-'):
+    """Set global printing options for all IdentifyingContext instances
+    
+    from neuropy.utils.result_context import set_context_print_options
+    # Usage example:
+    reset_printer = set_context_print_options(include_property_names=True)
+
+    # Later to restore default behavior:
+    # reset_printer()
+    """
+    def new_str(self):
+        return self.get_description(
+            include_property_names=include_property_names, key_value_separator=key_value_separator, separator=separator, replace_separator_in_property_names=replace_separator_in_property_names
+        )
+    
+    # Replace the __str__ method
+    IdentifyingContext.__str__ = new_str
+    
+    # Return a function to restore original behavior if needed
+    def reset():
+        IdentifyingContext.__str__ = original_str
+        
+    return reset
+
+
+
