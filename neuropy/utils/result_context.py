@@ -350,7 +350,7 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
                 else:
                     pass ## it's a match, but worse than previously found matches
 
-        return (best_match, max_matches) if best_match else None
+        return (best_match, max_matches) if best_match else (None, -1)
 
 
 
