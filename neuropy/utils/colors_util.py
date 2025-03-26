@@ -157,7 +157,10 @@ class ColorsUtil:
             from neuropy.utils.colors_util import ColorsUtil
             
             # With tuple
+            from neuropy.utils.colors_util import ColorsUtil
+
             color1 = ColorsUtil.generate_unique_hex_color_from_hashable(('long', 2, 'test'))
+            color1
             
             # With dict
             color2 = ColorsUtil.generate_unique_hex_color_from_hashable({'name': 'long', 'id': 2})
