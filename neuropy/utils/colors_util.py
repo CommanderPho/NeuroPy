@@ -1,4 +1,6 @@
 ## Plotting Colors:
+from typing import Dict, List, Tuple, Optional, Callable, Union, Any
+from nptyping import NDArray
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors
@@ -134,6 +136,78 @@ class ColorsUtil:
         cols = ColorsUtil._categorical_subdivide_colors(ccolors, nc, nsc)
         cmap = matplotlib.colors.ListedColormap(cols)
         return cmap
+
+
+
+    # @function_attributes(short_name=None, tags=['color', 'hash', 'tuple', 'dict'], input_requires=['tuple or dict or object with to_dict method'], output_provides=['hex_color'], creation_date='2025-03-26 00:00')
+    @classmethod
+    def generate_unique_hex_color_from_hashable(cls, input_obj: Union[Tuple, Dict, str, Any]) -> str:
+        """Generates a unique, deterministic color from the input object.
+        
+        The function hashes the input to create a color code, ensuring the same input
+        always produces the same color.
+        
+        Args:
+            input_obj: Can be a tuple, dict, or any object with a to_dict() method
+            
+        Returns:
+            str: A hex color string like '#bd00c7'
+            
+        Usage:
+            from neuropy.utils.colors_util import ColorsUtil
+            
+            # With tuple
+            color1 = ColorsUtil.generate_unique_hex_color_from_hashable(('long', 2, 'test'))
+            
+            # With dict
+            color2 = ColorsUtil.generate_unique_hex_color_from_hashable({'name': 'long', 'id': 2})
+            
+            # With object that has to_dict() method
+            class MyClass:
+                def __init__(self, name, value):
+                    self.name = name
+                    self.value = value
+                def to_dict(self):
+                    return {'name': self.name, 'value': self.value}
+                    
+            obj = MyClass('test', 42)
+            color3 = ColorsUtil.generate_unique_hex_color_from_hashable(obj)
+        """
+        import hashlib
+        import json
+        
+        # Convert input to a consistent string representation
+        if isinstance(input_obj, tuple):
+            # For tuples, use string representation directly
+            string_rep = str(input_obj)
+        elif isinstance(input_obj, dict):
+            # For dictionaries, sort keys for consistent representation
+            string_rep = json.dumps(input_obj, sort_keys=True)
+        elif hasattr(input_obj, 'to_dict') and callable(getattr(input_obj, 'to_dict')):
+            # For objects with to_dict method, convert to dict first
+            dict_rep = input_obj.to_dict()
+            string_rep = json.dumps(dict_rep, sort_keys=True)
+        else:
+            # For anything else, fall back to string representation
+            string_rep = str(input_obj)
+        
+        # Create a deterministic hash from the string
+        hash_object = hashlib.md5(string_rep.encode())
+        hash_hex = hash_object.hexdigest()
+        
+        # Use parts of the hash for RGB values
+        r = int(hash_hex[0:2], 16)
+        g = int(hash_hex[2:4], 16)
+        b = int(hash_hex[4:6], 16)
+        
+        # Return as hex color
+        return f'#{r:02x}{g:02x}{b:02x}'
+
+
+
+
+
+
 
 
 
