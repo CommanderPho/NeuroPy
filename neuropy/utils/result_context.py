@@ -233,28 +233,30 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             
             # Count matching attributes
             match_count = 0
+            is_valid_match = True
             for attr_name, attr_value in target_dict.items():
-                if attr_name in key_dict and key_dict[attr_name] == attr_value:
-                    match_count += 1
-            
-            # Update max matches
-            if match_count > max_matches:
-                max_matches = match_count
-        
-        # Second pass: collect all contexts with that max number of matches
-        for context_key in contexts_to_compare:
-            key_dict = context_key.to_dict()
-            
-            # Count matching attributes again
-            match_count = 0
-            for attr_name, attr_value in target_dict.items():
-                if attr_name in key_dict and key_dict[attr_name] == attr_value:
-                    match_count += 1
-            
-            # If this context has the max number of matches, add it
-            if match_count == max_matches:
-                best_matches.append(context_key)
-        
+                if (attr_name in key_dict):
+                    if (key_dict[attr_name] == attr_value):
+                        match_count += 1  # note the match and continue comparing
+                    else:
+                        is_valid_match = False  # not a valid match
+                        break
+            ## END for attr_na...
+                
+            # Skip this context if it has conflicting attribute values
+            if not is_valid_match:
+                continue
+            else:
+                ## match still valid, see if the current is better than the previous
+                # Update best match if current is better
+                if (match_count > max_matches):
+                    max_matches = match_count
+                    best_matches = [context_key] ## create a new list with the new context (as this number of matches is the current max
+                elif (match_count == max_matches) and (match_count > 0):
+                    best_matches.append(context_key) ## add this context to the current best_matches accumulator list as it has the same number of property matches as the best
+                else:
+                    pass ## it's a match, but worse than previously found matches
+        ## END for contex...        
         return best_matches, max_matches
 
 
@@ -262,7 +264,9 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
     def find_best_matching_context(cls, target_context: "IdentifyingContext", context_iterable: Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]]) -> Optional[Tuple["IdentifyingContext", int]]:
         """
         Find the context key in the dictionary that has the maximum number of matching attributes with the target context.
-        
+        ## ensure all values included both in the tentative match and the specified target_context are equal or included.
+        ### keys in the `target_context` may be missing from the tenative match (underconstrained/more-general) but if they are present, they cannot be incorrect.
+
         Parameters:
         -----------
         target_context : IdentifyingContext
@@ -316,21 +320,36 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         else:
             raise ValueError("context_iterable must be a list or dictionary")
         
-        # Find the best matching context
+        # Find the best matching context _____________________________________________________________________________________ #
+        ## ensure all values included both in the tentative match and the specified target_context are equal or included.
+        ### keys in the `target_context` may be missing from the tenative match (underconstrained/more-general) but if they are present, they cannot be incorrect.
         for context_key in contexts_to_compare:
             key_dict = context_key.to_dict()
             
             # Count matching attributes
+            is_valid_match = True
             match_count = 0
             for attr_name, attr_value in target_dict.items():
-                if attr_name in key_dict and key_dict[attr_name] == attr_value:
-                    match_count += 1
+                if (attr_name in key_dict):
+                    if (key_dict[attr_name] == attr_value):
+                        match_count += 1 ## note the match and continue comparing
+                    else:
+                        is_valid_match = False # not a valid match
+                        break 
+            ## END for attr_na....
             
-            # Update best match if current is better
-            if match_count > max_matches:
-                max_matches = match_count
-                best_match = context_key
-        
+            # Skip this context if it has conflicting attribute values
+            if not is_valid_match:
+                continue             
+            else:
+                ## match still valid, see if the current is better than the previous
+                # Update best match if current is better
+                if (match_count > max_matches):
+                    max_matches = match_count
+                    best_match = context_key
+                else:
+                    pass ## it's a match, but worse than previously found matches
+
         return (best_match, max_matches) if best_match else None
 
 
