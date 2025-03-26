@@ -178,18 +178,20 @@ class ColorsUtil:
         
         # Convert input to a consistent string representation
         if isinstance(input_obj, tuple):
-            # For tuples, use string representation directly
-            string_rep = str(input_obj)
+            # For tuples, convert to lowercase and sort
+            string_rep = str(tuple(sorted(str(x).lower() for x in input_obj)))
         elif isinstance(input_obj, dict):
-            # For dictionaries, sort keys for consistent representation
-            string_rep = json.dumps(input_obj, sort_keys=True)
+            # For dictionaries, convert keys and values to lowercase and sort
+            normalized_dict = {str(k).lower(): str(v).lower() for k, v in input_obj.items()}
+            string_rep = json.dumps(normalized_dict, sort_keys=True)
         elif hasattr(input_obj, 'to_dict') and callable(getattr(input_obj, 'to_dict')):
-            # For objects with to_dict method, convert to dict first
+            # For objects with to_dict method, convert to dict first, then normalize
             dict_rep = input_obj.to_dict()
-            string_rep = json.dumps(dict_rep, sort_keys=True)
+            normalized_dict = {str(k).lower(): str(v).lower() for k, v in dict_rep.items()}
+            string_rep = json.dumps(normalized_dict, sort_keys=True)
         else:
-            # For anything else, fall back to string representation
-            string_rep = str(input_obj)
+            # For anything else, convert to lowercase
+            string_rep = str(input_obj).lower()
         
         # Create a deterministic hash from the string
         hash_object = hashlib.md5(string_rep.encode())
@@ -202,7 +204,6 @@ class ColorsUtil:
         
         # Return as hex color
         return f'#{r:02x}{g:02x}{b:02x}'
-
 
 
 
