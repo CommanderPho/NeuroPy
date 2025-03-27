@@ -170,7 +170,7 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         return relevant_entries
 
     @classmethod
-    def find_best_matching_contexts(cls, target_context: "IdentifyingContext", context_iterable: Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]]) -> Tuple[List["IdentifyingContext"], int]:
+    def find_best_matching_contexts(cls, target_context: "IdentifyingContext", context_iterable: Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]], allow_partial_matches: bool=True) -> Tuple[List["IdentifyingContext"], int]:
         """
         Find all context keys in the iterable that have the maximum number of matching attributes with the target context.
 
@@ -212,6 +212,8 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
                 print("No matches found in the dictionary.")
 
         """
+        from neuropy.utils.mixins.dict_representable import get_dict_subset
+        
         if not context_iterable:
             return [], -1
         
@@ -232,6 +234,9 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             key_dict = context_key.to_dict()
             
             # Count matching attributes
+            # matching_only_key_dict = get_dict_subset(key_dict, included_keys=list(target_dict.keys()), require_all_keys=False)
+            # is_valid_match = np.all([str(target_dict[k]) == str(v) for k, v in matching_only_key_dict.items()])
+
             match_count = 0
             is_valid_match = True
             for attr_name, attr_value in target_dict.items():
@@ -251,9 +256,16 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
                 # Update best match if current is better
                 if (match_count > max_matches):
                     max_matches = match_count
-                    best_matches = [context_key] ## create a new list with the new context (as this number of matches is the current max
+                    if (not allow_partial_matches):
+                        best_matches = [context_key] ## create a new list with the new context (as this number of matches is the current max
+                    else:
+                        best_matches.append(context_key) ## keep accumulating, never reset
+                        
                 elif (match_count == max_matches) and (match_count > 0):
                     best_matches.append(context_key) ## add this context to the current best_matches accumulator list as it has the same number of property matches as the best
+                    
+                elif allow_partial_matches and (match_count < max_matches) and (match_count > 0):
+                    best_matches.append(context_key) ## keep accumulating, never reset
                 else:
                     pass ## it's a match, but worse than previously found matches
         ## END for contex...        
