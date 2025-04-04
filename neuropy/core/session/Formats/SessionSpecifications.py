@@ -66,13 +66,19 @@ class RequiredValidationFailedError(SessionFolderSpecError):
         return self.message
     
 
-class SessionFolderSpec():
+
+@define(slots=False)
+class SessionFolderSpec:
     """ Documents the required and optional files for a given session format """
-    def __init__(self, required = [], optional = [], additional_validation_requirements=[]) -> None:
-        # additiona_validation_requirements: a list of callbacks that are passed the proposed_session_path on self.validate(...) and return True/False. All must return true for validate to succeed.
-        self.required_files = required
-        self.optional_files = optional
-        self.additional_validation_requirements = additional_validation_requirements
+    required_files: List = field(default=Factory(list))
+    optional_files: List = field(default=Factory(list))
+    additional_validation_requirements: List = field(default=Factory(list), metadata={'desc': 'a list of callbacks that are passed the proposed_session_path on self.validate(...) and return True/False. All must return true for validate to succeed.'})
+    
+    # def __init__(self, required_files = [], optional_files = [], additional_validation_requirements=[]) -> None:
+    #     # additiona_validation_requirements: a list of callbacks that are passed the proposed_session_path on self.validate(...) and return True/False. All must return true for validate to succeed.
+    #     self.required_files = required_files
+    #     self.optional_files = optional_files
+    #     self.additional_validation_requirements = additional_validation_requirements
         
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}: {self.__dict__};>"
