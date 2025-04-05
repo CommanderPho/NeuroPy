@@ -1340,7 +1340,18 @@ class NeuroPyDataframeAccessor:
         """
         if columns_include_subset is None:
             columns_include_subset = list(self._df.columns) ## consider all columns        
-        unique_values_dict = {a_col_name:np.unique(self._df[a_col_name]).tolist() for a_col_name in columns_include_subset}
+        # unique_values_dict = {a_col_name:np.unique(self._df[a_col_name]).tolist() for a_col_name in columns_include_subset}
+        
+        unique_values_dict = {}
+        for a_col_name in columns_include_subset:
+            if self._df[a_col_name].dtype == 'object':
+                # Use pandas unique for object dtypes, this prevents strange errors like `TypeError: '<' not supported between instances of 'str' and 'float'` when the column contains None values or something.
+                unique_values_dict[a_col_name] = self._df[a_col_name].unique().tolist()
+            else:
+                # Use numpy unique for numeric dtypes
+                unique_values_dict[a_col_name] = np.unique(self._df[a_col_name]).tolist()
+                
+        
         return unique_values_dict
     
 
