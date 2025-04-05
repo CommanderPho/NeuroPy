@@ -468,6 +468,81 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         return new_non_pbe_epochs
     
 
+    @classmethod
+    def compute_non_PBE_EndcapsOnly_epochs(cls, session, active_parameters=None, save_on_compute=False, **additional_df_metdata) -> pd.DataFrame:
+        """ Compute the 'non_pbe_endcap' epochs, which are the non_pbe epochs with the laps also subtracted out        
+        """
+        print('computing non_PBE_EndcapsOnly epochs for session...\n')
+        if active_parameters is None:
+            active_parameters = {} # empty dict
+        # Filter parameters:
+        extracted_filter_parameters = dict(require_intersecting_epoch=active_parameters.pop('require_intersecting_epoch', None),
+                                            min_epoch_included_duration=active_parameters.pop('min_epoch_included_duration', None), max_epoch_included_duration=active_parameters.pop('max_epoch_included_duration', None),
+                                            maximum_speed_thresh=active_parameters.pop('maximum_speed_thresh', None),
+                                            min_inclusion_fr_active_thresh=active_parameters.pop('min_inclusion_fr_active_thresh', None), min_num_unique_aclu_inclusions=active_parameters.pop('min_num_unique_aclu_inclusions', None))
+        
+        epoch_overlap_prevention_kwargs = dict(additive_factor=active_parameters.pop('additive_factor', -0.008), final_output_minimum_epoch_duration=active_parameters.pop('final_output_minimum_epoch_duration', 0.040)) # passed to `*df.epochs.modify_each_epoch_by(...)`
+        
+
+        ## build the epochs object:    
+        PBE_df: pd.DataFrame = ensure_dataframe(deepcopy(session.pbe))
+        ## Build up a new epoch -- this works successfully for filter epochs as well, although 'maze' label is incorrect
+        epochs_df: pd.DataFrame = deepcopy(session.epochs).epochs.adding_global_epoch_row()
+        global_epoch_only_df: pd.DataFrame = epochs_df.epochs.label_slice('maze')
+
+        # t_start, t_stop = epochs_df.epochs.t_start, epochs_df.epochs.t_stop
+        global_epoch_only_non_PBE_epoch_df: pd.DataFrame = global_epoch_only_df.epochs.subtracting(PBE_df)
+        global_epoch_only_non_PBE_epoch_df = global_epoch_only_non_PBE_epoch_df.epochs.modify_each_epoch_by(**epoch_overlap_prevention_kwargs)
+
+        ## Compute the 'non_pbe_endcap' epochs, which are the non_pbe epochs with the laps also subtracted out
+        # global_epoch_only_non_PBE_epoch_df = ensure_dataframe(deepcopy(curr_active_pipeline.filtered_sessions[global_epoch_name].non_pbe))
+        laps_df = ensure_dataframe(deepcopy(session.laps))
+
+        non_pbe_endcaps_df = deepcopy(global_epoch_only_non_PBE_epoch_df).epochs.subtracting(laps_df)
+        non_pbe_endcaps_df = non_pbe_endcaps_df.epochs.modify_each_epoch_by(**epoch_overlap_prevention_kwargs) # minimum length to consider is 50ms, contract each epoch inward by -8ms (4ms on each side)
+        non_pbe_endcaps_df = non_pbe_endcaps_df.epochs.adding_or_updating_metadata(track_identity='global', interval_datasource_name=f'global_EndcapsNonPBE') # train_test_period='train', training_data_portion=training_data_portion, 
+
+        # OUTPUTS: non_pbe_endcaps_df
+
+        # 'global'
+        # f'global_NonPBE_TRAIN'
+
+        df_metadata = {}
+        # if track_identity is not None:
+        #     df_metadata['track_identity'] = track_identity
+        # if interval_datasource_name is not None:
+        #     df_metadata['interval_datasource_name'] = interval_datasource_name
+            
+        df_metadata.update(**additional_df_metdata)        
+        # for a_df_metadata_key, a_v in additional_df_metdata.items():
+            
+        ## Add the metadata:
+        if len(df_metadata) > 0:
+            non_pbe_endcaps_df = non_pbe_endcaps_df.epochs.adding_or_updating_metadata(**df_metadata)
+        
+        ## Add the maze_id column to the epochs:
+        
+        # a_new_global_training_df = a_new_global_training_df.epochs.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end)
+        # a_new_global_test_df = a_new_global_test_df.epochs.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end)
+
+        # maze_id_to_maze_name_map = {-1:'none', 0:'long', 1:'short'}
+        # a_new_global_training_df['maze_name'] = a_new_global_training_df['maze_id'].map(maze_id_to_maze_name_map)
+        # a_new_global_test_df['maze_name'] = a_new_global_test_df['maze_id'].map(maze_id_to_maze_name_map)
+
+
+        ## finally, filter on it if needed:
+        new_non_pbe_endcaps_epochs = Epoch.filter_epochs(ensure_Epoch(non_pbe_endcaps_df), pos_df=session.position.to_dataframe(), spikes_df=session.spikes_df.copy(), **extracted_filter_parameters, debug_print=False) # Filter based on the criteria if provided
+
+        if save_on_compute:
+            new_non_pbe_endcaps_epochs.filename = session.filePrefix.with_suffix('.non_pbe_endcaps.npy')
+            with ProgressMessagePrinter(new_non_pbe_endcaps_epochs.filename, action='Saving', contents_description='non_pbe_endcaps results'):
+                new_non_pbe_endcaps_epochs.save()
+                
+        return new_non_pbe_endcaps_epochs
+    
+
+
+
 
 
     @staticmethod
