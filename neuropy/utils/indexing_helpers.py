@@ -1303,6 +1303,65 @@ class PandasHelpers:
         potentially_updated_df.drop(columns=[temp_col_name], inplace=True)
         return potentially_updated_df
 
+    @classmethod
+    def remap_range(cls, values, from_range=(0.0, 1.0), to_range=(-1.0, 1.0), safety_check:bool=True):
+        """
+        Maps values from one range to another.
+        
+        Parameters:
+        -----------
+        values : pandas.Series or numpy.ndarray
+            The values to remap
+        from_range : tuple, optional
+            The source range (min, max). Default is (0.0, 1.0)
+        to_range : tuple, optional
+            The target range (min, max). Default is (-1.0, 1.0)
+            
+        Returns:
+        --------
+        pandas.Series or numpy.ndarray
+            The remapped values
+            
+            
+        Usage:
+        
+        
+            from neuropy.utils.indexing_helpers import PandasHelpers
+            
+            # BEGIN FUNCTION BODY ________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
+            # Apply the function to rolling windows
+            rolling_extreme = PandasHelpers.remap_range(df[column], from_range=(0.0, 1.0), to_range=(-1.0, 1.0), safety_check=True).rolling(window, *args, **kwargs).apply(_subfn_most_extreme, raw=False) ## map original probability range to -1, +1 so the `most_extreme` function works correctly
+            # Then get the most extreme value across all windows
+            idx = rolling_extreme.abs().idxmax()
+            return PandasHelpers.remap_range(rolling_extreme.loc[idx], from_range=(-1.0, 1.0), to_range=(0.0, 1.0), safety_check=False) # map back to original probability range 
+                    
+        """
+        from_min, from_max = from_range
+        to_min, to_max = to_range
+
+        # Check if input is within expected range (excluding NaNs)
+        if safety_check:
+            import pandas as pd
+            import numpy as np
+            
+            # Create a mask for non-NaN values
+            if isinstance(values, pd.Series):
+                non_nan_mask = ~values.isna()
+            else:
+                non_nan_mask = ~np.isnan(values)
+                
+            # Check only non-NaN values
+            if non_nan_mask.any():  # Only check if there are any non-NaN values
+                non_nan_values = values[non_nan_mask]
+                if not ((non_nan_values >= from_min) & (non_nan_values <= from_max)).all():
+                    warnings.warn(f"Some values are outside the expected input range {from_range}")
+
+        # Apply the linear transformation
+        # NaNs will automatically propagate through these operations
+        return to_min + (values - from_min) * (to_max - to_min) / (from_max - from_min)
+
+
+
 # ==================================================================================================================== #
 # 2024-11-15 - `neuropy` dataframe helper                                                              #
 # ==================================================================================================================== #
