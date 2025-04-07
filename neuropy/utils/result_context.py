@@ -170,7 +170,7 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         return relevant_entries
 
     @classmethod
-    def find_best_matching_contexts(cls, target_context: "IdentifyingContext", context_iterable: Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]], allow_partial_matches: bool=True) -> Tuple[List["IdentifyingContext"], int]:
+    def find_best_matching_contexts(cls, target_context: "IdentifyingContext", context_iterable: Union[Dict["IdentifyingContext", Any], List["IdentifyingContext"]], allow_partial_matches: bool=True) -> Tuple[List["IdentifyingContext"], List[int], int]:
         """
         Find all context keys in the iterable that have the maximum number of matching attributes with the target context.
 
@@ -199,10 +199,10 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             context_dict = a_new_fully_generic_result.filter_epochs_specific_decoded_result
 
             # Find the best match
-            best_matches, match_count = IdentifyingContext.find_best_matching_contexts(a_target_context, context_dict)
+            best_matches, number_matching_context_attributes, max_num_matching_context_attributes = IdentifyingContext.find_best_matching_contexts(a_target_context, context_dict)
 
             if best_matches:
-                # print(f"Found best match with {match_count} matching attributes:")
+                # print(f"Found best match with {number_matching_context_attributes} matching attributes:")
                 print(f"best_matches list: {best_matches}\n")
                 
                 # Get the corresponding value
@@ -218,31 +218,32 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             return [], -1
         
         target_dict = target_context.to_dict()
-        best_matches = []
-        max_matches = -1
+        best_matches: List["IdentifyingContext"] = []
+        number_matching_context_attributes: List[int] = []
+        max_num_matching_context_attributes: int = -1
         
         # Extract the contexts to compare based on input type
         if isinstance(context_iterable, (list, tuple)):
             contexts_to_compare = context_iterable
         elif hasattr(context_iterable, 'keys'):
-            contexts_to_compare = context_iterable.keys()
+            contexts_to_compare = list(context_iterable.keys())
         else:
             raise ValueError("context_iterable must be a list or dictionary")
         
         # First pass: find the maximum number of matches
         for context_key in contexts_to_compare:
-            key_dict = context_key.to_dict()
+            key_dict = context_key.to_dict() ## note this is a benedict-dict it seems instead of a standard python dict
             
             # Count matching attributes
             # matching_only_key_dict = get_dict_subset(key_dict, included_keys=list(target_dict.keys()), require_all_keys=False)
             # is_valid_match = np.all([str(target_dict[k]) == str(v) for k, v in matching_only_key_dict.items()])
 
-            match_count = 0
+            curr_ctxt_matching_attributes_count: int = 0
             is_valid_match = True
             for attr_name, attr_value in target_dict.items():
                 if (attr_name in key_dict):
                     if (key_dict[attr_name] == attr_value):
-                        match_count += 1  # note the match and continue comparing
+                        curr_ctxt_matching_attributes_count += 1  # note the match and continue comparing
                     else:
                         is_valid_match = False  # not a valid match
                         break
@@ -254,22 +255,27 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             else:
                 ## match still valid, see if the current is better than the previous
                 # Update best match if current is better
-                if (match_count > max_matches):
-                    max_matches = match_count
+                should_skip_append: bool = False
+                if (curr_ctxt_matching_attributes_count > max_num_matching_context_attributes):
+                    max_num_matching_context_attributes = curr_ctxt_matching_attributes_count
                     if (not allow_partial_matches):
                         best_matches = [context_key] ## create a new list with the new context (as this number of matches is the current max
                     else:
                         best_matches.append(context_key) ## keep accumulating, never reset
                         
-                elif (match_count == max_matches) and (match_count > 0):
+                elif (curr_ctxt_matching_attributes_count == max_num_matching_context_attributes): # and (match_count > 0)
                     best_matches.append(context_key) ## add this context to the current best_matches accumulator list as it has the same number of property matches as the best
                     
-                elif allow_partial_matches and (match_count < max_matches) and (match_count > 0):
+                elif allow_partial_matches and (curr_ctxt_matching_attributes_count < max_num_matching_context_attributes): #  and (match_count > 0)
                     best_matches.append(context_key) ## keep accumulating, never reset
                 else:
-                    pass ## it's a match, but worse than previously found matches
+                    ## it's a match, but worse than previously found matches
+                    should_skip_append = True
+                    pass
+                if not should_skip_append:
+                    number_matching_context_attributes.append(curr_ctxt_matching_attributes_count)
         ## END for contex...        
-        return best_matches, max_matches
+        return best_matches, number_matching_context_attributes, max_num_matching_context_attributes
 
 
     @classmethod
@@ -303,10 +309,10 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             context_dict = a_new_fully_generic_result.filter_epochs_specific_decoded_result
 
             # Find the best match
-            best_match, match_count = IdentifyingContext.find_best_matching_context(a_target_context, context_dict)
+            best_match, max_num_matching_context_attributes = IdentifyingContext.find_best_matching_context(a_target_context, context_dict)
 
             if best_match:
-                print(f"Found best match with {match_count} matching attributes:")
+                print(f"Found best match with {max_num_matching_context_attributes} matching attributes:")
                 print(best_match)
                 
                 # Get the corresponding value
@@ -322,7 +328,7 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         
         target_dict = target_context.to_dict()
         best_match = None
-        max_matches = -1
+        max_num_matching_context_attributes: int = -1
         
         # Extract the contexts to compare based on input type
         if isinstance(context_iterable, (list, tuple)):
@@ -340,11 +346,11 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             
             # Count matching attributes
             is_valid_match = True
-            match_count = 0
+            curr_ctxt_matching_attributes_count: int = 0
             for attr_name, attr_value in target_dict.items():
                 if (attr_name in key_dict):
                     if (key_dict[attr_name] == attr_value):
-                        match_count += 1 ## note the match and continue comparing
+                        curr_ctxt_matching_attributes_count += 1 ## note the match and continue comparing
                     else:
                         is_valid_match = False # not a valid match
                         break 
@@ -356,13 +362,13 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             else:
                 ## match still valid, see if the current is better than the previous
                 # Update best match if current is better
-                if (match_count > max_matches):
-                    max_matches = match_count
+                if (curr_ctxt_matching_attributes_count > max_num_matching_context_attributes):
+                    max_num_matching_context_attributes = curr_ctxt_matching_attributes_count
                     best_match = context_key
                 else:
                     pass ## it's a match, but worse than previously found matches
 
-        return (best_match, max_matches) if best_match else (None, -1)
+        return (best_match, max_num_matching_context_attributes) if best_match else (None, -1)
 
 
 
