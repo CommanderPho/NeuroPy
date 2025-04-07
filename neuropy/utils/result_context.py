@@ -213,7 +213,9 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
 
         """
         from neuropy.utils.mixins.dict_representable import get_dict_subset
+        from neuropy.utils.misc import is_iterable
         
+
         if not context_iterable:
             return [], -1
         
@@ -232,7 +234,7 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         
         # First pass: find the maximum number of matches
         for context_key in contexts_to_compare:
-            key_dict = context_key.to_dict() ## note this is a benedict-dict it seems instead of a standard python dict
+            curr_ctxt_key_dict = context_key.to_dict() ## note this is a benedict-dict it seems instead of a standard python dict
             
             # Count matching attributes
             # matching_only_key_dict = get_dict_subset(key_dict, included_keys=list(target_dict.keys()), require_all_keys=False)
@@ -241,9 +243,11 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             curr_ctxt_matching_attributes_count: int = 0
             is_valid_match = True
             for attr_name, attr_value in target_dict.items():
-                if (attr_name in key_dict):
-                    if (key_dict[attr_name] == attr_value):
+                if (attr_name in curr_ctxt_key_dict):
+                    if (curr_ctxt_key_dict[attr_name] == attr_value):
                         curr_ctxt_matching_attributes_count += 1  # note the match and continue comparing
+                    elif (attr_value and is_iterable(attr_value) and (curr_ctxt_key_dict[attr_name] in attr_value)):
+                        curr_ctxt_matching_attributes_count += 1  # note the match is in the allowed comparison values and continue comparing
                     else:
                         is_valid_match = False  # not a valid match
                         break

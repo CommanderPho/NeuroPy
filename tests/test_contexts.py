@@ -7,6 +7,8 @@ from neuropy.utils.result_context import IdentifyingContext, CollisionOutcome
 class TestIdentifyingContext(unittest.TestCase):
 
     def setUp(self):
+        self.maxDiff = None ## allow any-length diffs
+        
         # Create test instances of IdentifyingContext
         self.context1 = IdentifyingContext(format_name='kdiba', session_name='2006-6-08_14-26-15')
         self.context2 = IdentifyingContext(format_name='kdiba', session_name='2006-6-08_14-26-15')
@@ -268,7 +270,6 @@ class TestIdentifyingContext(unittest.TestCase):
 
 
     def test_find_best_matching_contexts_partial_query(self):
-        # empty IdentifyingContext() query should match all entries
         self.context_test_list = [
             IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='ignore'),
             IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='last_valid'),
@@ -331,7 +332,6 @@ class TestIdentifyingContext(unittest.TestCase):
 
 
     def test_find_best_matching_contexts_partial_query_two_attributes(self):
-        # empty IdentifyingContext() query should match all entries
         self.context_test_list = [
             IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='ignore'),
             IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='last_valid'),
@@ -384,6 +384,67 @@ class TestIdentifyingContext(unittest.TestCase):
         self.assertCountEqual(best_matches, expected_matches_list)
         self.assertListEqual(expected_matches_list, best_matches, f"expected: {expected_matches_list}\n\n actual matches: {best_matches}\n\n")
 
+
+    def test_find_best_matching_contexts_partial_query_with_iterable_value(self):
+        """ test `known_named_decoding_epochs_type=['pbe', 'laps']`, which should function as "OR"
+        """
+        self.context_test_list = [
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='ignore'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='last_valid'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='nan_filled'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='ignore'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='last_valid'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='nan_filled'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='non_pbe',masked_time_bin_fill_type='ignore'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='non_pbe',masked_time_bin_fill_type='last_valid'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='non_pbe',masked_time_bin_fill_type='nan_filled'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='ignore',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='nan_filled',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='ignore',data_grain='per_epoch'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='nan_filled',data_grain='per_epoch'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='ignore',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='nan_filled',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='ignore',data_grain='per_epoch'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='nan_filled',data_grain='per_epoch'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='global',masked_time_bin_fill_type='ignore',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='global',masked_time_bin_fill_type='nan_filled',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='non_pbe_endcaps',masked_time_bin_fill_type='ignore',data_grain='per_time_bin',decoding_time_bin_size='0.025'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='non_pbe_endcaps',masked_time_bin_fill_type='last_valid',data_grain='per_time_bin',decoding_time_bin_size='0.025'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='non_pbe_endcaps',masked_time_bin_fill_type='nan_filled',data_grain='per_time_bin',decoding_time_bin_size='0.025'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='non_pbe_endcaps',masked_time_bin_fill_type='dropped',data_grain='per_time_bin',decoding_time_bin_size='0.025'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='nan_filled',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='nan_filled',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='last_valid',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='last_valid',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='last_valid',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='last_valid',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='dropped',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='laps',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='dropped',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='dropped',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='dropped',data_grain='per_time_bin'),
+        ]
+        test_query = IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type=['pbe', 'laps']) ## test `known_named_decoding_epochs_type=['pbe', 'laps']`, which should function as "OR"
+        
+        expected_matches_list = [
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='ignore'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='last_valid'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='nan_filled'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='ignore'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='last_valid'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='nan_filled'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='nan_filled',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='nan_filled',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='last_valid',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='last_valid',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',pfND_ndim='1',decoder_identifier='pseudo2D',time_bin_size='0.025',known_named_decoding_epochs_type='laps',masked_time_bin_fill_type='dropped',data_grain='per_time_bin'),
+            IdentifyingContext(trained_compute_epochs='non_pbe',known_named_decoding_epochs_type='pbe',masked_time_bin_fill_type='dropped',data_grain='per_time_bin'),
+        ]
+
+        best_matches, number_matching_context_attributes, max_num_matching_context_attributes = IdentifyingContext.find_best_matching_contexts(test_query, self.context_test_list, allow_partial_matches=True)
+        print(f'number_matching_context_attributes: {number_matching_context_attributes}')
+        print(f'max_num_matching_context_attributes: {max_num_matching_context_attributes}')
+        self.assertCountEqual(best_matches, expected_matches_list)
+        self.assertListEqual(expected_matches_list, best_matches, f"expected: {expected_matches_list}\n\n actual matches: {best_matches}\n\n")
 
 
 

@@ -36,7 +36,7 @@ class NonStringIterable(metaclass=abc.ABCMeta):
         return NotImplemented
     
 
-def is_iterable(value):
+def is_iterable(value) -> bool:
     """Returns true if the value is iterable but not a string.
     Args:
         value ([type]): [description]
