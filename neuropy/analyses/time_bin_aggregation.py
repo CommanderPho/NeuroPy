@@ -191,6 +191,20 @@ class TimeBinAggregation:
 
 
         @classmethod
+        def fixup_data_grain_to_per_epoch(cls, df: pd.DataFrame, data_grain_column_name: str='data_grain') -> pd.DataFrame:
+            """ updates the data grain ciolumn after a function converts "per_time_bin" dfs into a "per_epoch" df
+                'per_time_bin'
+
+            """
+            data_grain_column_change_mapping = {'per_time_bin':'per_epoch'}
+            if data_grain_column_name in df:
+                df[data_grain_column_name] = df[data_grain_column_name].map(data_grain_column_change_mapping)
+            else:
+                print(f'WARN: column: "{data_grain_column_name}" not in df!')
+            return df           
+
+
+        @classmethod
         def peak_rolling_avg(cls, df: pd.DataFrame, column: str='P_Short', window: int=3, *args, min_periods:int=0, center:bool=True, **kwargs) -> float:
             """
             Computes the streak-weighted P_Long for a given DataFrame, giving higher weight to longer sequences of adjacent bins.
@@ -241,8 +255,10 @@ class TimeBinAggregation:
             # BEGIN FUNCTION BODY ________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
             # Apply the function to rolling windows
             rolling_extreme = PandasHelpers.remap_range(df[column], from_range=(0.0, 1.0), to_range=(-1.0, 1.0), safety_check=True).rolling(window, *args, **kwargs).apply(_subfn_most_extreme, raw=False) ## map original probability range to -1, +1 so the `most_extreme` function works correctly
+            
             # Then get the most extreme value across all windows
             idx = rolling_extreme.abs().idxmax(skipna=True)
+
             if np.isnan(idx).all():
                 return idx
             else:
