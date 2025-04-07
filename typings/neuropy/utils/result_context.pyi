@@ -10,6 +10,7 @@ from benedict import benedict
 from neuropy.utils.mixins.diffable import DiffableObject
 from neuropy.utils.mixins.dict_representable import SubsettableDictRepresentable
 from neuropy.utils.mixins.gettable_mixin import GetAccessibleMixin
+from neuropy.utils.result_context import IdentifyingContext
 
 """ result_context.py
 
@@ -130,7 +131,7 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         ...
     
     @classmethod
-    def find_best_matching_contexts(cls, target_context: IdentifyingContext, context_iterable: Union[Dict[IdentifyingContext, Any], List[IdentifyingContext]]) -> Tuple[List[IdentifyingContext], int]:
+    def find_best_matching_contexts(cls, target_context: IdentifyingContext, context_iterable: Union[Dict[IdentifyingContext, Any], List[IdentifyingContext]], allow_partial_matches: bool = ...) -> Tuple[List[IdentifyingContext], List[int], int]:
         """
         Find all context keys in the iterable that have the maximum number of matching attributes with the target context.
 
@@ -159,10 +160,10 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             context_dict = a_new_fully_generic_result.filter_epochs_specific_decoded_result
 
             # Find the best match
-            best_matches, match_count = IdentifyingContext.find_best_matching_contexts(a_target_context, context_dict)
+            best_matches, number_matching_context_attributes, max_num_matching_context_attributes = IdentifyingContext.find_best_matching_contexts(a_target_context, context_dict)
 
             if best_matches:
-                # print(f"Found best match with {match_count} matching attributes:")
+                # print(f"Found best match with {number_matching_context_attributes} matching attributes:")
                 print(f"best_matches list: {best_matches}\n")
                 
                 # Get the corresponding value
@@ -178,7 +179,9 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
     def find_best_matching_context(cls, target_context: IdentifyingContext, context_iterable: Union[Dict[IdentifyingContext, Any], List[IdentifyingContext]]) -> Optional[Tuple[IdentifyingContext, int]]:
         """
         Find the context key in the dictionary that has the maximum number of matching attributes with the target context.
-        
+        ## ensure all values included both in the tentative match and the specified target_context are equal or included.
+        ### keys in the `target_context` may be missing from the tenative match (underconstrained/more-general) but if they are present, they cannot be incorrect.
+
         Parameters:
         -----------
         target_context : IdentifyingContext
@@ -203,10 +206,10 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             context_dict = a_new_fully_generic_result.filter_epochs_specific_decoded_result
 
             # Find the best match
-            best_match, match_count = IdentifyingContext.find_best_matching_context(a_target_context, context_dict)
+            best_match, max_num_matching_context_attributes = IdentifyingContext.find_best_matching_context(a_target_context, context_dict)
 
             if best_match:
-                print(f"Found best match with {match_count} matching attributes:")
+                print(f"Found best match with {max_num_matching_context_attributes} matching attributes:")
                 print(best_match)
                 
                 # Get the corresponding value
@@ -617,4 +620,17 @@ class DisplaySpecifyingIdentifyingContext(IdentifyingContext):
         ...
     
 
+
+original_str = ...
+def set_context_print_options(include_property_names=..., key_value_separator=..., separator=..., replace_separator_in_property_names=...): # -> Callable[[], None]:
+    """Set global printing options for all IdentifyingContext instances
+    
+    from neuropy.utils.result_context import set_context_print_options
+    # Usage example:
+    reset_printer = set_context_print_options(include_property_names=True)
+
+    # Later to restore default behavior:
+    # reset_printer()
+    """
+    ...
 

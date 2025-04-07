@@ -707,6 +707,41 @@ class PandasHelpers:
         """
         ...
     
+    @classmethod
+    def remap_range(cls, values, from_range=..., to_range=..., safety_check: bool = ...):
+        """
+        Maps values from one range to another.
+        
+        Parameters:
+        -----------
+        values : pandas.Series or numpy.ndarray
+            The values to remap
+        from_range : tuple, optional
+            The source range (min, max). Default is (0.0, 1.0)
+        to_range : tuple, optional
+            The target range (min, max). Default is (-1.0, 1.0)
+            
+        Returns:
+        --------
+        pandas.Series or numpy.ndarray
+            The remapped values
+            
+            
+        Usage:
+        
+        
+            from neuropy.utils.indexing_helpers import PandasHelpers
+            
+            # BEGIN FUNCTION BODY ________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
+            # Apply the function to rolling windows
+            rolling_extreme = PandasHelpers.remap_range(df[column], from_range=(0.0, 1.0), to_range=(-1.0, 1.0), safety_check=True).rolling(window, *args, **kwargs).apply(_subfn_most_extreme, raw=False) ## map original probability range to -1, +1 so the `most_extreme` function works correctly
+            # Then get the most extreme value across all windows
+            idx = rolling_extreme.abs().idxmax()
+            return PandasHelpers.remap_range(rolling_extreme.loc[idx], from_range=(-1.0, 1.0), to_range=(0.0, 1.0), safety_check=False) # map back to original probability range 
+                    
+        """
+        ...
+    
 
 
 @pd.api.extensions.register_dataframe_accessor("neuropy")

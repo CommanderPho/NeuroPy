@@ -198,6 +198,12 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         """
         ...
     
+    @classmethod
+    def compute_non_PBE_EndcapsOnly_epochs(cls, session, active_parameters=..., save_on_compute=..., **additional_df_metdata) -> pd.DataFrame:
+        """ Compute the 'non_pbe_endcap' epochs, which are the non_pbe epochs with the laps also subtracted out        
+        """
+        ...
+    
     @staticmethod
     def compute_linear_position(session, debug_print=...):
         """ compute linear positions:
