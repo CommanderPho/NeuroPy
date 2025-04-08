@@ -7,6 +7,9 @@ from typing_extensions import TypeAlias
 from nptyping import NDArray
 import numpy as np
 import pandas as pd
+from copy import deepcopy
+from neuropy.utils.result_context import IdentifyingContext, CollisionOutcome
+
 
 # @metadata_attributes(short_name=None, tags=['aggregation', 'integration', 'confidence'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-01-01 00:00', related_items=[])
 class TimeBinAggregation:
@@ -201,7 +204,18 @@ class TimeBinAggregation:
                 df[data_grain_column_name] = df[data_grain_column_name].map(data_grain_column_change_mapping)
             else:
                 print(f'WARN: column: "{data_grain_column_name}" not in df!')
-            return df           
+            return df
+
+
+        @classmethod
+        def get_per_epoch_ctxt_from_per_time_bin_ctxt(cls, a_per_time_bin_ctxt: IdentifyingContext) -> IdentifyingContext:
+            """ updates the data grain ciolumn after a function converts "per_time_bin" dfs into a "per_epoch" df
+                'per_time_bin'
+                
+                .get_per_epoch_ctxt_from_per_time_bin_ctxt
+            """
+            return deepcopy(a_per_time_bin_ctxt).overwriting_context(data_grain='per_epoch')
+        
 
 
         @classmethod
