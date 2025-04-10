@@ -22,7 +22,7 @@ class NonStringIterable(metaclass=abc.ABCMeta):
     
 
 
-def is_iterable(value): # -> bool:
+def is_iterable(value) -> bool:
     """Returns true if the value is iterable but not a string.
     Args:
         value ([type]): [description]
