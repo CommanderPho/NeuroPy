@@ -692,12 +692,25 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
 
     def __hash__(self):
         """ custom hash function that allows use in dictionary just based off of the values and not the object instance. """
-        # dict_rep = self.to_dict()
         dict_rep = {k: str(v).casefold() if isinstance(v, str) else v for k, v in self.to_dict().items()} # case insensitive comparison
-        # str(k).casefold()
         sorted_dict_rep = dict(sorted(dict_rep.items())) # sort the dict rep's keys so the the comparisons are ultimately independent of order, meaning IdentifyingContext(k1='a', k2='b') == IdentifyingContext(k2='b', k1='a')
         member_names_tuple = list(sorted_dict_rep.keys())
-        values_tuple = list(sorted_dict_rep.values())
+        # values_tuple = list(sorted_dict_rep.values())
+        values_tuple = []
+        # Handle unhashable types in values
+        for value in sorted_dict_rep.values():
+            if isinstance(value, list):
+                # Convert lists to tuples
+                values_tuple.append(tuple(value))
+            elif isinstance(value, dict):
+                # Convert dicts to frozensets of items
+                values_tuple.append(frozenset(value.items()))
+            elif isinstance(value, set):
+                # Convert sets to frozensets
+                values_tuple.append(frozenset(value))
+            else:
+                values_tuple.append(value)
+
         combined_tuple = tuple(member_names_tuple + values_tuple)
         return hash(combined_tuple)
     
