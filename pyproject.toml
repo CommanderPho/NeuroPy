@@ -9,7 +9,7 @@ authors = [
 ]
 requires-python = ">=3.9,<3.12"
 readme = "README.md"
-license = "GPL License"
+license = "GPL-3.0-or-later"
 dependencies = [
     "hdf5storage>=0.1.19,<0.2",
     "python-benedict>=0.28.3,<0.29",
