@@ -138,7 +138,7 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
 		...
 	
 	@classmethod
-	def build_default_filter_functions(cls, sess, epoch_name_includelist=..., filter_name_suffix=..., include_global_epoch=...): # -> dict[str, Callable[..., tuple[Any, Any, Any]] | Callable[..., tuple[Any, NamedTimerange, Any]]]:
+	def build_default_filter_functions(cls, sess, epoch_name_includelist=..., filter_name_suffix=..., include_global_epoch=...): # -> dict[str, Callable[..., tuple[Any, Any, Any]]]:
 		""" OPTIONALLY can be overriden by implementors to provide specific filter functions
 		Inputs:
 			epoch_name_includelist: an optional list of names to restrict to, must already be valid epochs to filter by. e.g. ['maze1']

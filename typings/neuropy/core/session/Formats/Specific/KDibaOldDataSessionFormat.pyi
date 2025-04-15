@@ -129,7 +129,7 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         ...
     
     @classmethod
-    def build_default_filter_functions(cls, sess, epoch_name_includelist=..., filter_name_suffix=..., include_global_epoch=...): # -> dict[str, Callable[..., tuple[Any, Any, Any]] | Callable[..., tuple[Any, NamedTimerange, Any]]]:
+    def build_default_filter_functions(cls, sess, epoch_name_includelist=..., filter_name_suffix=..., include_global_epoch=...): # -> dict[str, Callable[..., tuple[Any, Any, Any]]]:
         ...
     
     @classmethod
@@ -206,7 +206,7 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         ...
     
     @classmethod
-    def load_bad_sessions_csv(cls, bad_sessions_csv_path=...): # -> tuple[DataFrame[Any], List[IdentifyingContext]]:
+    def load_bad_sessions_csv(cls, bad_sessions_csv_path=...): # -> tuple[DataFrame[Any], list[IdentifyingContext]]:
         """2024-09-23 - Load the "bad_sessions_table.csv" output by `IIDataMat_Export_ToPython_2022_08_01.m` (indicating sessions which failed to process at the MATLAB level for one reason or another)
         
         Usage:

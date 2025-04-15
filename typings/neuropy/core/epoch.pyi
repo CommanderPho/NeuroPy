@@ -84,7 +84,7 @@ def find_epoch_times_to_data_indicies_map(a_df: pd.DataFrame, epoch_times: NDArr
     """
     ...
 
-def find_epochs_overlapping_other_epochs(epochs_df: pd.DataFrame, epochs_df_required_to_overlap: pd.DataFrame): # -> NDArray:
+def find_epochs_overlapping_other_epochs(epochs_df: pd.DataFrame, epochs_df_required_to_overlap: pd.DataFrame): # -> NDArray[Any]:
     """ 
     For example, you might wonder which epochs occur during laps:
 
@@ -192,7 +192,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         ...
     
     @property
-    def t_start(self): # -> Any | None:
+    def t_start(self):
         ...
     
     @t_start.setter
@@ -216,7 +216,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         ...
     
     @property
-    def labels(self): # -> ArrayLike:
+    def labels(self):
         ...
     
     @property

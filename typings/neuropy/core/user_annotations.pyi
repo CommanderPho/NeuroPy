@@ -190,7 +190,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
     
     @function_attributes(short_name=None, tags=['utility', 'importer', 'batch', 'matlab_mat_file', 'multi-session', 'grid_bin_bounds'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2024-04-10 07:41', related_items=[])
     @classmethod
-    def batch_build_user_annotation_grid_bin_bounds_from_exported_position_info_mat_files(cls, search_parent_path: Path, platform_side_length: float = ..., debug_print=...): # -> tuple[List[str], dict[Any, Any]]:
+    def batch_build_user_annotation_grid_bin_bounds_from_exported_position_info_mat_files(cls, search_parent_path: Path, platform_side_length: float = ..., debug_print=...): # -> tuple[list[str], dict[Any, Any]]:
         """ finds all *.position_info.mat files recurrsively in the search_parent_path, then try to load them and parse their parent directory as a session to build an IdentifyingContext that can be used as a key in UserAnnotations.
         
         Builds a list of grid_bin_bounds user annotations that can be pasted into `specific_session_override_dict`
