@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "neuropy"
-version = "0.0.9"
+version = "0.1.0"
 description = "package is primarily developed for hippocampal recordings, but can also be used for general ephys data."
 authors = ["Bapun Giri <bapung@umich.edu>", "Pho Hale <halechr@umich.edu>", "Nat Kinsky <nkinsky@umich.edu>"]
 license = "GPL License"
@@ -48,7 +48,7 @@ dvc = {version = "^3.59.0", extras = ["gdrive"], optional = false}
 gui = ["tqdm"]
 acceleration = ["numba", "cupy"]
 data_version_control = ["dvc"]
-# data_io = ["pynapple"]
+
 
 [build-system]
 requires = ["poetry-core"]
