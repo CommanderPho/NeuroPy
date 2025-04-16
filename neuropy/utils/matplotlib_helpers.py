@@ -1151,7 +1151,7 @@ class FormattedFigureText:
 #     text.set_fontsize(adjusted_size)
 
 
-def plot_position_curves_figure(position_obj, include_velocity=True, include_accel=False, figsize=(24, 10)):
+def plot_position_curves_figure(position_obj, include_velocity=True, include_accel=False, figsize=(24, 10), axes_list=None):
     """ Renders a figure with a position curve and optionally its higher-order derivatives """
     num_subplots = 1
     out_axes_list = []
@@ -1160,10 +1160,15 @@ def plot_position_curves_figure(position_obj, include_velocity=True, include_acc
     if include_accel:
         num_subplots = num_subplots + 1
     subplots=(num_subplots, 1)
-    fig = plt.figure(figsize=figsize, clear=True)
-    gs = plt.GridSpec(subplots[0], subplots[1], figure=fig, hspace=0.02)
     
-    ax0 = fig.add_subplot(gs[0])
+    if axes_list is None:
+        fig = plt.figure(figsize=figsize, clear=True)
+        gs = plt.GridSpec(subplots[0], subplots[1], figure=fig, hspace=0.02)
+        ax0 = fig.add_subplot(gs[0])
+    else:
+        fig = axes_list[0].figure
+        ax0 = axes_list[0]
+    
     ax0.plot(position_obj.time, position_obj.x, 'k')
     ax0.set_ylabel('pos_x')
     out_axes_list.append(ax0)
@@ -1171,39 +1176,33 @@ def plot_position_curves_figure(position_obj, include_velocity=True, include_acc
     prev_axis = ax0
 
     if include_velocity:
-        ax1 = fig.add_subplot(gs[1])
-        # ax1.plot(position_obj.time, pos_df['velocity_x'], 'grey')
-        # ax1.plot(position_obj.time, pos_df['velocity_x_smooth'], 'r')
+        if axes_list is None:
+            ax1 = fig.add_subplot(gs[1])
+        else:
+            ax1 = axes_list[1]
         ax1.plot(position_obj.time, position_obj._data['velocity_x_smooth'], 'k')
         ax1.set_ylabel('Velocity_x')
-        ax0.set_xticklabels([]) # this is intensionally ax[i-1], as we want to disable the tick labels on above plots        
+        ax0.set_xticklabels([])
         out_axes_list.append(ax1)
-        # share x axis
         ax1.sharex(prev_axis)
         prev_axis = ax1
 
     if include_accel:  
-        ax2 = fig.add_subplot(gs[2])
-        # ax2.plot(position_obj.time, position_obj.velocity)
-        # ax2.plot(position_obj.time, pos_df['velocity_x'])
+        if axes_list is None:
+            ax2 = fig.add_subplot(gs[2])
+        else:
+            ax2 = axes_list[2]
         ax2.plot(position_obj.time, position_obj._data['acceleration_x'], 'k')
-        # ax2.plot(position_obj.time, pos_df['velocity_y'])
         ax2.set_ylabel('Higher Order Terms')
-        ax1.set_xticklabels([]) # this is intensionally ax[i-1], as we want to disable the tick labels on above plots
+        ax1.set_xticklabels([])
         out_axes_list.append(ax2)
-        # share x axis
         ax2.sharex(prev_axis)
         prev_axis = ax2
 
-    # Shared:
-    # ax0.get_shared_x_axes().join(ax0, ax1)
-    # ax0.get_shared_x_axes().join(*out_axes_list) # this was removed for some reason! AttributeError: 'GrouperView' object has no attribute 'join'
     ax0.set_xticklabels([])
     ax0.set_xlim([position_obj.time[0], position_obj.time[-1]])
 
-    return fig, out_axes_list
-
-    
+    return fig, out_axes_list    
 
 
 # ==================================================================================================================== #
