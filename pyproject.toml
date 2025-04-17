@@ -39,6 +39,7 @@ dependencies = [
     "flexitext",
     "cupy-cuda12x>=13.4.0,<14",
     "nptyping[complete]>=2.5.0,<3",
+    "typing-extensions>=4.12.2",
 ]
 
 [project.optional-dependencies]
