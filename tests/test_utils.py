@@ -22,7 +22,9 @@ except ModuleNotFoundError as e:
 finally:
     from neuropy.utils.misc import is_iterable
     from neuropy.utils.mixins.enum_helpers import StringLiteralComparableEnum
+    from neuropy.utils.misc import capitalize_after_underscore
     
+
 # Define your custom enum type:
 class UnitColoringMode(StringLiteralComparableEnum):
     PRESERVE_FRAGILE_LINEAR_NEURON_IDXS = "preserve_fragile_linear_neuron_IDXs"
@@ -107,6 +109,22 @@ class TestUtilityMethods(unittest.TestCase):
     #     with self.assertRaises(ValueError):
     #         split_array(arr, sub_element_lengths)
 
+    def test_capitalize_after_underscore_no_underscores(self):
+        from neuropy.utils.misc import capitalize_after_underscore
+        
+        _valid_dict = dict(zip(['long', 'short'], ['Long', 'Short']))
+        _results_dict = {k:capitalize_after_underscore(k, should_capitalize_start=True) for k, v in _valid_dict.items()}
+        print(f'_results_dict: {_results_dict}')
+        self.assertTupleEqual(tuple(list(_valid_dict.values())), tuple(list(_results_dict.values())))
+        
+
+    def test_capitalize_after_underscore(self):
+        from neuropy.utils.misc import capitalize_after_underscore
+        
+        _valid_dict = dict(zip(['long_LR', 'long_rl', 'short_RL'], ['Long_LR', 'Long_Rl', 'Short_RL']))
+        _results_dict = {k:capitalize_after_underscore(k, should_capitalize_start=True) for k, v in _valid_dict.items()}
+        print(f'_results_dict: {_results_dict}')
+        self.assertTupleEqual(tuple(list(_valid_dict.values())), tuple(list(_results_dict.values())))
 
 
 from neuropy.utils.indexing_helpers import find_nearest_time

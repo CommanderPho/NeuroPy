@@ -16,6 +16,8 @@ import abc
 from datetime import datetime
 from enum import unique, Enum
 
+import re
+
 
 
 ## Solution from Alexander McFarlane, https://stackoverflow.com/questions/1055360/how-to-tell-a-variable-is-iterable-but-not-a-string. answered Jun 30 '20 at 13:25
@@ -154,6 +156,28 @@ def print_seconds_human_readable(seconds):
         timestamp = '{}:{}'.format(timestamp, frac_seconds_string) # append the fracitonal seconds string to the timestamp string
     print(timestamp) # print the timestamp
     return h, m, s, fractional_seconds
+
+
+def capitalize_after_underscore(s: str, should_capitalize_start: bool=True) -> str:
+    """
+    Capitalizes the character immediately following each underscore in the input string.
+    Optionally capitalizes the first character of the string.
+
+    Args:
+        s (str): The input string.
+        should_capitalize_start (bool): If True, capitalizes the first character of the string.
+
+    Returns:
+        str: The transformed string with appropriate characters capitalized.
+        
+    Usage: 
+        from neuropy.utils.misc import capitalize_after_underscore
+        
+    """
+    if should_capitalize_start and s and not s[0].isupper():
+        s = s[0].upper() + s[1:]
+    return re.sub(r'_(\w)', lambda m: '_' + m.group(1).upper(), s)
+
 
 
 
