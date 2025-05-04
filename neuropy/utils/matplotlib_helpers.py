@@ -263,7 +263,7 @@ def _determine_best_placefield_2D_layout(xbin, ybin, included_unit_indicies, sub
 def _scale_current_placefield_to_acceptable_range(image, occupancy, drop_below_threshold: float=0.0000001):
     """ Universally used to prepare the pfmap to be displayed (across every plot time)
     
-    Regardless of `occupancy` and `drop_below_threshold`, the image is rescaled by its maximum (meaning the output will be normalized between zero and one).
+    Regardless of `occupancy` and `drop_below_threshold`, the image is rescaled to fill its dynamic range by its maximum (meaning the output will be normalized between zero and one).
     `occupancy` is not used unless `drop_below_threshold` is non-None
     
 
