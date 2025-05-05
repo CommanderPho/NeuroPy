@@ -1286,8 +1286,6 @@ def draw_epoch_regions(epoch_obj, curr_ax, facecolor=('green','red'), edgecolors
 
 
     def _subfn_perform_plot_epochs(an_epoch_tuples, an_ax):
-        """ captures: debug_print
-        """
         # Directly use relative_y_positions as axes coordinates (0-1)
         ymin_axes = relative_y_positions[0]
         height_axes = relative_y_positions[1] - ymin_axes
@@ -1296,21 +1294,11 @@ def draw_epoch_regions(epoch_obj, curr_ax, facecolor=('green','red'), edgecolors
         an_ax.add_collection(epochs_collection)
         if debug_print:
             # print(f'(desired_y_min, desired_y_height, desired_y_max): ({desired_y_min}, {desired_y_height}, {desired_y_max}), an_epoch_tuples: {an_epoch_tuples}')
-            print(f'_subfn_perform_plot_epochs: (ymin_axes, height_axes, ymax_axes): ({ymin_axes}, {height_axes}, {ymin_axes+height_axes}), an_epoch_tuples: {an_epoch_tuples}')
+            print(f'(ymin_axes, height_axes, ymax_axes): ({ymin_axes}, {height_axes}, {ymin_axes+height_axes}), an_epoch_tuples: {an_epoch_tuples}')
+                    
 
         return epochs_collection
-
-
-    # Helper function to compute the top of the epoch region in data coordinates
-    def _subfn_get_epoch_top_data(an_ax, relative_y_positions):
-        ymin_data, ymax_data = an_ax.get_ylim()
-        y_top_data = ymin_data + (ymax_data - ymin_data) * relative_y_positions[1]
         
-        if debug_print:
-            # print(f'(desired_y_min, desired_y_height, desired_y_max): ({desired_y_min}, {desired_y_height}, {desired_y_max}), an_epoch_tuples: {an_epoch_tuples}')
-            print(f'_subfn_get_epoch_top_data: y_top_data: (ymin_axes, ymax_axes): {y_top_data} | ({ymin_axes}, {ymax_axes})')
-        return y_top_data
-
     # ==================================================================================================================================================================================================================================================================================== #
     # BEGIN FUNCTION BODY                                                                                                                                                                                                                                                                  #
     # ==================================================================================================================================================================================================================================================================================== #
@@ -1339,28 +1327,17 @@ def draw_epoch_regions(epoch_obj, curr_ax, facecolor=('green','red'), edgecolors
             # epochs_collection = _subfn_perform_plot_epochs(an_epoch_tuples=[epoch_tuples[i]], an_ax=curr_ax.big_ax) # same single (big axis: curr_ax.big_ax)
             epoch_collection_list.append(epochs_collection)
         
-            # if labels_kwargs is not None:
-            #     # Compute label y-position for this sub-axis
-            #     y_top_data = _subfn_get_epoch_top_data(an_ax, relative_y_positions)
-            #     label = _subfn_build_epoch_region_label(
-            #         (epoch_mid_t[i], y_top_data), 
-            #         epoch_obj.labels[i], 
-            #         an_ax,  # Add label to sub-axis, not big_ax
-            #         **labels_kwargs
-            #     )
-            #     epoch_labels_list.append([label])
-            # else:
-            #     epoch_labels_list.append([])
-            
-        # END for i, an_ax in enume
+            # epoch_mid_t = [epoch_mid_t[i]]
 
-        # # Flatten the list of labels
-        # epoch_labels = [label for sublist in epoch_labels_list for label in sublist]
-        
+            # if labels_kwargs is not None:
+            #     epoch_labels = [_subfn_build_epoch_region_label((a_mid_t, curr_span_ymax), a_label, an_ax, **labels_kwargs) for a_label, a_mid_t in zip(epoch_obj.labels, epoch_mid_t)]
+            # else:
+            #     epoch_labels = None
+            # epoch_labels_list.append(epoch_labels)
+        # END FOR curr_ax.axs
+            
         if labels_kwargs is not None:
-            # Compute label y-position for this sub-axis
-            y_top_data = _subfn_get_epoch_top_data(curr_ax.big_ax, relative_y_positions)
-            epoch_labels = [_subfn_build_epoch_region_label((a_mid_t, y_top_data), a_label, curr_ax.big_ax, **labels_kwargs) for a_label, a_mid_t in zip(epoch_obj.labels, epoch_mid_t)]
+            epoch_labels = [_subfn_build_epoch_region_label((a_mid_t, curr_span_ymax), a_label, curr_ax.big_ax, **labels_kwargs) for a_label, a_mid_t in zip(epoch_obj.labels, epoch_mid_t)]
         else:
             epoch_labels = None
             
@@ -1370,15 +1347,14 @@ def draw_epoch_regions(epoch_obj, curr_ax, facecolor=('green','red'), edgecolors
         return epoch_collection_list, epoch_labels
 
     else:
+
         # can plot on a single axis:
         epochs_collection = _subfn_perform_plot_epochs(an_epoch_tuples=epoch_tuples, an_ax=curr_ax)
         if labels_kwargs is not None:
-            # Compute label y-position at the top of the epoch region
-            y_top_data = _subfn_get_epoch_top_data(curr_ax, relative_y_positions)
-            # a_ylim_tuple = curr_ax.get_ylim()
-            # curr_span_ymin = a_ylim_tuple[0]
-            # curr_span_ymax = a_ylim_tuple[1]
-            epoch_labels = [_subfn_build_epoch_region_label((a_mid_t, y_top_data), a_label, curr_ax, **labels_kwargs) for a_label, a_mid_t in zip(epoch_obj.labels, epoch_mid_t)]
+            a_ylim_tuple = curr_ax.get_ylim()
+            curr_span_ymin = a_ylim_tuple[0]
+            curr_span_ymax = a_ylim_tuple[1]
+            epoch_labels = [_subfn_build_epoch_region_label((a_mid_t, curr_span_ymax), a_label, curr_ax, **labels_kwargs) for a_label, a_mid_t in zip(epoch_obj.labels, epoch_mid_t)]
         else:
             epoch_labels = None
         
