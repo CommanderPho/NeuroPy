@@ -1284,36 +1284,21 @@ def draw_epoch_regions(epoch_obj, curr_ax, facecolor=('green','red'), edgecolors
         relative_y_positions = [0.0, 1.0] # [(0.0, 1.0) for i in np.arange(n_epoch_types)] ## each epoch by default spans the entire y-axis, overlapping one another
     assert len(relative_y_positions) == 2
 
-    def _subfn_get_span_y(an_ax):
-        """ captures: relative_y_positions
-        """
-        a_ylim_tuple = an_ax.get_ylim()
-        curr_vlim_height = a_ylim_tuple[1] - a_ylim_tuple[0]
-        
-        relative_y_height = relative_y_positions[1] - relative_y_positions[0]
-        desired_y_height = (relative_y_height * curr_vlim_height)
-        desired_y_min =  a_ylim_tuple[0] + (relative_y_positions[0] * relative_y_height)
-        desired_y_max = (desired_y_min + desired_y_height)
-        return desired_y_min, desired_y_height, desired_y_max
 
-    # epoch_obj
     def _subfn_perform_plot_epochs(an_epoch_tuples, an_ax):
-        # curr_span_ymin = an_ax.get_ylim()[0] * relative_y_positions[0] 
-        # curr_span_ymax = an_ax.get_ylim()[1] * relative_y_positions[1]
-        # curr_span_height = curr_span_ymax - curr_span_ymin
-        
-        desired_y_min, desired_y_height, desired_y_max = _subfn_get_span_y(an_ax=an_ax)
-        
-        # xrange: list of (float, float) The sequence of (left-edge-position, width) pairs for each bar.
-        # yrange: (lower-edge, height) 
-        # epochs_collection = BrokenBarHCollection(xranges=an_epoch_tuples, yrange=(curr_span_ymin, curr_span_height), facecolor=facecolor, alpha=alpha, edgecolors=edgecolors, linewidths=(1,), **kwargs) # , offset_transform=curr_ax.transData
-        epochs_collection = BrokenBarHCollection(xranges=an_epoch_tuples, yrange=(desired_y_min, desired_y_height), facecolor=facecolor, alpha=alpha, edgecolors=edgecolors, linewidths=(1,), **kwargs) # , offset_transform=curr_ax.transData
-        if debug_print:
-            print(f'(desired_y_min, desired_y_height, desired_y_max): ({desired_y_min}, {desired_y_height}, {desired_y_max}), an_epoch_tuples: {an_epoch_tuples}')
+        # Directly use relative_y_positions as axes coordinates (0-1)
+        ymin_axes = relative_y_positions[0]
+        height_axes = relative_y_positions[1] - ymin_axes
+         # axes-relative y positioning
+        epochs_collection = BrokenBarHCollection(xranges=an_epoch_tuples, yrange=(ymin_axes, height_axes), facecolor=facecolor, alpha=alpha, edgecolors=edgecolors, linewidths=(1,), transform=an_ax.get_yaxis_transform(), **kwargs)
         an_ax.add_collection(epochs_collection)
+        if debug_print:
+            # print(f'(desired_y_min, desired_y_height, desired_y_max): ({desired_y_min}, {desired_y_height}, {desired_y_max}), an_epoch_tuples: {an_epoch_tuples}')
+            print(f'(ymin_axes, height_axes, ymax_axes): ({ymin_axes}, {height_axes}, {ymin_axes+height_axes}), an_epoch_tuples: {an_epoch_tuples}')
+                    
+
         return epochs_collection
         
-
     # ==================================================================================================================================================================================================================================================================================== #
     # BEGIN FUNCTION BODY                                                                                                                                                                                                                                                                  #
     # ==================================================================================================================================================================================================================================================================================== #
@@ -1326,10 +1311,8 @@ def draw_epoch_regions(epoch_obj, curr_ax, facecolor=('green','red'), edgecolors
     if isinstance(curr_ax.get_ylim()[0], tuple):
         ## strange case for brokenaxes
         a_ylim_tuple = curr_ax.get_ylim()[0]
-        
-        raise NotImplementedError(f'broke on 2025-05-05 08:40')
-        curr_span_ymin = a_ylim_tuple[0] * relative_y_positions[0]
-        curr_span_ymax = a_ylim_tuple[1] * relative_y_positions[1]
+        curr_span_ymin = a_ylim_tuple[0]
+        curr_span_ymax = a_ylim_tuple[1]
 
         ## num xlims:
         # num_brokenaxes: int = len(curr_ax.get_ylim())
@@ -1368,16 +1351,13 @@ def draw_epoch_regions(epoch_obj, curr_ax, facecolor=('green','red'), edgecolors
         # can plot on a single axis:
         epochs_collection = _subfn_perform_plot_epochs(an_epoch_tuples=epoch_tuples, an_ax=curr_ax)
         if labels_kwargs is not None:
-            # a_ylim_tuple = curr_ax.get_ylim()
-            # curr_span_ymin = a_ylim_tuple[0] * relative_y_positions[0]
-            # curr_span_ymax = a_ylim_tuple[1] * relative_y_positions[1]
-            
-            desired_y_min, desired_y_height, desired_y_max = _subfn_get_span_y(an_ax=curr_ax)
-            epoch_labels = [_subfn_build_epoch_region_label((a_mid_t, desired_y_max), a_label, curr_ax, **labels_kwargs) for a_label, a_mid_t in zip(epoch_obj.labels, epoch_mid_t)]
+            a_ylim_tuple = curr_ax.get_ylim()
+            curr_span_ymin = a_ylim_tuple[0]
+            curr_span_ymax = a_ylim_tuple[1]
+            epoch_labels = [_subfn_build_epoch_region_label((a_mid_t, curr_span_ymax), a_label, curr_ax, **labels_kwargs) for a_label, a_mid_t in zip(epoch_obj.labels, epoch_mid_t)]
         else:
             epoch_labels = None
         
-
         if not defer_render:
             curr_ax.get_figure().canvas.draw()
 
