@@ -1283,6 +1283,8 @@ def draw_epoch_regions(epoch_obj, curr_ax, facecolor=('green','red'), edgecolors
         # relative_rect_y_position
         relative_y_positions = [0.0, 1.0] # [(0.0, 1.0) for i in np.arange(n_epoch_types)] ## each epoch by default spans the entire y-axis, overlapping one another
     assert len(relative_y_positions) == 2
+    
+    linewidths = kwargs.pop('linewidths', (1,))
 
     def _subfn_get_span_y(an_ax):
         """ captures: relative_y_positions
@@ -1306,8 +1308,8 @@ def draw_epoch_regions(epoch_obj, curr_ax, facecolor=('green','red'), edgecolors
         
         # xrange: list of (float, float) The sequence of (left-edge-position, width) pairs for each bar.
         # yrange: (lower-edge, height) 
-        # epochs_collection = BrokenBarHCollection(xranges=an_epoch_tuples, yrange=(curr_span_ymin, curr_span_height), facecolor=facecolor, alpha=alpha, edgecolors=edgecolors, linewidths=(1,), **kwargs) # , offset_transform=curr_ax.transData
-        epochs_collection = BrokenBarHCollection(xranges=an_epoch_tuples, yrange=(desired_y_min, desired_y_height), facecolor=facecolor, alpha=alpha, edgecolors=edgecolors, linewidths=(1,), **kwargs) # , offset_transform=curr_ax.transData
+        # epochs_collection = BrokenBarHCollection(xranges=an_epoch_tuples, yrange=(curr_span_ymin, curr_span_height), facecolor=facecolor, alpha=alpha, edgecolors=edgecolors, linewidths=linewidths, **kwargs) # , offset_transform=curr_ax.transData
+        epochs_collection = BrokenBarHCollection(xranges=an_epoch_tuples, yrange=(desired_y_min, desired_y_height), facecolor=facecolor, alpha=alpha, edgecolors=edgecolors, linewidths=linewidths, **kwargs) # , offset_transform=curr_ax.transData
         if debug_print:
             print(f'(desired_y_min, desired_y_height, desired_y_max): ({desired_y_min}, {desired_y_height}, {desired_y_max}), an_epoch_tuples: {an_epoch_tuples}')
         an_ax.add_collection(epochs_collection)
