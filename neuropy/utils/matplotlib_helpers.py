@@ -2658,7 +2658,7 @@ class TabbedMatplotlibFigures:
 
     
 
-@function_attributes(short_name=None, tags=['image-processing', 'quiver','matplotlib', 'figure'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2024-08-16 00:00', related_items=[])
+# @function_attributes(short_name=None, tags=['image-processing', 'quiver','matplotlib', 'figure'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2024-08-16 00:00', related_items=[])
 def plot_grad_quiver(sobel_x, sobel_y, downsample_step=1):
     """ Used to visualize the Image Processing Techniques 
 
