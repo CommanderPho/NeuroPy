@@ -2657,3 +2657,38 @@ class TabbedMatplotlibFigures:
         # return MatplotlibRenderPlots(name=f'TabbedMatplotlibFigures.build_tabbed_multi_figure', figures=figures_dict, axes=axs_dict, ui=ui)
 
     
+
+@function_attributes(short_name=None, tags=['image-processing', 'quiver','matplotlib', 'figure'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2024-08-16 00:00', related_items=[])
+def plot_grad_quiver(sobel_x, sobel_y, downsample_step=1):
+    """ Used to visualize the Image Processing Techniques 
+
+    # Compute the magnitude of the gradient
+    gradient_magnitude = np.hypot(sobel_x, sobel_y)
+    gradient_direction = np.arctan2(sobel_y, sobel_x)
+
+    """
+    # Compute the magnitude of the gradient
+    gradient_magnitude = np.hypot(sobel_x, sobel_y)
+    gradient_direction = np.arctan2(sobel_y, sobel_x)
+
+    # Create a grid of coordinates for plotting arrows
+    Y, X = np.meshgrid(np.arange(gradient_magnitude.shape[0]), np.arange(gradient_magnitude.shape[1]), indexing='ij')
+
+    # Downsample the arrow plot for better visualization (optional)
+
+    X_downsampled = X[::downsample_step, ::downsample_step]
+    Y_downsampled = Y[::downsample_step, ::downsample_step]
+    sobel_x_downsampled = sobel_x[::downsample_step, ::downsample_step]
+    sobel_y_downsampled = sobel_y[::downsample_step, ::downsample_step]
+
+    # Plotting the gradient magnitude and arrows representing the direction
+    fig = plt.figure(figsize=(10, 10))
+    plt.imshow(gradient_magnitude, cmap='gray', origin='lower')
+    plt.quiver(X_downsampled, Y_downsampled, sobel_x_downsampled, sobel_y_downsampled,
+            color='red', angles='xy', scale_units='xy') # , scale=5, width=0.01
+    plt.title('Gradient Magnitude with Direction Arrows')
+    plt.axis('off')
+    plt.show()
+
+    return fig
+
