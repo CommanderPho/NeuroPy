@@ -1,5 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from typing import Dict, List, Tuple, Optional, Callable, Union, Any
+from typing_extensions import TypeAlias
+import nptyping as ND
+from nptyping import NDArray
 
 from neuropy.utils.mixins.dict_representable import overriding_dict_with # required for plot_placefield_occupancy
 from neuropy.utils.mixins.unwrap_placefield_computation_parameters import unwrap_placefield_computation_parameters
@@ -94,14 +98,17 @@ def plot_all_placefields(active_placefields1D, active_placefields2D, active_conf
 
 
 
-def plot_placefield_occupancy(active_epoch_placefields, fig=None, ax=None, plot_pos_bin_axes: bool=False, **kwargs):
+def perform_plot_occupancy(occupancy: NDArray, xbin_centers: Optional[NDArray]=None, ybin_centers: Optional[NDArray]=None, xbin_edges: Optional[NDArray]=None, fig=None, ax=None, plot_pos_bin_axes: bool=False, should_max_normalize: bool=True, **kwargs):
     """ plots the placefield occupancy in a matplotlib figure. 
     Works for both 1D and 2D.
     
-    from neuropy.plotting.placemaps import plot_placefield_occupancy
+    from neuropy.plotting.placemaps import plot_placefield_occupancy, perform_plot_occupancy
+    
+    occupancy_fig, occupancy_ax = perform_plot_occupancy(occupancy, xbin_centers=None, ybin_centers=None, fig=None, ax=None, plot_pos_bin_axes: bool=False, **kwargs)
+    
     
     """
-    def _subfn_plot_occupancy_1D(active_epoch_placefields1D, max_normalized, drop_below_threshold=None, fig=None, ax=None):
+    def _subfn_plot_occupancy_1D(occupancy_1D, xbin_centers, xbin_edges, should_max_normalize, drop_below_threshold=None, fig=None, ax=None):
         """ Draws an occupancy curve showing the relative proprotion of the recorded positions that occured in a given position bin. """
         should_fill = False
         
@@ -115,39 +122,40 @@ def plot_placefield_occupancy(active_epoch_placefields, fig=None, ax=None, plot_
         else:
             occupancy_ax = ax
 
-        only_visited_occupancy = active_epoch_placefields1D.occupancy.copy()
+        only_visited_occupancy = occupancy_1D.copy()
         # print('only_visited_occupancy: {}'.format(only_visited_occupancy))
         if drop_below_threshold is not None:
             only_visited_occupancy[np.where(only_visited_occupancy < drop_below_threshold)] = np.nan
         
-        if max_normalized:
+        if should_max_normalize:
             only_visited_occupancy = only_visited_occupancy / np.nanmax(only_visited_occupancy)
             
-        if not plot_pos_bin_axes:
-            x_centers = active_epoch_placefields1D.ratemap.xbin_centers
-            x_edges = active_epoch_placefields1D.ratemap.xbin
-        else:
-            from neuropy.utils.mixins.binning_helpers import get_bin_edges
+        # if not plot_pos_bin_axes:
+        #     xbin_centers = occupancy_1D.ratemap.xbin_centers
+        #     xbin_edges = occupancy_1D.ratemap.xbin
+        # else:
+        #     from neuropy.utils.mixins.binning_helpers import get_bin_edges
             
-            n_xbins: int = len(active_epoch_placefields1D.ratemap.xbin_centers)
-            xbin_size: float = 1.0
-            half_xbin_size: float = xbin_size/2.0
+        #     n_xbins: int = len(occupancy_1D.ratemap.xbin_centers)
+        #     xbin_size: float = 1.0
+        #     half_xbin_size: float = xbin_size/2.0
             
-            x_centers = np.arange(n_xbins) + half_xbin_size            
-            x_edges = get_bin_edges(x_centers)
+        #     xbin_centers = np.arange(n_xbins) + half_xbin_size            
+        #     xbin_edges = get_bin_edges(xbin_centers)
 
         if should_fill:
-            occupancy_ax.plot(x_centers, only_visited_occupancy)
-            occupancy_ax.scatter(x_centers, only_visited_occupancy, color='r')
+            occupancy_ax.plot(xbin_centers, only_visited_occupancy)
+            occupancy_ax.scatter(xbin_centers, only_visited_occupancy, color='r')
         
-        occupancy_ax.stairs(only_visited_occupancy, x_edges, fill=False, label='1D Placefield Occupancy', hatch='//') # can also use: , orientation='horizontal'
-        occupancy_ax.set_ylim([0, np.nanmax(only_visited_occupancy)])
+        occupancy_ax.stairs(only_visited_occupancy, xbin_edges, fill=False, label='1D Placefield Occupancy', hatch='//') # can also use: , orientation='horizontal'
+        if should_max_normalize:
+            occupancy_ax.set_ylim([0, np.nanmax(only_visited_occupancy)])
         
         # specify bin_size, etc
         occupancy_ax.set_title('Occupancy 1D')
         return occupancy_fig, occupancy_ax
 
-    def _subfn_plot_occupancy_custom(occupancy, xbin, ybin, max_normalized: bool, drop_below_threshold: float=None, fig=None, ax=None):
+    def _subfn_plot_occupancy_custom(occupancy, xbin, ybin, should_max_normalize: bool, drop_below_threshold: float=None, fig=None, ax=None):
         """ Plots a 2D Heatmap of the animal's occupancy (the amount of time the animal spent in each posiution bin)
 
         Args:
@@ -175,7 +183,7 @@ def plot_placefield_occupancy(active_epoch_placefields, fig=None, ax=None, plot_
         # print('only_visited_occupancy: {}'.format(only_visited_occupancy))
         if drop_below_threshold is not None:
             only_visited_occupancy[np.where(only_visited_occupancy < drop_below_threshold)] = np.nan
-        if max_normalized:
+        if should_max_normalize:
             only_visited_occupancy = only_visited_occupancy / np.nanmax(only_visited_occupancy)
         im = occupancy_ax.pcolorfast(xbin, ybin, np.rot90(np.fliplr(only_visited_occupancy)), cmap="jet", vmin=0.0)  # rot90(flipud... is necessary to match plotRaw configuration.
         occupancy_ax.set_title('Custom Occupancy')
@@ -186,8 +194,130 @@ def plot_placefield_occupancy(active_epoch_placefields, fig=None, ax=None, plot_
 
 
     # BEGIN MAIN FUNCTION ________________________________________________________________________________________________ #
-    if active_epoch_placefields.ndim > 1:
-        return _subfn_plot_occupancy_custom(active_epoch_placefields.occupancy, active_epoch_placefields.ratemap.xbin_centers, active_epoch_placefields.ratemap.ybin_centers, fig=fig, ax=ax, **overriding_dict_with(lhs_dict={'max_normalized':True, 'drop_below_threshold':1E-16}, **kwargs))
+    if occupancy.ndim > 1:
+        occupancy_fig, occupancy_ax = _subfn_plot_occupancy_custom(occupancy, xbin_centers, ybin_centers, fig=fig, ax=ax, **overriding_dict_with(lhs_dict={'should_max_normalize':should_max_normalize, 'drop_below_threshold':1E-16}, **kwargs))
     else:
-        return _subfn_plot_occupancy_1D(active_epoch_placefields, fig=fig, ax=ax, **overriding_dict_with(lhs_dict={'max_normalized':True, 'drop_below_threshold':1E-16}, **kwargs)) # handle 1D case
-                                 
+        occupancy_fig, occupancy_ax = _subfn_plot_occupancy_1D(occupancy, xbin_centers=xbin_centers, xbin_edges=xbin_edges, fig=fig, ax=ax, **overriding_dict_with(lhs_dict={'should_max_normalize':should_max_normalize, 'drop_below_threshold':1E-16}, **kwargs)) # handle 1D case
+    return (occupancy_fig, occupancy_ax)                                 
+
+
+
+def plot_placefield_occupancy(active_epoch_placefields, fig=None, ax=None, plot_pos_bin_axes: bool=False, **kwargs):
+    """ plots the placefield occupancy in a matplotlib figure. 
+    Works for both 1D and 2D.
+    
+    from neuropy.plotting.placemaps import plot_placefield_occupancy
+    
+    """
+    # def _subfn_plot_occupancy_1D(active_epoch_placefields1D, max_normalized, drop_below_threshold=None, fig=None, ax=None):
+    #     """ Draws an occupancy curve showing the relative proprotion of the recorded positions that occured in a given position bin. """
+    #     should_fill = False
+        
+    #     if fig is None:
+    #         occupancy_fig = plt.figure()
+    #     else:
+    #         occupancy_fig = fig
+        
+    #     if ax is None:
+    #         occupancy_ax = occupancy_fig.gca()
+    #     else:
+    #         occupancy_ax = ax
+
+    #     only_visited_occupancy = active_epoch_placefields1D.occupancy.copy()
+    #     # print('only_visited_occupancy: {}'.format(only_visited_occupancy))
+    #     if drop_below_threshold is not None:
+    #         only_visited_occupancy[np.where(only_visited_occupancy < drop_below_threshold)] = np.nan
+        
+    #     if max_normalized:
+    #         only_visited_occupancy = only_visited_occupancy / np.nanmax(only_visited_occupancy)
+            
+    #     if not plot_pos_bin_axes:
+    #         x_centers = active_epoch_placefields1D.ratemap.xbin_centers
+    #         x_edges = active_epoch_placefields1D.ratemap.xbin
+    #     else:
+    #         from neuropy.utils.mixins.binning_helpers import get_bin_edges
+            
+    #         n_xbins: int = len(active_epoch_placefields1D.ratemap.xbin_centers)
+    #         xbin_size: float = 1.0
+    #         half_xbin_size: float = xbin_size/2.0
+            
+    #         x_centers = np.arange(n_xbins) + half_xbin_size            
+    #         x_edges = get_bin_edges(x_centers)
+
+    #     if should_fill:
+    #         occupancy_ax.plot(x_centers, only_visited_occupancy)
+    #         occupancy_ax.scatter(x_centers, only_visited_occupancy, color='r')
+        
+    #     occupancy_ax.stairs(only_visited_occupancy, x_edges, fill=False, label='1D Placefield Occupancy', hatch='//') # can also use: , orientation='horizontal'
+    #     occupancy_ax.set_ylim([0, np.nanmax(only_visited_occupancy)])
+        
+    #     # specify bin_size, etc
+    #     occupancy_ax.set_title('Occupancy 1D')
+    #     return occupancy_fig, occupancy_ax
+
+    # def _subfn_plot_occupancy_custom(occupancy, xbin, ybin, max_normalized: bool, drop_below_threshold: float=None, fig=None, ax=None):
+    #     """ Plots a 2D Heatmap of the animal's occupancy (the amount of time the animal spent in each posiution bin)
+
+    #     Args:
+    #         occupancy ([type]): [description]
+    #         xbin ([type]): [description]
+    #         ybin ([type]): [description]
+    #         max_normalized (bool): [description]
+    #         drop_below_threshold (float, optional): [description]. Defaults to None.
+    #         fig ([type], optional): [description]. Defaults to None.
+    #         ax ([type], optional): [description]. Defaults to None.
+    #     """
+    #     if fig is None:
+    #         occupancy_fig = plt.figure()
+    #     else:
+    #         print(f'using specified fig')
+    #         occupancy_fig = fig
+        
+    #     if ax is None:
+    #         occupancy_ax = occupancy_fig.gca()
+    #     else:
+    #         print(f'using specified ax')
+    #         occupancy_ax = ax
+            
+    #     only_visited_occupancy = occupancy.copy()
+    #     # print('only_visited_occupancy: {}'.format(only_visited_occupancy))
+    #     if drop_below_threshold is not None:
+    #         only_visited_occupancy[np.where(only_visited_occupancy < drop_below_threshold)] = np.nan
+    #     if max_normalized:
+    #         only_visited_occupancy = only_visited_occupancy / np.nanmax(only_visited_occupancy)
+    #     im = occupancy_ax.pcolorfast(xbin, ybin, np.rot90(np.fliplr(only_visited_occupancy)), cmap="jet", vmin=0.0)  # rot90(flipud... is necessary to match plotRaw configuration.
+    #     occupancy_ax.set_title('Custom Occupancy')
+    #     occupancy_ax.set_aspect('equal', adjustable=None)
+    #     occupancy_cbar = occupancy_fig.colorbar(im, ax=occupancy_ax, location='right')
+    #     occupancy_cbar.minorticks_on()
+    #     return occupancy_fig, occupancy_ax
+
+
+    # BEGIN MAIN FUNCTION ________________________________________________________________________________________________ #
+    if active_epoch_placefields.ndim > 1:
+        # return _subfn_plot_occupancy_custom(active_epoch_placefields.occupancy, active_epoch_placefields.ratemap.xbin_centers, active_epoch_placefields.ratemap.ybin_centers, fig=fig, ax=ax, **overriding_dict_with(lhs_dict={'max_normalized':True, 'drop_below_threshold':1E-16}, **kwargs))
+        occupancy_fig, occupancy_ax = perform_plot_occupancy(occupancy=active_epoch_placefields.occupancy, xbin_centers=active_epoch_placefields.ratemap.xbin_centers, ybin_centers=active_epoch_placefields.ratemap.ybin_centers, fig=fig, ax=ax, **overriding_dict_with(lhs_dict={'max_normalized':True, 'drop_below_threshold':1E-16}, **kwargs))
+
+    else:
+        
+        if not plot_pos_bin_axes:
+            xbin_centers = active_epoch_placefields.ratemap.xbin_centers
+            xbin_edges = active_epoch_placefields.ratemap.xbin
+        else:
+            from neuropy.utils.mixins.binning_helpers import get_bin_edges
+            
+            n_xbins: int = len(active_epoch_placefields.ratemap.xbin_centers)
+            xbin_size: float = 1.0
+            half_xbin_size: float = xbin_size/2.0
+            
+            xbin_centers = np.arange(n_xbins) + half_xbin_size            
+            xbin_edges = get_bin_edges(xbin_centers)
+    
+
+        # return _subfn_plot_occupancy_1D(active_epoch_placefields, fig=fig, ax=ax, **overriding_dict_with(lhs_dict={'max_normalized':True, 'drop_below_threshold':1E-16}, **kwargs)) # handle 1D case
+        occupancy_fig, occupancy_ax = perform_plot_occupancy(occupancy = active_epoch_placefields, xbin_centers=xbin_centers, ybin_centers=active_epoch_placefields.ratemap.ybin_centers, xbin_edges=xbin_edges, fig=fig, ax=ax, **overriding_dict_with(lhs_dict={'max_normalized':True, 'drop_below_threshold':1E-16}, **kwargs))
+
+    return (occupancy_fig, occupancy_ax)
+
+
+    
