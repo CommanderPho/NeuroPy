@@ -9,6 +9,7 @@ import pandas as pd
 from functools import reduce # intersection_of_arrays, union_of_arrays
 
 from typing import Iterable, TypeVar, Dict, List, Tuple, Any, Optional
+from typing_extensions import TypeAlias
 
 T = TypeVar('T')
 
@@ -881,6 +882,10 @@ def update_nested_dict(data, updates):
 #region PandasDataFrameHelpers                                                                                               #
 # ==================================================================================================================== #
     
+DataframeColumnsCheckTuple: TypeAlias = Tuple[List[str], List[str], List[str]]
+
+
+
 class PandasHelpers:
     """ various extensions and generalizations for numpy arrays 
     
@@ -888,6 +893,70 @@ class PandasHelpers:
 
 
     """
+    @classmethod
+    def check_columns(cls, dfs: Union[pd.DataFrame, List[pd.DataFrame], Dict[Any, pd.DataFrame]], required_columns: Optional[List[str]]=None, print_missing_columns: bool = False) -> Tuple[Union[Set[str], List[Set[str]], Dict[str, Set[str]]], bool]: # , warn_missing_columns: Optional[List[str]]=None
+        """
+        Check if all DataFrames in the given container have the required columns.
+        
+        Parameters:
+            dfs: A container that may be a single DataFrame, a list/tuple of DataFrames, or a dictionary with DataFrames as values.
+            required_columns: A list of column names that are required to be present in each DataFrame.
+            print_changes: If True, prints the columns that are missing from each DataFrame.
+        
+        Returns:
+            True if all DataFrames contain all the required columns, otherwise False.
+
+        Usage:
+
+            required_cols = ['missing_column', 'congruent_dir_bins_ratio', 'coverage', 'direction_change_bin_ratio', 'jump', 'laplacian_smoothness', 'longest_sequence_length', 'longest_sequence_length_ratio', 'monotonicity_score', 'sequential_correlation', 'total_congruent_direction_change', 'travel'] # Replace with actual column names you require
+            missing_columns, all_have_all_required_columns = PandasHelpers.check_columns({a_name:a_result.filter_epochs for a_name, a_result in filtered_decoder_filter_epochs_decoder_result_dict.items()}, required_cols, print_missing_columns=True)
+            missing_columns
+            all_have_all_required_columns
+
+
+        """
+        def _subfn_check_and_report(df: pd.DataFrame, columns: List[str], identifier: Any = None) -> Tuple[Tuple[List[str], List[str], List[str]], bool]:
+            """ captures: print_missing_columns
+            """
+            all_df_columns: List[str] = list(df.columns)
+            found_columns: List[str] = list(set(columns).intersection(df.columns))
+            missing_columns: List[str] = list(set(columns).difference(df.columns))
+            # has_all_columns = not missing_columns
+            
+            # if print_missing_columns and not has_all_columns:
+            #     df_name = f" (DataFrame Identifier: {identifier})" if identifier else ""
+            #     print(f"Missing required columns in DataFrame{df_name}: {missing_columns}")
+
+            return (missing_columns, found_columns, all_df_columns)
+            # return missing_columns, has_all_columns
+
+        missing_columns = []
+        all_have_all_columns: bool = True
+        
+        if isinstance(dfs, pd.DataFrame):
+            columns_tuples = _subfn_check_and_report(dfs, required_columns)
+            missing_columns, found_columns, all_df_columns = columns_tuples
+            # missing_columns, found_columns, all_df_columns = _subfn_check_and_report(dfs, required_columns)
+            all_have_all_columns = (not missing_columns)
+            
+        elif isinstance(dfs, (list, tuple)):
+            columns_tuples: List[List[str]] = [_subfn_check_and_report(df, required_columns, i) for i, df in enumerate(dfs)] # a list
+            missing_columns: List[List[str]] = [a_tuple[0] for i, a_tuple in enumerate(columns_tuples)] # a list
+            
+            # missing_columns: List[Set[str]] = [_subfn_check_and_report(df, required_columns, i)[0] for i, df in enumerate(dfs)] # a list
+            all_have_all_columns = all([(not a_missing_columns_list) for i, a_missing_columns_list in enumerate(missing_columns)])
+        elif isinstance(dfs, dict):
+            columns_tuples: Dict[str, List[str]] = {key:_subfn_check_and_report(df, required_columns, key) for key, df in dfs.items()} # a dict
+            missing_columns: Dict[str, List[str]] = {key:a_tuple[0] for key, a_tuple in columns_tuples.items()} # a dict
+            # missing_columns: Dict[str, List[str]] = {key:_subfn_check_and_report(df, required_columns, key) for key, df in dfs.items()} # a dict
+            all_have_all_columns = all([(not a_missing_columns_list) for key, a_missing_columns_list in missing_columns.items()])
+            
+
+        return columns_tuples, missing_columns, all_have_all_columns
+        # return missing_columns, all_have_all_columns
+        
+
+
     @classmethod
     def require_columns(cls, dfs: Union[pd.DataFrame, List[pd.DataFrame], Dict[Any, pd.DataFrame]], required_columns: List[str], print_missing_columns: bool = False) -> bool:
         """
