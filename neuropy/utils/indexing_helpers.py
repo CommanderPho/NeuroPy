@@ -894,7 +894,7 @@ class PandasHelpers:
 
     """
     @classmethod
-    def check_columns(cls, dfs: Union[pd.DataFrame, List[pd.DataFrame], Dict[Any, pd.DataFrame]], required_columns: Optional[List[str]]=None, print_missing_columns: bool = False) -> Tuple[Union[Set[str], List[Set[str]], Dict[str, Set[str]]], bool]: # , warn_missing_columns: Optional[List[str]]=None
+    def check_columns(cls, dfs: Union[pd.DataFrame, List[pd.DataFrame], Dict[Any, pd.DataFrame]], required_columns: Optional[List[str]]=None, return_only_dfs_missing_columns: bool = True) -> Tuple[Union[DataframeColumnsCheckTuple, List[DataframeColumnsCheckTuple], Dict[str, DataframeColumnsCheckTuple]], Union[List[str], List[List[str]], Dict[str, List[str]]], bool]: # , warn_missing_columns: Optional[List[str]]=None
         """
         Check if all DataFrames in the given container have the required columns.
         
@@ -915,7 +915,7 @@ class PandasHelpers:
 
 
         """
-        def _subfn_check_and_report(df: pd.DataFrame, columns: List[str], identifier: Any = None) -> Tuple[Tuple[List[str], List[str], List[str]], bool]:
+        def _subfn_check_and_report(df: pd.DataFrame, columns: List[str], identifier: Any = None) -> Tuple[DataframeColumnsCheckTuple, bool]:
             """ captures: print_missing_columns
             """
             all_df_columns: List[str] = list(df.columns)
@@ -931,29 +931,68 @@ class PandasHelpers:
             # return missing_columns, has_all_columns
 
         missing_columns = []
-        all_have_all_columns: bool = True
+        all_have_all_required_columns: bool = True
+        # debug_args = []
+        debug_tuple = None
         
         if isinstance(dfs, pd.DataFrame):
             columns_tuples = _subfn_check_and_report(dfs, required_columns)
             missing_columns, found_columns, all_df_columns = columns_tuples
             # missing_columns, found_columns, all_df_columns = _subfn_check_and_report(dfs, required_columns)
-            all_have_all_columns = (not missing_columns)
-            
+            all_have_all_required_columns = (not missing_columns)
+            if not all_have_all_required_columns:
+                num_missing_columns = len(missing_columns)
+                # debug_args.append((missing_columns, found_columns, all_df_columns))
+                if return_only_dfs_missing_columns:
+                    ## always the case here
+                    pass
+
         elif isinstance(dfs, (list, tuple)):
             columns_tuples: List[List[str]] = [_subfn_check_and_report(df, required_columns, i) for i, df in enumerate(dfs)] # a list
-            missing_columns: List[List[str]] = [a_tuple[0] for i, a_tuple in enumerate(columns_tuples)] # a list
-            
+            missing_columns: List[List[str]] = [a_tuple[0] for a_tuple in columns_tuples] # a list
+
             # missing_columns: List[Set[str]] = [_subfn_check_and_report(df, required_columns, i)[0] for i, df in enumerate(dfs)] # a list
-            all_have_all_columns = all([(not a_missing_columns_list) for i, a_missing_columns_list in enumerate(missing_columns)])
+            all_have_all_required_columns = all([(not a_missing_columns_list) for a_missing_columns_list in missing_columns])
+            if not all_have_all_required_columns:
+                num_missing_columns = [len(a_missing_columns_list) for a_missing_columns_list in missing_columns]
+                if return_only_dfs_missing_columns:
+                    num_missing_columns = [len(a_missing_columns_list) for a_missing_columns_list in missing_columns if len(a_missing_columns_list) > 0]
+                    missing_columns = [a_tuple[0] for i, a_tuple in enumerate(columns_tuples) if num_missing_columns[i] > 0]
+                    found_columns = [a_tuple[1] for i, a_tuple in enumerate(columns_tuples) if num_missing_columns[i] > 0]
+                    all_df_columns = [a_tuple[2] for i, a_tuple in enumerate(columns_tuples) if num_missing_columns[i] > 0]
+                else:
+                    found_columns = [a_tuple[1] for a_tuple in columns_tuples]
+                    all_df_columns = [a_tuple[2] for a_tuple in columns_tuples]                  
+
+                # debug_args.append((missing_columns, found_columns, all_df_columns))
+                # debug_tuple = (missing_columns, found_columns, all_df_columns)
+
         elif isinstance(dfs, dict):
             columns_tuples: Dict[str, List[str]] = {key:_subfn_check_and_report(df, required_columns, key) for key, df in dfs.items()} # a dict
             missing_columns: Dict[str, List[str]] = {key:a_tuple[0] for key, a_tuple in columns_tuples.items()} # a dict
             # missing_columns: Dict[str, List[str]] = {key:_subfn_check_and_report(df, required_columns, key) for key, df in dfs.items()} # a dict
-            all_have_all_columns = all([(not a_missing_columns_list) for key, a_missing_columns_list in missing_columns.items()])
+            all_have_all_required_columns = all([(not a_missing_columns_list) for key, a_missing_columns_list in missing_columns.items()])
+            if not all_have_all_required_columns:
+                num_missing_columns = {key:len(a_missing_columns_list) for key, a_missing_columns_list in missing_columns.items()}
+                if return_only_dfs_missing_columns:
+                    num_missing_columns = {key:len(a_missing_columns_list) for key, a_missing_columns_list in missing_columns.items() if num_missing_columns[key] > 0}
+                    missing_columns = {key:a_tuple[0] for key, a_tuple in columns_tuples.items() if num_missing_columns[key] > 0}
+                    found_columns = {key:a_tuple[1] for key, a_tuple in columns_tuples.items() if num_missing_columns[key] > 0}
+                    all_df_columns = {key:a_tuple[2] for key, a_tuple in columns_tuples.items() if num_missing_columns[key] > 0}
+                else:
+                    found_columns = {key:a_tuple[1] for key, a_tuple in columns_tuples.items()}
+                    all_df_columns = {key:a_tuple[2] for key, a_tuple in columns_tuples.items()}                
+
+                # debug_args.append((missing_columns, found_columns, all_df_columns))
+
+        if not all_have_all_required_columns:
+            debug_tuple = (num_missing_columns, missing_columns, found_columns, all_df_columns)
             
 
-        return columns_tuples, missing_columns, all_have_all_columns
+        # return columns_tuples, missing_columns, all_have_all_required_columns
         # return missing_columns, all_have_all_columns
+        # return all_have_all_required_columns, (missing_columns, found_columns, all_df_columns)
+        return all_have_all_required_columns, debug_tuple
         
 
 
