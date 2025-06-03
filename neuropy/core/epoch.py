@@ -205,7 +205,7 @@ def find_data_indicies_from_epoch_times(a_df: pd.DataFrame, epoch_times: NDArray
         num_query_times: int = 1
 
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"np.ndim(epoch_times): {np.ndim(epoch_times)}, np.shape(epoch_times)[1]: {np.shape(epoch_times)[1]}")
 
     # start, stop epoch times:
     epoch_slices_df = a_df[t_column_names]
