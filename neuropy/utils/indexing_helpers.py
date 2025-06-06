@@ -3,6 +3,7 @@ from typing import Union, Tuple, List, Dict, Set, Any, Optional, OrderedDict  # 
 import nptyping as ND
 from nptyping import NDArray
 from contextlib import contextmanager, ContextDecorator
+from enum import Enum, auto
 
 import numpy as np
 import pandas as pd
@@ -1476,6 +1477,28 @@ class PandasHelpers:
 # 2024-11-15 - `neuropy` dataframe helper                                                              #
 # ==================================================================================================================== #
 
+
+class UniqueValuesReturnType(Enum):
+    """Description of the enum class and its purpose."""
+    PLAIN_DICT = auto()
+    IdentifyingContext = auto()
+    # THIRD = auto()
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def list_values(cls):
+        """Returns a list of all enum values"""
+        return list(cls)
+
+    @classmethod
+    def list_names(cls):
+        """Returns a list of all enum names"""
+        return [e.name for e in cls]
+
+
+
 @pd.api.extensions.register_dataframe_accessor("neuropy")
 class NeuroPyDataframeAccessor:
     """ Describes a dataframe with at least a neuron_id (aclu) column. Provides functionality regarding building globally (across-sessions) unique neuron identifiers.
@@ -1506,6 +1529,17 @@ class NeuroPyDataframeAccessor:
             unique_values_dict = df.neuropy.get_column_unique_values_dict(columns_include_subset=['known_named_decoding_epochs_type', 'trained_compute_epochs', 'masked_time_bin_fill_type'])
             unique_values_dict
 
+            {'custom_replay_name': ['withNormalComputedReplays-qclu_[1, 2, 4, 6, 7, 8, 9]-frateThresh_5.0',
+              'withNormalComputedReplays-qclu_[1, 2, 4, 6, 7, 9]-frateThresh_5.0',
+              'withNormalComputedReplays-qclu_[1, 2]-frateThresh_5.0',
+              ''],
+             'included_qclu_values': ['[1, 2, 4, 6, 7, 8, 9]',
+              '[1, 2, 4, 6, 7, 9]',
+              '[1, 2]',
+              nan],
+             'minimum_inclusion_fr_Hz': [5.0, nan],
+             'time_bin_size': [0.025, 0.05, 1.5]}
+
         """
         if columns_include_subset is None:
             columns_include_subset = list(self._df.columns) ## consider all columns        
@@ -1524,8 +1558,7 @@ class NeuroPyDataframeAccessor:
         return unique_values_dict
     
 
-
-    def get_unique_combinations(self, columns_include_subset: List[str]) -> List[Tuple]:
+    def get_flat_unique_values(self, columns_include_subset: List[str], return_format: UniqueValuesReturnType=UniqueValuesReturnType.IdentifyingContext) -> List[Tuple]:
         """ Returns a list of unique value combinations from the specified columns.
 
         Args:
@@ -1535,48 +1568,15 @@ class NeuroPyDataframeAccessor:
             List of tuples, where each tuple represents a unique combination of values
 
         Example:
+            from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor, UniqueValuesReturnType
+            from neuropy.utils.result_context import IdentifyingContext
+
+
             # For a dataframe with:
             # pd.DataFrame({'session_name': ['s0', 's1', 's2'], 'animal': ['a0', 'a0', 'a1']})
 
             # Get unique combinations
-            unique_combos = df.pho.get_unique_combinations(['session_name', 'animal'])
-            # Returns: [('s0', 'a0'), ('s1', 'a0'), ('s2', 'a1')]
-        """
-        # Validate columns exist
-        for column in columns_include_subset:
-            if column not in self._df.columns:
-                raise ValueError(f"Column '{column}' not found in dataframe")
-
-        # # Use drop_duplicates to get unique combinations
-        # unique_df = self._df[columns_include_subset].drop_duplicates()
-
-        # # Convert to list of tuples
-        # return [tuple(row) for row in unique_df.to_numpy()]
-
-        # Use value_counts to get counts of unique combinations
-        value_counts = self._df[columns_include_subset].value_counts()
-
-        # Convert to dictionary with tuple keys
-        result = {tuple(idx): count for idx, count in zip(value_counts.index, value_counts.values)}
-
-        return result
-
-
-    def get_unique_contexts(self, columns_include_subset: List[str]) -> List[Tuple]:
-        """ Returns a list of unique value combinations from the specified columns.
-
-        Args:
-            columns_subset: List of column names to find unique combinations for
-
-        Returns:
-            List of tuples, where each tuple represents a unique combination of values
-
-        Example:
-            # For a dataframe with:
-            # pd.DataFrame({'session_name': ['s0', 's1', 's2'], 'animal': ['a0', 'a0', 'a1']})
-
-            # Get unique combinations
-            unique_values_dict = FAT_df.neuropy.get_unique_contexts(columns_include_subset=['custom_replay_name', 'included_qclu_values', 'minimum_inclusion_fr_Hz', 'time_bin_size']) # , 'masked_time_bin_fill_type'
+            unique_values_dict = FAT_df.neuropy.get_flat_unique_values(columns_include_subset=['custom_replay_name', 'included_qclu_values', 'minimum_inclusion_fr_Hz', 'time_bin_size']) # , 'masked_time_bin_fill_type'
             unique_values_dict
 
             {Context(custom_replay_name= 'withNormalComputedReplays-qclu_[1, 2, 4, 6, 7, 8, 9]-frateThresh_5.0', included_qclu_values= '[1, 2, 4, 6, 7, 8, 9]', minimum_inclusion_fr_Hz= 5.0, time_bin_size= 0.05): 2355955,
@@ -1606,7 +1606,16 @@ class NeuroPyDataframeAccessor:
         result = {}
         for idx, count in zip(value_counts.index, value_counts.values):
             # Create a dictionary for this combination
-            combo_dict = IdentifyingContext.init_from_dict({col: val for col, val in zip(columns_include_subset, idx)})
+            combo_dict = {col: val for col, val in zip(columns_include_subset, idx)}
+            if return_format.value == UniqueValuesReturnType.IdentifyingContext.value:
+                combo_dict = IdentifyingContext.init_from_dict(combo_dict)
+            elif return_format.value == UniqueValuesReturnType.PLAIN_DICT.value:
+                pass ## already a plain-dict
+            else:
+                raise NotImplementedError(f'return_format: "{return_format}" is unknown.')
+
+
+            # combo_dict = IdentifyingContext.init_from_dict({col: val for col, val in zip(columns_include_subset, idx)})
             result[combo_dict] = count  # Use IdentifyingContext to make the dictionary hashable
 
         return result
@@ -1623,6 +1632,19 @@ class NeuroPyDataframeAccessor:
 
         Returns:
             Nested dictionary where each level corresponds to a column, and leaf values are row counts
+
+
+        Example:
+
+            unique_values_dict = FAT_df.neuropy.get_hierarchical_counts(columns_include_subset=['custom_replay_name', 'included_qclu_values', 'minimum_inclusion_fr_Hz', 'time_bin_size']) # , 'masked_time_bin_fill_type'
+            unique_values_dict
+
+            {'withNormalComputedReplays-qclu_[1, 2, 4, 6, 7, 8, 9]-frateThresh_5.0': {'[1, 2, 4, 6, 7, 8, 9]': {5.0: {0.05: 2355955}}},
+                'withNormalComputedReplays-qclu_[1, 2, 4, 6, 7, 9]-frateThresh_5.0': {'[1, 2, 4, 6, 7, 9]': {5.0: {0.025: 633693,
+                0.05: 998617}}},
+                'withNormalComputedReplays-qclu_[1, 2]-frateThresh_5.0': {'[1, 2]': {5.0: {0.05: 2291178}}}}
+
+
         """
         # Validate columns exist
         for column in columns_include_subset:
@@ -1639,7 +1661,7 @@ class NeuroPyDataframeAccessor:
                 d = result
                 # For tuple index, navigate through the hierarchy
                 if isinstance(idx, tuple):
-                    for i, key in enumerate(idx[:-1]):
+                    for key in idx[:-1]:
                         if key not in d:
                             d[key] = {}
                         d = d[key]
