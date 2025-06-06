@@ -1525,6 +1525,139 @@ class NeuroPyDataframeAccessor:
     
 
 
+    def get_unique_combinations(self, columns_include_subset: List[str]) -> List[Tuple]:
+        """ Returns a list of unique value combinations from the specified columns.
+
+        Args:
+            columns_subset: List of column names to find unique combinations for
+
+        Returns:
+            List of tuples, where each tuple represents a unique combination of values
+
+        Example:
+            # For a dataframe with:
+            # pd.DataFrame({'session_name': ['s0', 's1', 's2'], 'animal': ['a0', 'a0', 'a1']})
+
+            # Get unique combinations
+            unique_combos = df.pho.get_unique_combinations(['session_name', 'animal'])
+            # Returns: [('s0', 'a0'), ('s1', 'a0'), ('s2', 'a1')]
+        """
+        # Validate columns exist
+        for column in columns_include_subset:
+            if column not in self._df.columns:
+                raise ValueError(f"Column '{column}' not found in dataframe")
+
+        # # Use drop_duplicates to get unique combinations
+        # unique_df = self._df[columns_include_subset].drop_duplicates()
+
+        # # Convert to list of tuples
+        # return [tuple(row) for row in unique_df.to_numpy()]
+
+        # Use value_counts to get counts of unique combinations
+        value_counts = self._df[columns_include_subset].value_counts()
+
+        # Convert to dictionary with tuple keys
+        result = {tuple(idx): count for idx, count in zip(value_counts.index, value_counts.values)}
+
+        return result
+
+
+    def get_unique_contexts(self, columns_include_subset: List[str]) -> List[Tuple]:
+        """ Returns a list of unique value combinations from the specified columns.
+
+        Args:
+            columns_subset: List of column names to find unique combinations for
+
+        Returns:
+            List of tuples, where each tuple represents a unique combination of values
+
+        Example:
+            # For a dataframe with:
+            # pd.DataFrame({'session_name': ['s0', 's1', 's2'], 'animal': ['a0', 'a0', 'a1']})
+
+            # Get unique combinations
+            unique_values_dict = FAT_df.neuropy.get_unique_contexts(columns_include_subset=['custom_replay_name', 'included_qclu_values', 'minimum_inclusion_fr_Hz', 'time_bin_size']) # , 'masked_time_bin_fill_type'
+            unique_values_dict
+
+            {Context(custom_replay_name= 'withNormalComputedReplays-qclu_[1, 2, 4, 6, 7, 8, 9]-frateThresh_5.0', included_qclu_values= '[1, 2, 4, 6, 7, 8, 9]', minimum_inclusion_fr_Hz= 5.0, time_bin_size= 0.05): 2355955,
+             Context(custom_replay_name= 'withNormalComputedReplays-qclu_[1, 2]-frateThresh_5.0', included_qclu_values= '[1, 2]', minimum_inclusion_fr_Hz= 5.0, time_bin_size= 0.05): 2291178,
+             Context(custom_replay_name= 'withNormalComputedReplays-qclu_[1, 2, 4, 6, 7, 9]-frateThresh_5.0', included_qclu_values= '[1, 2, 4, 6, 7, 9]', minimum_inclusion_fr_Hz= 5.0, time_bin_size= 0.05): 998617,
+             Context(custom_replay_name= 'withNormalComputedReplays-qclu_[1, 2, 4, 6, 7, 9]-frateThresh_5.0', included_qclu_values= '[1, 2, 4, 6, 7, 9]', minimum_inclusion_fr_Hz= 5.0, time_bin_size= 0.025): 633693}
+
+
+        """
+        from neuropy.utils.result_context import IdentifyingContext
+
+        # Validate columns exist
+        for column in columns_include_subset:
+            if column not in self._df.columns:
+                raise ValueError(f"Column '{column}' not found in dataframe")
+
+        # # Use drop_duplicates to get unique combinations
+        # unique_df = self._df[columns_include_subset].drop_duplicates()
+
+        # # Convert to list of tuples
+        # return [tuple(row) for row in unique_df.to_numpy()]
+
+        # Use value_counts to get counts of unique combinations
+        value_counts = self._df[columns_include_subset].value_counts()
+
+        # Convert to dictionary with dictionary keys (column_name: value)
+        result = {}
+        for idx, count in zip(value_counts.index, value_counts.values):
+            # Create a dictionary for this combination
+            combo_dict = IdentifyingContext.init_from_dict({col: val for col, val in zip(columns_include_subset, idx)})
+            result[combo_dict] = count  # Use IdentifyingContext to make the dictionary hashable
+
+        return result
+
+
+    def get_hierarchical_counts(self, columns_include_subset: List[str]) -> Dict:
+        """ Returns a nested dictionary showing hierarchical grouping of rows by the specified columns.
+
+        Each level of the dictionary represents grouping by one column, with counts at the leaf nodes.
+        This implementation uses pandas' optimized groupby operations for better performance.
+
+        Args:
+            columns_include_subset: List of column names to group hierarchically
+
+        Returns:
+            Nested dictionary where each level corresponds to a column, and leaf values are row counts
+        """
+        # Validate columns exist
+        for column in columns_include_subset:
+            if column not in self._df.columns:
+                raise ValueError(f"Column '{column}' not found in dataframe")
+
+        # Group by all columns at once and count
+        grouped_counts = self._df.groupby(columns_include_subset).size()
+
+        # Convert the hierarchical Series to a nested dictionary
+        def series_to_dict(series):
+            result = {}
+            for idx, value in series.items():
+                d = result
+                # For tuple index, navigate through the hierarchy
+                if isinstance(idx, tuple):
+                    for i, key in enumerate(idx[:-1]):
+                        if key not in d:
+                            d[key] = {}
+                        d = d[key]
+                    d[idx[-1]] = value
+                else:
+                    # For single-level index
+                    result[idx] = value
+            return result
+
+        # Handle both single-level and multi-level indices
+        if isinstance(grouped_counts.index, pd.MultiIndex):
+            return series_to_dict(grouped_counts)
+        else:
+            # For single column case
+            return grouped_counts.to_dict()
+
+
+
     def dropping_single_valued_columns(self, include_subset: Optional[List[str]]=None) -> pd.DataFrame:
         """ Returns a copy of the dataframe with any columns containing only a single value dropped.
         
