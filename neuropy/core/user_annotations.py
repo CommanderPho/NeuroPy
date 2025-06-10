@@ -1198,17 +1198,12 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
                             _updated_config_dict['new_grid_bin_bounds'] = _updated_config_dict['new_unit_grid_bin_bounds'] # 2025-01-14 16:58 - switch to unit scale bounds
                              
                             ## Build Update:
-
-
                             # curr_active_pipeline.sess.config.computation_config['pf_params'].grid_bin_bounds = new_grid_bin_bounds
 
                             active_context = _test_session_context # curr_active_pipeline.get_session_context()
                             final_context = active_context.adding_context_if_missing(user_annotation='grid_bin_bounds')
                             user_annotations[final_context] = from_mat_lims_grid_bin_bounds.extents
                             
-
-
-
                             # Updates the context. Needs to generate the code.
 
                             ## Generate code to insert int user_annotations:
