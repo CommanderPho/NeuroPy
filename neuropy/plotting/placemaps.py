@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from typing import Dict, List, Tuple, Optional, Callable, Union, Any
 from typing_extensions import TypeAlias
+from copy import deepcopy
 import nptyping as ND
 from nptyping import NDArray
 
@@ -122,7 +123,9 @@ def perform_plot_occupancy(occupancy: NDArray, xbin_centers: Optional[NDArray]=N
         else:
             occupancy_ax = ax
 
-        only_visited_occupancy = occupancy_1D.copy()
+        # only_visited_occupancy = occupancy_1D.copy() # AttributeError: 'PfND' object has no attribute 'copy'
+        only_visited_occupancy = deepcopy(occupancy_1D)
+        
         # print('only_visited_occupancy: {}'.format(only_visited_occupancy))
         if drop_below_threshold is not None:
             only_visited_occupancy[np.where(only_visited_occupancy < drop_below_threshold)] = np.nan
@@ -315,7 +318,7 @@ def plot_placefield_occupancy(active_epoch_placefields, fig=None, ax=None, plot_
     
 
         # return _subfn_plot_occupancy_1D(active_epoch_placefields, fig=fig, ax=ax, **overriding_dict_with(lhs_dict={'max_normalized':True, 'drop_below_threshold':1E-16}, **kwargs)) # handle 1D case
-        occupancy_fig, occupancy_ax = perform_plot_occupancy(occupancy = active_epoch_placefields, xbin_centers=xbin_centers, ybin_centers=active_epoch_placefields.ratemap.ybin_centers, xbin_edges=xbin_edges, fig=fig, ax=ax, **overriding_dict_with(lhs_dict={'max_normalized':True, 'drop_below_threshold':1E-16}, **kwargs))
+        occupancy_fig, occupancy_ax = perform_plot_occupancy(occupancy = active_epoch_placefields.occupancy, xbin_centers=xbin_centers, ybin_centers=active_epoch_placefields.ratemap.ybin_centers, xbin_edges=xbin_edges, fig=fig, ax=ax, **overriding_dict_with(lhs_dict={'max_normalized':True, 'drop_below_threshold':1E-16}, **kwargs))
 
     return (occupancy_fig, occupancy_ax)
 
