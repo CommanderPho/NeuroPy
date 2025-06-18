@@ -1791,7 +1791,7 @@ def interactive_select_grid_bin_bounds_2D(curr_active_pipeline, epoch_name='maze
 
 
 # Title Helpers ______________________________________________________________________________________________________ #
-def perform_update_title_subtitle(fig=None, ax=None, title_string:Optional[str]=None, subtitle_string:Optional[str]=None, active_context=None, use_flexitext_titles=False,
+def perform_update_title_subtitle(fig=None, ax=None, title_string:Optional[str]=None, subtitle_string:Optional[str]=None, active_context=None, use_flexitext_titles=False, include_footer_text:bool=True,
                                   top_margin=None, left_margin=None, right_margin=None, bottom_margin=None):
     """ Only updates the title/subtitle if the value is not None
     
@@ -1840,8 +1840,10 @@ def perform_update_title_subtitle(fig=None, ax=None, title_string:Optional[str]=
         if (subtitle_string is not None) and (ax is not None):
             ax.set_title(subtitle_string, fontsize='10', wrap=True) # this doesn't appear to be visible, so what is it used for?
 
-        footer_text_obj = text_formatter.add_flexitext_context_footer(active_context=active_context, override_left_margin_multipler=0.1, override_bottom_margin_multiplier=0.1) # flexitext((text_formatter.left_margin*0.1), (text_formatter.bottom_margin*0.25), text_formatter._build_footer_string(active_context=active_context), va="top", xycoords="figure fraction")
-
+        footer_text_obj = None
+        if (include_footer_text and (active_context is not None)):
+            footer_text_obj = text_formatter.add_flexitext_context_footer(active_context=active_context, override_left_margin_multipler=0.1, override_bottom_margin_multiplier=0.1) # flexitext((text_formatter.left_margin*0.1), (text_formatter.bottom_margin*0.25), text_formatter._build_footer_string(active_context=active_context), va="top", xycoords="figure fraction")
+        
         # label_objects = {'header': header_text_obj, 'footer': footer_text_obj, 'formatter': text_formatter}
     return footer_text_obj
 
