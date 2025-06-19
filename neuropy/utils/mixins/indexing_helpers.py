@@ -127,3 +127,48 @@ def get_dict_subset(a_dict: dict, subset_includelist=None, subset_excludelist=No
         return subset_dict
 
 
+
+def pop_dict_subset(a_dict: dict, subset_includelist=None, subset_excludelist=None) -> dict:
+    """
+    Removes and returns a subset of the input dictionary based on the specified inclusion or exclusion lists.
+    The original dictionary is modified in place by removing the popped elements.
+
+    Inputs:
+        a_dict: dict - The dictionary to pop elements from (modified in place).
+        subset_includelist: list, optional - A list of keys to pop from the dictionary. If None, all keys are popped.
+        subset_excludelist: list, optional - A list of keys to exclude from popping. If None, no keys are excluded.
+
+    Returns:
+        dict: The popped subset of the input dictionary.
+
+    Usage:
+        from neuropy.utils.mixins.indexing_helpers import pop_dict_subset
+
+        # Pop specific keys
+        original_dict = {'a': 1, 'b': 2, 'c': 3, 'd': 4}
+        popped_subset = pop_dict_subset(original_dict, subset_includelist=['a', 'c'])
+        # popped_subset = {'a': 1, 'c': 3}
+        # original_dict = {'b': 2, 'd': 4}
+
+        # Pop all except specific keys
+        original_dict = {'a': 1, 'b': 2, 'c': 3, 'd': 4}
+        popped_subset = pop_dict_subset(original_dict, subset_excludelist=['b'])
+        # popped_subset = {'a': 1, 'c': 3, 'd': 4}
+        # original_dict = {'b': 2}
+    """
+    if subset_excludelist is not None:
+        assert subset_includelist is None, "subset_includelist must be None when a subset_excludelist is provided!"
+        subset_includelist = [key for key in a_dict.keys() if key not in subset_excludelist]
+
+    if subset_includelist is None:
+        # Pop all keys
+        subset_dict = dict(a_dict)
+        a_dict.clear()
+        return subset_dict
+    else:
+        # Pop only specified keys
+        subset_dict = {}
+        for key in subset_includelist:
+            if key in a_dict:
+                subset_dict[key] = a_dict.pop(key)
+        return subset_dict
