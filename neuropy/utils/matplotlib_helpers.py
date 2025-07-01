@@ -974,10 +974,10 @@ from flexitext import flexitext ## flexitext is an advanced text library used in
 
 @define(slots=False)
 class FigureMargins:
-    top_margin: float = 0.8
-    left_margin: float = 0.15
-    right_margin: float = 0.85 # (1.0-0.15)
-    bottom_margin: float = 0.150
+    top_margin: float = field(default=0.8)
+    left_margin: float = field(default=0.15)
+    right_margin: float = field(default=0.85) # (1.0-0.15)
+    bottom_margin: float = field(default=0.150)
 
     
     
@@ -1057,6 +1057,14 @@ class FormattedFigureText:
         """ allows initializing while overriding specific margins 
         
         text_formatter = FormattedFigureText.init_from_margins(left_margin=0.01)
+        
+        ## Default for non-publication:
+        text_formatter = FormattedFigureText.init_from_margins(top_margin=0.8, left_margin=0.15, right_margin=0.85, bottom_margin=0.150) ## Note the margins provide the empty room to position the flexitext headers, and without adding them the fancy text would not fit.
+
+        ## Default for publication:
+        text_formatter = FormattedFigureText.init_from_margins(top_margin=0.9, left_margin=0.15, right_margin=0.85, bottom_margin=0.150) ## Note the margins provide the empty room to position the flexitext headers, and without adding them the fancy text would not fit.
+
+                
         
         """
         _obj = cls()
