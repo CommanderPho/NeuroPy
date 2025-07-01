@@ -24,9 +24,9 @@ class DataSessionLoader:
     
     # KDiba Old Format:
     @staticmethod
-    def bapun_data_session(basedir=r'R:\data\Bapun\Day5TwoNovel', override_parameters_flat_keypaths_dict=None):
+    def bapun_data_session(basedir=r'R:\data\Bapun\Day5TwoNovel', override_parameters_flat_keypaths_dict=None, **kwargs):
         _test_session = BapunDataSessionFormatRegisteredClass.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
-        _test_session, loaded_file_record_list = BapunDataSessionFormatRegisteredClass.load_session(_test_session)
+        _test_session, loaded_file_record_list = BapunDataSessionFormatRegisteredClass.load_session(_test_session, **kwargs)
         return _test_session
         
     # KDiba Old Format:
