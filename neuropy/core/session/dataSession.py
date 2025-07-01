@@ -26,8 +26,7 @@ from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableO
 from neuropy.utils.mixins.unit_slicing import NeuronUnitSlicableObjectProtocol
 from neuropy.utils.mixins.panel import DataSessionPanelMixin
 
-from neuropy.utils.efficient_interval_search import determine_event_interval_identity # numba acceleration
-
+from neuropy.utils.efficient_interval_search import determine_event_interval_identity, OverlappingIntervalsFallbackBehavior # numba acceleration
 
 # Klepto caching/memoization
 # from klepto.archives import sqltable_archive as sql_archive
@@ -814,7 +813,8 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         pbe_start_stop_arr = pbe_epoch_df[['start','stop']].to_numpy()
         # pbe_identity_label = pbe_epoch_df['label'].to_numpy()
         pbe_identity_label = pbe_epoch_df.index.to_numpy() # currently using the index instead of the label.
-        spike_pbe_identity_arr = determine_event_interval_identity(spk_times_arr, pbe_start_stop_arr, pbe_identity_label, no_interval_fill_value=no_interval_fill_value)
+        spike_pbe_identity_arr = determine_event_interval_identity(spk_times_arr, pbe_start_stop_arr, pbe_identity_label, no_interval_fill_value=no_interval_fill_value,
+                                                                                                overlap_behavior=OverlappingIntervalsFallbackBehavior.FALLBACK_TO_SLOW_SEARCH) # #TODO 2025-07-01 14:49: - [ ] Crashes the Jupyter Kernal for Bapun's data. spk_times_arr.shape: (16318817,), 
         # Set the PBE_id of the spikes dataframe:
         spk_df.loc[:, 'PBE_id'] = spike_pbe_identity_arr
         # spk_df['PBE_id'] = spike_pbe_identity_arr
