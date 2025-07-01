@@ -24,14 +24,14 @@ class DataSessionLoader:
     
     # KDiba Old Format:
     @staticmethod
-    def bapun_data_session(basedir=r'R:\data\Bapun\Day5TwoNovel', override_parameters_flat_keypaths_dict=None, **kwargs):
+    def bapun_data_session(basedir=r'H:/Data/Bapun/RatS/Day5TwoNovel', override_parameters_flat_keypaths_dict=None, **kwargs):
         _test_session = BapunDataSessionFormatRegisteredClass.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
         _test_session, loaded_file_record_list = BapunDataSessionFormatRegisteredClass.load_session(_test_session, **kwargs)
         return _test_session
         
     # KDiba Old Format:
     @staticmethod
-    def kdiba_old_format_session(basedir=r'R:\data\KDIBA\gor01\one\2006-6-07_11-26-53', override_parameters_flat_keypaths_dict=None):
+    def kdiba_old_format_session(basedir=r'R:/data/KDIBA/gor01/one/2006-6-07_11-26-53', override_parameters_flat_keypaths_dict=None):
         _test_session = KDibaOldDataSessionFormatRegisteredClass.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
         _test_session, loaded_file_record_list = KDibaOldDataSessionFormatRegisteredClass.load_session(_test_session)
         return _test_session
@@ -40,7 +40,7 @@ class DataSessionLoader:
     
     # RachelFormat:
     @staticmethod
-    def rachel_format_session(basedir=r'R:\data\Rachel\merged_M1_20211123_raw_phy', override_parameters_flat_keypaths_dict=None):
+    def rachel_format_session(basedir=r'R:/data/Rachel/merged_M1_20211123_raw_phy', override_parameters_flat_keypaths_dict=None):
         _test_session = RachelDataSessionFormat.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
         _test_session, loaded_file_record_list = RachelDataSessionFormat.load_session(_test_session)
         return _test_session
