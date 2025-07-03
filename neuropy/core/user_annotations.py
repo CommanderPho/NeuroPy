@@ -918,7 +918,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'),
-            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?!
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?! Has horrible noise.
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), # 2024-10-04 - very bad position tracking data (jumping around everywhere at high frequency)
         ]
@@ -1187,11 +1187,9 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
                             # from_mat_lims_grid_bin_bounds: BoundsRect = deepcopy(from_mat_cm_lims_grid_bin_bounds)
                             # _updated_config_dict['new_grid_bin_bounds'] = from_mat_lims_grid_bin_bounds.extents ## how it used to be pre 2025-01-14 16:58 
                             
-
                             _updated_config_dict['new_cm_grid_bin_bounds'] = from_mat_cm_lims_grid_bin_bounds.extents
                             _updated_config_dict['new_unit_grid_bin_bounds'] = from_mat_unit_lims_grid_bin_bounds.extents
-                            
-
+                        
 
                             ## 2025-01-14 16:58 Use Unit-length Grid bin bounds:
                             from_mat_lims_grid_bin_bounds: BoundsRect = deepcopy(from_mat_unit_lims_grid_bin_bounds)
