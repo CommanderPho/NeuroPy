@@ -1123,7 +1123,7 @@ class FormattedFigureText:
         self.setup_margins(fig, **kwargs)
         # Add flexitext
         top_margin, left_margin, bottom_margin = kwargs.get('top_margin', self.top_margin), kwargs.get('left_margin', self.left_margin), kwargs.get('bottom_margin', self.bottom_margin)
-        title_text_obj = flexitext(left_margin, top_margin, 'long ($L$)|short($S$) firing rate indicies', va="bottom", xycoords="figure fraction")
+        title_text_obj = flexitext(left_margin, top_margin, 'long ($L$)|short($S$) firing rate indices', va="bottom", xycoords="figure fraction")
         footer_text_obj = flexitext((self.left_margin*0.1), (self.bottom_margin*0.25), self._build_footer_string(active_context=active_context), va="top", xycoords="figure fraction")
         return title_text_obj, footer_text_obj
 
