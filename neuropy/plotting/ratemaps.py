@@ -431,7 +431,7 @@ def plot_ratemap_2D(ratemap: Ratemap, computation_config=None, included_unit_ind
 @safely_accepts_kwargs
 def plot_ratemap_1D(ratemap: Ratemap, normalize_xbin=False, fignum=None, fig=None, ax=None, pad=2, normalize_tuning_curve=False, sortby=None, cmap=None, included_unit_indicies=None, included_unit_neuron_IDs=None,
     brev_mode: PlotStringBrevityModeEnum=PlotStringBrevityModeEnum.NONE, plot_variable: enumTuningMap2DPlotVariables=enumTuningMap2DPlotVariables.TUNING_MAPS,
-    curve_hatch_style = None, missing_aclu_string_formatter=None, single_cell_pfmap_processing_fn=None, active_context=None, use_flexitext_titles=True, use_flexitext_ticks=False, ytick_location_shift:float=0.5, plot_zero_baselines:bool=True, skip_figure_titles:bool=False, flat_stack_mode:bool=False, debug_print=False):
+    curve_hatch_style = None, missing_aclu_string_formatter=None, single_cell_pfmap_processing_fn=None, active_context=None, use_flexitext_titles=True, use_flexitext_ticks=False, ytick_location_shift:float=0.5, plot_zero_baselines:bool=True, skip_figure_titles:bool=False, flat_stack_mode:bool=False, aclu_labels_strokewidth: float = 0.5, debug_print=False):
     """Plot 1D place fields stacked
 
     Parameters
@@ -520,9 +520,12 @@ def plot_ratemap_1D(ratemap: Ratemap, normalize_xbin=False, fignum=None, fig=Non
             if debug_print:
                 print(f'normalizing tuning curves...')
             active_maps = mathutil.min_max_scaler(active_maps)
+            _override_pad_value = 1
+            # _override_pad_value = 1.5 ## this indeed causes overlap
+            
             if pad != 1:
-                module_logger.warning(f'WARNING: when normalize_tuning_curve=True pad will be set to 1, the current value of pad={pad} will be overriden.')
-            pad = 1
+                module_logger.warning(f'WARNING: when normalize_tuning_curve=True pad will be set to {_override_pad_value}, the current value of pad={pad} will be overriden.')
+            pad = _override_pad_value #TODO 2025-07-04 11:06: - [ ] Why is this done? Just to make them fit perfectly? Can't we have a little extra margin?
 
     ## Sorting (via sortby):
     if n_neurons == 0:
@@ -672,8 +675,8 @@ def plot_ratemap_1D(ratemap: Ratemap, normalize_xbin=False, fignum=None, fig=Non
                 color = neurons_colors_array[:, i]
                 ## Cell color is stroke color mode: black text with stroke colored with cell-specific color:
                 a_tick_label.set_color('black')
-                strokewidth = 0.5
-                a_tick_label.set_path_effects([withStroke(foreground=color, linewidth=strokewidth)])
+                
+                a_tick_label.set_path_effects([withStroke(foreground=color, linewidth=aclu_labels_strokewidth)])
         else:
             from flexitext import flexitext ## flexitext tick-labels version
 
