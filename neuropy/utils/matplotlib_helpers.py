@@ -1817,7 +1817,8 @@ def perform_update_title_subtitle(fig=None, ax=None, title_string:Optional[str]=
             
 
     if title_string is not None:
-        fig.canvas.manager.set_window_title(title_string) # sets the window's title
+        if fig.canvas.manager is not None:
+            fig.canvas.manager.set_window_title(title_string) # sets the window's title
 
     if (active_context is None) or (not use_flexitext_titles):
         if title_string is not None:
