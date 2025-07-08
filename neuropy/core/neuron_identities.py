@@ -159,12 +159,16 @@ class NeuronIdentityDataframeAccessor:
     # ==================================================================================================================== #
     
     @classmethod
-    def _add_global_uid(cls, neuron_indexed_df: pd.DataFrame, session_context: "IdentifyingContext") -> pd.DataFrame:
+    def _add_global_uid(cls, neuron_indexed_df: pd.DataFrame, session_context: "IdentifyingContext", force_overwrite: bool=False) -> pd.DataFrame:
         """ adds the ['session_uid', 'neuron_uid'] columns to the dataframe. """
         assert 'aclu' in neuron_indexed_df.columns
         session_uid: str = session_context.get_description(separator="|", include_property_names=False)
-        neuron_indexed_df['session_uid'] = session_uid  # Provide an appropriate session identifier here
-        neuron_indexed_df['neuron_uid'] = neuron_indexed_df.apply(lambda row: f"{session_uid}|{str(row['aclu'])}", axis=1) 
+        if ('session_uid' not in neuron_indexed_df.columns) or force_overwrite:
+            neuron_indexed_df['session_uid'] = session_uid  # Provide an appropriate session identifier here
+        if ('neuron_uid' not in neuron_indexed_df.columns) or force_overwrite:
+            # neuron_indexed_df['neuron_uid'] = neuron_indexed_df.apply(lambda row: f"{session_uid}|{str(row['aclu'])}", axis=1) 
+            neuron_indexed_df['neuron_uid'] = session_uid + "|" + neuron_indexed_df['aclu'].astype(str) # Vectorized string concatenation - much faster than apply()
+
         return neuron_indexed_df
 
 
@@ -209,7 +213,7 @@ class NeuronIdentityDataframeAccessor:
         # Reordering the columns to place the new columns on the left
         # result_df = result_df[['format_name', 'animal', 'exper_name', 'session_name', 'aclu', 'shank', 'cluster', 'qclu', 'neuron_type', 'active_set_membership', 'lap_delta_minus', 'lap_delta_plus', 'replay_delta_minus', 'replay_delta_plus']]
         if curr_session_context is not None:
-            result_df = self._add_global_uid(neuron_indexed_df=result_df, session_context=curr_session_context)
+            result_df = self._add_global_uid(neuron_indexed_df=result_df, session_context=curr_session_context) ## this is actually moderately slow, e.g. a few seconds
 
         return result_df
 
