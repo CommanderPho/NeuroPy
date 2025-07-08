@@ -95,6 +95,9 @@ class ContinuousPeakLocationRepresentingMixin:
     """ Implementors provides peaks in position-space (e.g. a location on the maze) which are computed from a `ContinuousPeakLocationRepresentingMixin_peak_curves_variable` it provides, such as the turning curves.
         
     from neuropy.utils.mixins.peak_location_representing import ContinuousPeakLocationRepresentingMixin
+    Uses:
+        .pdf_normalized_tuning_curves
+        
     
     Provides:
         peak_tuning_curve_center_of_mass_bin_coordinates
@@ -117,7 +120,6 @@ class ContinuousPeakLocationRepresentingMixin:
         return compute_placefield_center_of_mass_positions(self.ContinuousPeakLocationRepresentingMixin_peak_curves_variable, xbin=self.xbin, ybin=self.ybin)
     
                 
-
 
     def get_tuning_curve_peaks_all_info_dict(self, peak_mode='peaks', enable_sort_subpeaks_by_peak_heights: bool = True, **find_peaks_kwargs) -> Dict:
         """ returns the peaks in coordinate bin space 
@@ -247,6 +249,7 @@ class ContinuousPeakLocationRepresentingMixin:
         else:
             raise NotImplementedError(f"Unknown peak_mode: '{peak_mode}' specified. Known modes: ['CoM', 'peaks']")
     
+
     @classmethod
     def peaks_dict_to_df(cls, peaks_dict: Dict, peaks_results_dict: Dict) -> pd.DataFrame:
         # peaks_dict, peaks_results_dict
