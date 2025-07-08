@@ -2,7 +2,37 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from .. import core
 import numpy as np
+import pandas as pd
 from neuropy.utils.colors_util import ColorsUtil
+
+
+def _adaptive_spike_downsample(spikes_df: pd.DataFrame, time_variable_name: str='t_rel_seconds', target_density: int=100):
+    """
+    Adaptively downsample spikes based on time density
+
+    from neuropy.plotting.spikes import _adaptive_spike_downsample
+
+    """
+    if len(spikes_df) <= target_density:
+        return spikes_df
+
+    # Calculate time bins
+    time_range = spikes_df[time_variable_name].max() - spikes_df[time_variable_name].min()
+    n_bins = min(50, len(spikes_df) // 20)  # Adaptive number of bins
+
+    # Group by time bins and sample from each
+    spikes_df_copy = spikes_df.copy()
+    spikes_df_copy['time_bin'] = pd.cut(spikes_df_copy[time_variable_name], bins=n_bins)
+
+    # Sample proportionally from each bin
+    samples_per_bin = max(1, target_density // n_bins)
+    downsampled = spikes_df_copy.groupby('time_bin').apply(
+        lambda x: x.sample(min(len(x), samples_per_bin), random_state=42)
+    ).reset_index(drop=True)
+
+    return downsampled.drop('time_bin', axis=1)
+
+
 
 def plot_raster(
     neurons: core.Neurons,
