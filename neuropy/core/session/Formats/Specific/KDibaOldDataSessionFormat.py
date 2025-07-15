@@ -1116,17 +1116,33 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
             laps_df
         """
         ## Get laps in/out
-        session_laps_mat_file_path = Path(session.basepath).joinpath('{}.laps_info.mat'.format(session.name))
-        laps_mat_file = import_mat_file(mat_import_file=session_laps_mat_file_path)
-        mat_variables_to_extract = ['lap_id', 'maze_id','start_spike_index', 'end_spike_index', 'start_t', 'end_t', 'start_t_seconds', 'end_t_seconds', 'duration_seconds']
-        num_mat_variables = len(mat_variables_to_extract)
-        flat_var_out_dict = dict()
-        for i in np.arange(num_mat_variables):
-            curr_var_name = mat_variables_to_extract[i]
-            flat_var_out_dict[curr_var_name] = laps_mat_file[curr_var_name].flatten()
-            
-        laps_df = Laps.build_dataframe(flat_var_out_dict, time_variable_name=time_variable_name, absolute_start_timestamp=session.config.absolute_start_timestamp)  # 1014937 rows × 11 columns
-        session.laps = Laps(laps_df) # new DataFrame-based approach
+        override_laps_df: Optional[pd.DataFrame] = UserAnnotationsManager.get_hardcoded_laps_override_dict().get(session.get_context(), None)
+        if override_laps_df is not None:
+            ## use the override
+            print(f'\t using UserAnnotationsManager.get_hardcoded_laps_override_dict() laps for session laps!')    
+            print(f'\toverriding laps....')
+            laps_df: pd.DataFrame = deepcopy(override_laps_df) ## copy the override_laps_df to laps_df
+            laps_df['lap_id'] = laps_df.index + 1
+            laps_df['label'] = laps_df.index
+            override_laps_obj: Laps = Laps(laps=laps_df)
+            override_laps_obj.update_lap_dir_from_smoothed_velocity(pos_input=session.position)
+            laps_df = override_laps_obj.to_dataframe()
+            session.laps = deepcopy(override_laps_obj) # new DataFrame-based approach
+
+        else:
+            ## use the .mat file approach
+            session_laps_mat_file_path = Path(session.basepath).joinpath('{}.laps_info.mat'.format(session.name))
+            laps_mat_file = import_mat_file(mat_import_file=session_laps_mat_file_path)
+            mat_variables_to_extract = ['lap_id', 'maze_id','start_spike_index', 'end_spike_index', 'start_t', 'end_t', 'start_t_seconds', 'end_t_seconds', 'duration_seconds']
+            num_mat_variables = len(mat_variables_to_extract)
+            flat_var_out_dict = dict()
+            for i in np.arange(num_mat_variables):
+                curr_var_name = mat_variables_to_extract[i]
+                flat_var_out_dict[curr_var_name] = laps_mat_file[curr_var_name].flatten()
+                
+            laps_df = Laps.build_dataframe(flat_var_out_dict, time_variable_name=time_variable_name, absolute_start_timestamp=session.config.absolute_start_timestamp)  # 1014937 rows × 11 columns
+            session.laps = Laps(laps_df) # new DataFrame-based approach        
+
         return session, laps_df
     
     
