@@ -1118,7 +1118,7 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         ## Get laps in/out
         session_laps_mat_file_path = Path(session.basepath).joinpath('{}.laps_info.mat'.format(session.name))
         laps_mat_file = import_mat_file(mat_import_file=session_laps_mat_file_path)
-        mat_variables_to_extract = ['lap_id','maze_id','start_spike_index', 'end_spike_index', 'start_t', 'end_t', 'start_t_seconds', 'end_t_seconds', 'duration_seconds']
+        mat_variables_to_extract = ['lap_id', 'maze_id','start_spike_index', 'end_spike_index', 'start_t', 'end_t', 'start_t_seconds', 'end_t_seconds', 'duration_seconds']
         num_mat_variables = len(mat_variables_to_extract)
         flat_var_out_dict = dict()
         for i in np.arange(num_mat_variables):

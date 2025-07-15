@@ -1023,7 +1023,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         
         """
         laps_override_dict = {
-        IdentifyingContext(format_name= 'kdiba', animal= 'gor01', exper_name= 'one', session_name= '2006-6-07_11-26-53'): np.array([
+        IdentifyingContext(format_name= 'kdiba', animal= 'gor01', exper_name= 'one', session_name= '2006-6-07_11-26-53'): np.array([ # 2025-07-15 11:24 
             [5.25043, 13.6923, 0],
             [29.3087, 39.605, 1],
             [59.2954, 68.282, 0],
@@ -1157,7 +1157,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             [1654.45, 1658.09, 0]]),
         }
 
-        ## Bad/Icky Bimodal Cells:
+
         return {k:pd.DataFrame(v, columns=['start', 'stop', 'lap_dir']) for k, v in laps_override_dict.items()}
 
 
