@@ -568,8 +568,8 @@ class PositionAccessor(PositionDimDataMixin, PositionComputedDataMixin, TimeSlic
 
 
     def adding_lap_info(self, laps_df: pd.DataFrame, inplace:bool=False, debug_print:bool=False):
-        """ Adds a 'lap' column to the position dataframe:
-            Also adds a 'lap_dir' column, containing 0 if it's an outbound trial, 1 if it's an inbound trial, and -1 if it's neither.
+        """ Adds the ['lap', 'lap_dir'] columns to the position dataframe:
+            - 'lap_dir' column, containing 0 if it's an outbound trial, 1 if it's an inbound trial, and -1 if it's neither.
         Usage:
         
             from neuropy.core.position import adding_lap_info_to_position_df

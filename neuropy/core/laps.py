@@ -317,6 +317,10 @@ class Laps(Epoch):
         global_pos.compute_smoothed_position_info()
         
         pos_df: pd.DataFrame = global_pos.to_dataframe()
+        if 'lap' not in pos_df.columns:
+            ## adds the 'lap' and 'lap_dir' columns
+            pos_df = pos_df.position.adding_lap_info(laps_df=laps_df, inplace=False)
+        
         pos_df['lap'].unique()
 
         # Filter rows based on column: 'lap'
@@ -368,6 +372,8 @@ class Laps(Epoch):
                          t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, # for adding_maze_id_if_needed
                          global_session: Optional[Union[Position, DataSession]]=None, # for _compute_lap_dir_from_smoothed_velocity
                          replace_existing:bool=True):
+        """ this function is pretty bad. 
+        """
         # laps_df[['lap_id','maze_id','start_spike_index', 'end_spike_index']] = laps_df[['lap_id','maze_id','start_spike_index', 'end_spike_index']].astype('int')
         laps_df[['lap_id']] = laps_df[['lap_id']].astype('int')
 
