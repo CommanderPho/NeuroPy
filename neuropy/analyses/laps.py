@@ -52,13 +52,13 @@ def _subfn_perform_compute_laps_spike_indicies(laps_df: pd.DataFrame, spikes_df:
     return laps_df
 
 
-def _subfn_compute_laps_spike_indicies(laps_obj: Laps, spikes_df: pd.DataFrame, time_variable_name='t_rel_seconds'):
+def _subfn_compute_laps_spike_indicies(laps_obj: Laps, spikes_df: pd.DataFrame, time_variable_name='t_rel_seconds', **kwargs):
     """ Determine the spikes included with each computed lap
 
     Called only by `estimation_session_laps(...)`
     """
     laps_obj._data = _subfn_perform_compute_laps_spike_indicies(laps_obj._data, spikes_df, time_variable_name=time_variable_name) # adds the 'start_spike_index' and 'end_spike_index' columns to the dataframe
-    laps_obj._data = Laps._update_dataframe_computed_vars(laps_obj._data) # call this to update the column types and any computed columns that depend on the added columns (such as num_spikes)
+    laps_obj._data = Laps._update_dataframe_computed_vars(laps_obj._data, **kwargs) # call this to update the column types and any computed columns that depend on the added columns (such as num_spikes)
     return laps_obj
 
 def _subfn_perform_estimate_lap_splits_1D(pos_df: pd.DataFrame, hardcoded_track_midpoint_x=150.0, position_column_name:str='x', velocity_column_name:str='velocity_x_smooth', debug_print=False):
@@ -244,7 +244,7 @@ def estimate_session_laps(sess, N=20, should_backup_extant_laps_obj=False, shoul
         time_variable_name = 't_rel_seconds'
     else:
         time_variable_name = spikes_df.spikes.time_variable_name # get time_variable_name from the spikes_df object
-    custom_test_laps_obj = _subfn_compute_laps_spike_indicies(custom_test_laps_obj, spikes_df, time_variable_name=time_variable_name)
+    custom_test_laps_obj = _subfn_compute_laps_spike_indicies(custom_test_laps_obj, spikes_df, time_variable_name=time_variable_name, global_session=sess)
     sess.laps = deepcopy(custom_test_laps_obj) # replace the laps obj
 
     if should_plot_laps_2d:
