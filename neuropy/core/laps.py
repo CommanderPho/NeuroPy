@@ -282,62 +282,6 @@ class LapsAccessor(EpochsAccessor):
         return laps_df
 
 
-    # @function_attributes(short_name=None, tags=['laps', 'lap_dir', 'OLD'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2024-01-17 00:00', related_items=[])
-    # @classmethod
-    # def _perform_compute_lap_dir_from_smoothed_velocity(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession], replace_existing:bool=True) -> pd.DataFrame:
-    #     """ 2024-01-17 - uses the smoothed velocity to determine the proper lap direction
-
-    #     Adds Columns to laps_df: ['is_LR_dir']
-        
-    #     for LR_dir, values become more positive with time
-
-    #     global_session = deepcopy(curr_active_pipeline.filtered_sessions[global_epoch_name])
-    #     global_laps = compute_lap_dir_from_smoothed_velocity(global_session)
-    #     global_laps
-
-    #     #TODO 2025-07-16 06:11: - [ ] Observed not to work very well!!
-        
-    #     """
-    #     from neuropy.core.position import Position
-        
-    #     n_laps = np.shape(laps_df)[0]
-    #     if isinstance(global_session, Position):
-    #         global_pos_obj = global_session # passed variable is already a Position object
-    #     else:
-    #         # passed variable is hopefully a DataSession: Extract the position from the passed in session.
-    #         global_pos_obj = global_session.position
-            
-    #     global_pos_obj.compute_higher_order_derivatives()
-    #     global_pos_obj.compute_smoothed_position_info()
-        
-    #     pos_df: pd.DataFrame = global_pos_obj.to_dataframe()
-
-    #     ## adds the 'lap' and 'lap_dir' columns -- always do this so they correctly correspond to any updated laps
-    #     pos_df = pos_df.position.adding_lap_info(laps_df=laps_df, inplace=False)
-        
-    #     # Filter rows based on column: 'lap'
-    #     pos_df = pos_df[pos_df['lap'].notna()]
-        
-    #     # Perform aggregation grouped on column: 'lap'
-    #     lap_speed_means = pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean')).reset_index()
-
-    #     # Ensure alignment between pos_df['lap'] and laps_df['lap_id']
-    #     laps_in_both = laps_df.merge(lap_speed_means, left_on='lap_id', right_on='lap', how='left')
-
-    #     # Create the is_LR_dir boolean array
-    #     is_LR_dir = (laps_in_both['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
-
-    #     # is_LR_dir = ((pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean'))).reset_index()['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
-    #     # is_LR_dir = ((pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean'))).reset_index()['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
-
-    #     # could potentially improve by finding velocity only over a certain threshold, or looking at the direction of the peak velocity.
-
-    #     ## Update the pos_df now with the new info
-    #     global_pos_obj.adding_lap_info(laps_df=laps_df)
-
-    #     return laps_df
-    
-
     # ==================================================================================================================== #
     # Class methods moved from Laps class                                                                                 #
     # ==================================================================================================================== #
