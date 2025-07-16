@@ -232,10 +232,8 @@ class LapsAccessor(EpochsAccessor):
         
         for LR_dir, values become more positive with time
 
-
-
         """
-        if not replace_existing:
+        if (not replace_existing):
             if ('is_LR_dir' in laps_df.columns) and ('lap_dir' in laps_df.columns):
                 print(f'WARN: (replace_existing == False) and ["is_LR_dir", "lap_dir"] already exist in laps_df. Skipping recomputation.')
                 return laps_df
@@ -267,6 +265,14 @@ class LapsAccessor(EpochsAccessor):
         lap_displacement_df['is_LR_dir'] = (lap_displacement_df['displacement'] > 0.0) # increasing values => LR_dir
         lap_displacement_df['lap_dir'] = np.logical_not(lap_displacement_df['is_LR_dir']).astype(int) # 1 for RL, 0 for LR
         # lap_displacement_df = lap_displacement_df.set_index('lap')
+
+        # Drop existing columns in 'laps_df' that will be replaced by the `lap_displacement_df` versions. 
+        # If we don't do this we end up with duplicate columns like: ['lap_x', 'is_LR_dir_x', 'lap_dir_y', 'lap_dir_x', 'lap_y', 'is_LR_dir_y', 'lap_dir_y', 'lap', 'is_LR_dir', 'lap_dir'
+        columns_to_drop = ['lap', 'is_LR_dir', 'lap_dir']
+        existing_columns = [col for col in columns_to_drop if col in laps_df.columns]
+        if existing_columns:
+            laps_df = laps_df.drop(columns=existing_columns)
+
         ## Add in corrected columns to laps_df:
         laps_df = laps_df.merge(lap_displacement_df[['lap', 'is_LR_dir', 'lap_dir']], left_on='lap_id', right_on='lap', how='left')
         
