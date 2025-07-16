@@ -646,7 +646,7 @@ class Laps(Epoch):
             active_global_laps_df
 
         """
-        self._df = self._df.laps_accessor.update_lap_dir_from_net_displacement(global_session=pos_input, **kwargs)
+        self._df = self._df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=pos_input, **kwargs)
         assert 'is_LR_dir' in self._df.columns, f"'is_LR_dir' is still missing even after adding it?!?"
         return None
         
