@@ -490,9 +490,7 @@ class LapsAccessor(EpochsAccessor):
                             global_session: Optional[Union[Position, DataSession]] = None) -> pd.DataFrame:
         """ Builds a laps dataframe from a mat file dictionary """
         laps_df = pd.DataFrame(mat_file_loaded_dict)
-        laps_df = laps_df.laps_accessor.update_computed_columns(t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=True)
-        # laps_df = cls._perform_update_dataframe_computed_vars(laps_df, t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=True)
-
+        
         print('setting laps object.')
         if time_variable_name == 't_seconds':
             t_variable_column_names = ['start_t_seconds', 'end_t_seconds']
@@ -509,6 +507,11 @@ class LapsAccessor(EpochsAccessor):
 
         # finally assign the 'start' and 'stop' time columns to the appropriate variable
         laps_df[['start','stop']] = t_variable
+        
+        laps_df = laps_df.laps_accessor.update_computed_columns(t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=True)
+        # laps_df = cls._perform_update_dataframe_computed_vars(laps_df, t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=True)
+
+
         return laps_df
 
 
