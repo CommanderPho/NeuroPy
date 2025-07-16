@@ -214,7 +214,7 @@ class LapsAccessor(EpochsAccessor):
                             replace_existing: bool = True) -> pd.DataFrame:
         """ De-duplicates, sorts, and filters by duration any potential laps. Pure (does not modify `original_laps_epoch_df`)
         Usage:
-            override_laps_df = override_laps_df.laps_accessor.get_valid_laps_epochs_df(rebuild_lap_id_columns=True)
+            override_laps_df = override_laps_df.laps_accessor.update_computed_columns(replace_existing=True)
         """
         return self._perform_update_dataframe_computed_vars(laps_df=self._obj, t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=replace_existing)
         
@@ -578,7 +578,7 @@ class Laps(Epoch):
         """
         super().__init__(laps, metadata=metadata)
         # self._data = laps # set to the laps dataframe
-        self._df = Laps._update_dataframe_computed_vars(self._df, replace_existing=False) ## DO NOT allow replacement of the good epochs with the bad ones.
+        self._df = self._df.laps_accessor.laps_accessor.update_computed_columns(replace_existing=False) ## DO NOT allow replacement of the good epochs with the bad ones.
         self._df = self._df.sort_values(by=['start']) # sorts all values in ascending order
 
     @property
@@ -650,6 +650,17 @@ class Laps(Epoch):
         return None
         
 
+    def update_computed_columns(self, t_start: Optional[float] = None, t_delta: Optional[float] = None, t_end: Optional[float] = None,
+                            global_session: Optional[Union[Position, DataSession]] = None,
+                            replace_existing: bool = True) -> None:
+        """ De-duplicates, sorts, and filters by duration any potential laps. Pure (does not modify `original_laps_epoch_df`)
+        Usage:
+            override_laps_df = override_laps_df.laps_accessor.update_computed_columns(replace_existing=True)
+        """
+        self._df = self._df.laps_accessor.update_computed_columns(t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=replace_existing)        
+        return None
+        
+
 
 
     def adding_true_decoder_identifier(self, t_start: float, t_delta: float, t_end: float, labels_column_name: str='lap_id') -> pd.DataFrame:
@@ -718,17 +729,6 @@ class Laps(Epoch):
             state['_df'] = state.pop('_data', None)
         self.__dict__.update(state)
             
-
-    # ==================================================================================================================== #
-    # Class Methods                                                                                                        #
-    # ==================================================================================================================== #
-
-    @classmethod
-    def _compute_lap_dir_from_smoothed_velocity(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession], replace_existing:bool=True) -> pd.DataFrame:
-        """ 2024-01-17 - uses the smoothed velocity to determine the proper lap direction
-        """
-        return laps_df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=global_session) ## uses laps_accessor
-        
     
     # ==================================================================================================================== #
     # Class Methods delegated to LapsAccessor                                                                             #
@@ -746,24 +746,12 @@ class Laps(Epoch):
         return LapsAccessor.ensure_valid_laps_epochs_df(original_laps_epoch_df, rebuild_lap_id_columns)
 
     @classmethod
-    def _compute_lap_dir_from_smoothed_velocity(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession], replace_existing: bool = True) -> pd.DataFrame:
-        """ 2024-01-17 - uses the smoothed velocity to determine the proper lap direction """
-        return LapsAccessor._perform_compute_lap_dir_from_smoothed_velocity(laps_df, global_session, replace_existing)
-
-    @classmethod
     def _update_dataframe_computed_vars(cls, laps_df: pd.DataFrame,
                         t_start: Optional[float] = None, t_delta: Optional[float] = None, t_end: Optional[float] = None,
                         global_session: Optional[Union[Position, DataSession]] = None,
                         replace_existing: bool = True):
         """ this function is pretty bad. """
         return LapsAccessor._perform_update_dataframe_computed_vars(laps_df, t_start, t_delta, t_end, global_session, replace_existing)
-
-    # @classmethod
-    # def init_dataframe_from_mat_loaded_dict(cls, mat_file_loaded_dict: dict, time_variable_name='t_rel_seconds', absolute_start_timestamp=None,
-    #                     t_start: Optional[float] = None, t_delta: Optional[float] = None, t_end: Optional[float] = None,
-    #                     global_session: Optional[Union[Position, DataSession]] = None):
-    #     """ Builds a laps dataframe from a mat file dictionary """
-    #     return LapsAccessor.init_dataframe_from_mat_loaded_dict(mat_file_loaded_dict, time_variable_name=time_variable_name, absolute_start_timestamp=absolute_start_timestamp, t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session)
 
     @classmethod
     def init_from_estimated_laps(cls, pos_t_rel_seconds, desc_crossing_begining_idxs, desc_crossing_ending_idxs, asc_crossing_begining_idxs, asc_crossing_ending_idxs, debug_print=True,
