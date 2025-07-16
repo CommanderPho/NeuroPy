@@ -445,7 +445,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
 
 
 
-def adding_lap_info_to_position_df(position_df: pd.DataFrame, laps_df: pd.DataFrame, debug_print:bool=False):
+def adding_lap_info_to_position_df(position_df: pd.DataFrame, laps_df: pd.DataFrame, laps_df_lap_id_col_name:str='lap_id', debug_print:bool=False):
     """ Adds a 'lap' column to the position dataframe:
         Also adds a 'lap_dir' column, containing 0 if it's an outbound trial, 1 if it's an inbound trial, and -1 if it's neither.
     Usage:
@@ -461,22 +461,31 @@ def adding_lap_info_to_position_df(position_df: pd.DataFrame, laps_df: pd.DataFr
         self.position._data['lap_dir'] = curr_position_df['lap_dir']
         
     """
-    assert 'lap_id' in laps_df
+    assert laps_df_lap_id_col_name in laps_df, f"laps_df_lap_id_col_name: '{laps_df_lap_id_col_name}' is not in laps_df: {list(laps_df.columns)}"
     
     possible_lap_columns_to_add = ['maze_id', 'lap_dir', 'is_LR_dir', 'truth_decoder_name']
     possible_lap_columns_to_add_not_found_values = {'maze_id':-1, 'lap_dir':-1, 'is_LR_dir':False, 'truth_decoder_name':''}
     lap_columns_to_add = [v for v in possible_lap_columns_to_add if v in laps_df.columns] ## can only add the columns if they're present in laps_df
-
+    #TODO 2025-07-16 06:25: - [ ] `lap_columns_to_add` NOT YET USED
     
     position_df['lap'] = np.NaN # set all 'lap' column to NaN
-    position_df['lap_dir'] = np.full_like(position_df['lap'], possible_lap_columns_to_add_not_found_values['lap_dir']) # set all 'lap_dir' to -1
 
-    unique_lap_ids = np.unique(laps_df['lap_id'])
-    lap_id_to_dir_dict = {a_row.lap_id:a_row.lap_dir for a_row in laps_df[['lap_id', 'lap_dir']].itertuples(index=False)}
-    if debug_print:
-        print(f'lap_id_to_dir_dict: {lap_id_to_dir_dict}')
-    assert len(unique_lap_ids) == len(lap_id_to_dir_dict)
+    unique_lap_ids = np.unique(laps_df[laps_df_lap_id_col_name])
     
+    lap_id_to_dir_dict = None
+    has_valid_lap_dir: bool = ('lap_dir' in laps_df.columns)
+    if has_valid_lap_dir:
+        ## initialize pos_df's 'lap_dir' column to -1
+        position_df['lap_dir'] = np.full_like(position_df['lap'], possible_lap_columns_to_add_not_found_values['lap_dir']) # set all 'lap_dir' to -1
+        lap_id_to_dir_dict = {a_row.lap_id:a_row.lap_dir for a_row in laps_df[[laps_df_lap_id_col_name, 'lap_dir']].itertuples(index=False)}
+        
+        if debug_print:
+            print(f'lap_id_to_dir_dict: {lap_id_to_dir_dict}')
+        assert len(unique_lap_ids) == len(lap_id_to_dir_dict)
+    else:
+        if debug_print:
+            print(f'WARN: laps_df is missing the "lap_dir" columnm, so no "lap_dir" will be added to the pos_df')
+
     n_laps: int = len(unique_lap_ids)
     for i in np.arange(n_laps):
         curr_lap_id = laps_df.loc[laps_df.index[i], 'lap_id'] # The second epoch in a session doesn't start with indicies of the first lap, so instead we need to get laps_df.index[i] to get the correct index
@@ -486,13 +495,11 @@ def adding_lap_info_to_position_df(position_df: pd.DataFrame, laps_df: pd.DataFr
             print('lap[{}]: ({}, {}): '.format(curr_lap_id, curr_lap_t_start, curr_lap_t_stop))
         curr_lap_position_df_is_included = position_df['t'].between(curr_lap_t_start, curr_lap_t_stop, inclusive='both') # returns a boolean array indicating inclusion in teh current lap
         position_df.loc[curr_lap_position_df_is_included, ['lap']] = curr_lap_id # set the 'lap' identifier on the object
-        curr_lap_dir = lap_id_to_dir_dict[curr_lap_id]
         
-        position_df.loc[curr_lap_position_df_is_included, ['lap_dir']] = curr_lap_dir # set the 'lap' identifier on the object
+        if has_valid_lap_dir:
+            curr_lap_dir = lap_id_to_dir_dict[curr_lap_id]        
+            position_df.loc[curr_lap_position_df_is_included, ['lap_dir']] = curr_lap_dir # set the 'lap' identifier on the object
 
-        # curr_position_df.query('-0.5 <= t < 0.5')
-    
-    # laps_df.epoch
 
     # update the lap_dir variable:
     # position_df.loc[np.logical_not(np.isnan(position_df.lap.to_numpy())), 'lap_dir'] = np.mod(position_df.loc[np.logical_not(np.isnan(position_df.lap.to_numpy())), 'lap'], 2.0)

@@ -6,7 +6,7 @@ from typing import Optional, Union
 import numpy as np
 import pandas as pd
 from pandas.core.frame import DataFrame
-from neuropy.core.epoch import Epoch, ensure_dataframe
+from neuropy.core.epoch import Epoch, ensure_dataframe, ensure_Epoch, EpochsAccessor
 
 if TYPE_CHECKING:
     from neuropy.core import Position
@@ -22,6 +22,163 @@ from neuropy.utils.efficient_interval_search import get_non_overlapping_epochs, 
 
 ## Import:
 # from neuropy.core.laps import Laps
+
+
+@pd.api.extensions.register_dataframe_accessor("laps_accessor")
+class LapsAccessor(EpochsAccessor):
+    """ A Pandas DataFrame-based Laps helper.
+    
+    from neuropy.core.laps import LapsAccessor
+    
+    
+    """
+    
+    def __init__(self, pandas_obj):
+        self._validate(pandas_obj)
+        self._obj = pandas_obj
+
+    @staticmethod
+    def _validate(obj):
+        # verify there is a column for timestamps ('t') and a column for at least 1D positions ('x')        
+        if "lap_id" not in obj.columns:
+            raise AttributeError("Must have at least one lap identity variable: specifically 'lap_id' for LapsAccessor.")
+        
+        return EpochsAccessor._validate(obj)
+
+
+    # for PositionDimDataMixin & PositionComputedDataMixin
+    @property
+    def df(self):
+        return self._obj 
+    @df.setter
+    def df(self, value):
+        self._obj = value
+        
+    def to_Laps_obj(self, metadata=None) -> "Laps":
+        """ builds a Laps object from the LapsAccessor's dataframe 
+        Usage:
+            pos_df.position.to_Position_obj()
+        """
+        return Laps(self._obj, metadata=metadata)
+
+
+    # @function_attributes(short_name=None, tags=['laps', 'lap_dir', 'modern'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-07-16 06:10', related_items=[])
+    def compute_lap_dir_from_net_displacement(self, global_session: Union[Position, DataSession], **kwargs) -> pd.DataFrame:
+        """ 2025-07-16 - uses the smoothed velocity to determine the proper lap direction
+
+        Adds/Updates Columns in laps_df: ['is_LR_dir', 'lap_dir']
+        
+        for LR_dir, values become more positive with time
+
+        """
+        return self._compute_lap_dir_from_net_displacement(laps_df=self._obj, global_session=global_session, **kwargs)
+        
+
+    # ==================================================================================================================================================================================================================================================================================== #
+    # Classmethods                                                                                                                                                                                                                                                                         #
+    # ==================================================================================================================================================================================================================================================================================== #
+
+    # @function_attributes(short_name=None, tags=['laps', 'lap_dir', 'modern'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-07-16 06:10', related_items=[])
+    @classmethod
+    def _compute_lap_dir_from_net_displacement(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession]) -> pd.DataFrame:
+        """ 2025-07-16 - uses the smoothed velocity to determine the proper lap direction
+
+        Adds/Updates Columns in laps_df: ['is_LR_dir', 'lap_dir']
+        
+        for LR_dir, values become more positive with time
+
+        global_session = deepcopy(curr_active_pipeline.filtered_sessions[global_epoch_name])
+        global_laps = compute_lap_dir_from_smoothed_velocity(global_session)
+        global_laps
+
+        """
+        from neuropy.core.position import Position
+        
+        n_laps: int = np.shape(laps_df)[0]
+        if isinstance(global_session, Position):
+            global_pos = global_session # passed variable is already a Position object
+        else:
+            # passed variable is hopefully a DataSession: Extract the position from the passed in session.
+            global_pos = global_session.position
+            
+        global_pos.compute_higher_order_derivatives()
+        global_pos.compute_smoothed_position_info()
+        
+        pos_df: pd.DataFrame = global_pos.to_dataframe()
+
+        ## adds the 'lap' and 'lap_dir' columns -- always do this so they correctly correspond to any updated laps
+        pos_df = pos_df.position.adding_lap_info(laps_df=laps_df, inplace=False)
+
+        # Filter rows based on column: 'lap'
+        pos_df = pos_df[pos_df['lap'].notna()]
+        
+        ## 2025-07-16 05:45 - Compute instead based on total displacement -- lap_start, lap_end
+        lap_displacement_df: pd.DataFrame = pos_df.groupby(['lap']).agg(lin_pos_first=('lin_pos', 'first'), lin_pos_last=('lin_pos', 'last')).reset_index() ## find net displacement
+        lap_displacement_df['displacement'] = lap_displacement_df['lin_pos_last'] - lap_displacement_df['lin_pos_first']
+        lap_displacement_df['is_LR_dir'] = (lap_displacement_df['displacement'] > 0.0) # increasing values => LR_dir
+        lap_displacement_df['lap_dir'] = np.logical_not(lap_displacement_df['is_LR_dir']).astype(int) # 1 for RL, 0 for LR
+        # lap_displacement_df = lap_displacement_df.set_index('lap')
+        ## Add in corrected columns to laps_df:
+        laps_df = laps_df.merge(lap_displacement_df[['lap', 'is_LR_dir', 'lap_dir']], left_on='lap_id', right_on='lap', how='left')
+        return laps_df
+
+
+    # @function_attributes(short_name=None, tags=['laps', 'lap_dir', 'OLD'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2024-01-17 00:00', related_items=[])
+    @classmethod
+    def _compute_lap_dir_from_smoothed_velocity(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession], replace_existing:bool=True) -> pd.DataFrame:
+        """ 2024-01-17 - uses the smoothed velocity to determine the proper lap direction
+
+        Adds Columns to laps_df: ['is_LR_dir']
+        
+        for LR_dir, values become more positive with time
+
+        global_session = deepcopy(curr_active_pipeline.filtered_sessions[global_epoch_name])
+        global_laps = compute_lap_dir_from_smoothed_velocity(global_session)
+        global_laps
+
+        #TODO 2025-07-16 06:11: - [ ] Observed not to work very well!!
+        
+        """
+        from neuropy.core.position import Position
+        
+        n_laps = np.shape(laps_df)[0]
+        if isinstance(global_session, Position):
+            global_pos = global_session # passed variable is already a Position object
+        else:
+            # passed variable is hopefully a DataSession: Extract the position from the passed in session.
+            global_pos = global_session.position
+            
+        global_pos.compute_higher_order_derivatives()
+        global_pos.compute_smoothed_position_info()
+        
+        pos_df: pd.DataFrame = global_pos.to_dataframe()
+
+        ## adds the 'lap' and 'lap_dir' columns -- always do this so they correctly correspond to any updated laps
+        pos_df = pos_df.position.adding_lap_info(laps_df=laps_df, inplace=False)
+        
+        # Filter rows based on column: 'lap'
+        pos_df = pos_df[pos_df['lap'].notna()]
+        
+        # Perform aggregation grouped on column: 'lap'
+        lap_speed_means = pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean')).reset_index()
+
+        # Ensure alignment between pos_df['lap'] and laps_df['lap_id']
+        laps_in_both = laps_df.merge(lap_speed_means, left_on='lap_id', right_on='lap', how='left')
+
+        # Create the is_LR_dir boolean array
+        is_LR_dir = (laps_in_both['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
+
+        # is_LR_dir = ((pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean'))).reset_index()['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
+        # is_LR_dir = ((pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean'))).reset_index()['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
+
+        # could potentially improve by finding velocity only over a certain threshold, or looking at the direction of the peak velocity.
+
+        return laps_df
+    
+
+
+
+
 
 
 # TODO: implement: NeuronUnitSlicableObjectProtocol, StartStopTimesMixin, TimeSlicableObjectProtocol
@@ -294,79 +451,10 @@ class Laps(Epoch):
     @classmethod
     def _compute_lap_dir_from_smoothed_velocity(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession], replace_existing:bool=True) -> pd.DataFrame:
         """ 2024-01-17 - uses the smoothed velocity to determine the proper lap direction
-
-        Adds Columns to laps_df: ['is_LR_dir']
-        
-        for LR_dir, values become more positive with time
-
-        global_session = deepcopy(curr_active_pipeline.filtered_sessions[global_epoch_name])
-        global_laps = compute_lap_dir_from_smoothed_velocity(global_session)
-        global_laps
-
         """
-        from neuropy.core.position import Position
+        return laps_df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=global_session) ## uses laps_accessor
         
-        n_laps = np.shape(laps_df)[0]
-        if isinstance(global_session, Position):
-            global_pos = global_session # passed variable is already a Position object
-        else:
-            # passed variable is hopefully a DataSession: Extract the position from the passed in session.
-            global_pos = global_session.position
-            
-        global_pos.compute_higher_order_derivatives()
-        global_pos.compute_smoothed_position_info()
-        
-        pos_df: pd.DataFrame = global_pos.to_dataframe()
-        if 'lap' not in pos_df.columns:
-            ## adds the 'lap' and 'lap_dir' columns
-            pos_df = pos_df.position.adding_lap_info(laps_df=laps_df, inplace=False)
-        
-        pos_df['lap'].unique()
-
-        # Filter rows based on column: 'lap'
-        pos_df = pos_df[pos_df['lap'].notna()]
-        # Performed 1 aggregation grouped on column: 'lap'
-        
-        # Perform aggregation grouped on column: 'lap'
-        lap_speed_means = pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean')).reset_index()
-
-        # Ensure alignment between pos_df['lap'] and laps_df['lap_id']
-        laps_in_both = laps_df.merge(lap_speed_means, left_on='lap_id', right_on='lap', how='left')
-
-        # Create the is_LR_dir boolean array
-        is_LR_dir = (laps_in_both['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
-
-        # is_LR_dir = ((pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean'))).reset_index()['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
-        # is_LR_dir = ((pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean'))).reset_index()['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
-
-        # could potentially improve by finding velocity only over a certain threshold, or looking at the direction of the peak velocity.
-        
-        ## THIS IS DEFINITIONAL. HOW CAN IT BE WRONG?
-
-        # Assign the is_LR_dir to laps_df, ensuring the length matches
-        laps_df['is_LR_dir'] = is_LR_dir # ValueError: Length of values (80) does not match length of index (82), ValueError: Length of values (49) does not match length of index (48)
-        # 'lap_dir': {LR: 0, RL: 1}
-        is_RL_dir: NDArray = np.logical_not(is_LR_dir)
-        # is_RL_dir = np.logical_not(laps_df['is_LR_dir'])
-        _proposed_new_lap_dir = is_RL_dir.astype(int) # 1 for RL, 0 for LR
-        is_new_dir_substantially_different: bool = not np.all(laps_df['lap_dir'].values == _proposed_new_lap_dir)
-        # global_laps._df['direction_consistency'] = 0.0
-        # assert np.all(laps_df[(laps_df['is_LR_dir'].astype(int) == np.logical_not(laps_df['lap_dir'].astype(int)))])
-        if (is_new_dir_substantially_different):
-            print(f'WARN: Laps._compute_lap_dir_from_smoothed_velocity(...): the velocity-determined lap direction ("is_LR_dir") substantially differs from the previous ("lap_dir") column. This might be because it initially used simple ODD/EVEN determination for the direction.')
-            if replace_existing:
-                ## Overwrite the "lap_dir" column with the new value
-                print(f'\tWARN: overwriting the "lap_dir" column of Laps with the "is_LR_dir" column. Do things need to be recomputed after this?')
-                # laps_df['lap_dir'] = np.logical_not(laps_df['is_LR_dir'].astype(int) > 0) # I think this should be the proper lap_dir format
-                # 'lap_dir': {LR: 0, RL: 1}
-                is_RL_dir = np.logical_not(laps_df['is_LR_dir'])
-                laps_df['lap_dir'] = is_RL_dir.astype(int) # 1 for RL, 0 for LR    
-            else:
-                print(f'\tlap_dir substantially differs but replace_existing=False, so not updating.')
-
-        return laps_df
     
-
     @classmethod
     def _update_dataframe_computed_vars(cls, laps_df: pd.DataFrame,
                          t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, # for adding_maze_id_if_needed
