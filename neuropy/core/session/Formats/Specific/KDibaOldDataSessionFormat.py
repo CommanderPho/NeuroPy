@@ -152,7 +152,13 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         assert lap_estimation_parameters is not None
 
         use_direction_dependent_laps: bool = lap_estimation_parameters.pop('use_direction_dependent_laps', True)
-        sess.replace_session_laps_with_estimates(**lap_estimation_parameters, should_plot_laps_2d=False) # , time_variable_name=None
+        session_specific_laps_overrides = UserAnnotationsManager.get_hardcoded_laps_override_dict().get(sess.get_context(), None)
+        if session_specific_laps_overrides is None:
+            ## only estimate if there's no override        
+            sess.replace_session_laps_with_estimates(**lap_estimation_parameters, should_plot_laps_2d=False) # , time_variable_name=None
+        else:
+            print(f'\tWARN: using session_specific_laps_overrides for this session and not estimating laps.')
+
         ## add `use_direction_dependent_laps` back in:
         lap_estimation_parameters.use_direction_dependent_laps = use_direction_dependent_laps
 
@@ -161,7 +167,6 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         if use_direction_dependent_laps:
             print(f'.POSTLOAD_estimate_laps_and_replays(...): WARN: {use_direction_dependent_laps}')
             # TODO: I think this is okay here.
-
 
         # Get the non-lap periods using PortionInterval's complement method:
         non_running_periods = Epoch.from_PortionInterval(sess.laps.as_epoch_obj().to_PortionInterval().complement()) # TODO 2023-05-24- Truncate to session .t_start, .t_stop as currently includes infinity, but it works fine.
@@ -1123,10 +1128,15 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
             print(f'\t using UserAnnotationsManager.get_hardcoded_laps_override_dict() laps for session laps!')    
             print(f'\toverriding laps....')
             laps_df: pd.DataFrame = deepcopy(override_laps_df) ## copy the override_laps_df to laps_df
-            laps_df['lap_id'] = laps_df.index + 1
-            laps_df['label'] = laps_df.index
+            laps_df = laps_df.laps_accessor.update_computed_columns(
+                # t_start=t_start, t_delta=t_delta, t_end=t_end,
+                global_session=session, replace_existing=True,
+            )
+            laps_df = laps_df.laps_accessor.filter_to_valid()
+            # laps_df['lap_id'] = laps_df.index + 1
+            # laps_df['label'] = laps_df.index
             override_laps_obj: Laps = Laps(laps=laps_df)
-            override_laps_obj.update_lap_dir_from_smoothed_velocity(pos_input=session.position)
+            # override_laps_obj.update_lap_dir_from_net_displacement(pos_input=session.position)
             laps_df = override_laps_obj.to_dataframe()
             session.laps = deepcopy(override_laps_obj) # new DataFrame-based approach
 
@@ -1328,7 +1338,7 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         
         # session.laps = Laps(lap_id, laps_spike_counts, lap_start_stop_flat_idx, lap_start_stop_time)
         
-        session.laps.update_lap_dir_from_smoothed_velocity(session) # added 2024-01-24 
+        session.laps.update_lap_dir_from_net_displacement(session) # added 2024-01-24 
 
         # return lap_id, laps_spike_counts, lap_start_stop_flat_idx, lap_start_stop_time
         return session, spikes_df

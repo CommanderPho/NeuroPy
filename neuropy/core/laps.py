@@ -627,11 +627,27 @@ class Laps(Epoch):
         self._df.laps_accessor.update_maze_id_if_needed(t_start, t_delta, t_end)
         return None
 
-    def update_lap_dir_from_smoothed_velocity(self, pos_input: Union[Position, DataSession]) -> None:
-        # compute_lap_dir_from_smoothed_velocity
-        # global_session = deepcopy(curr_active_pipeline.filtered_sessions[global_epoch_name])
-        self._df.laps.update_lap_dir_from_smoothed_velocity(pos_input)
+
+    def update_lap_dir_from_net_displacement(self, pos_input: Union[Position, DataSession], **kwargs) -> None:
+        """ 2025-07-16 - uses the smoothed velocity to determine the proper lap direction
+
+        Adds/Updates Columns in laps_df: ['is_LR_dir', 'lap_dir']
+        
+        for LR_dir, values become more positive with time
+
+        Usage:
+
+            global_session = deepcopy(curr_active_pipeline.filtered_sessions[global_epoch_name])
+            active_global_laps_df = active_global_laps_df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=global_session, replace_existing=True)
+            active_global_laps_df
+
+        """
+        self._df = self._df.laps_accessor.update_lap_dir_from_net_displacement(global_session=pos_input, **kwargs)
         assert 'is_LR_dir' in self._df.columns, f"'is_LR_dir' is still missing even after adding it?!?"
+        return None
+        
+
+
 
     def adding_true_decoder_identifier(self, t_start: float, t_delta: float, t_end: float, labels_column_name: str='lap_id') -> pd.DataFrame:
         """ adds the 'maze_id' column to the internal dataframe if needed.
