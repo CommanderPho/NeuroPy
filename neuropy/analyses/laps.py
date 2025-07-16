@@ -2,7 +2,7 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 
-from neuropy.core.laps import Laps
+from neuropy.core.laps import Laps, LapsAccessor
 
 from neuropy.utils.efficient_interval_search import get_non_overlapping_epochs # for _build_new_lap_and_intra_lap_intervals
 
@@ -95,7 +95,7 @@ def _subfn_perform_estimate_lap_splits_1D(pos_df: pd.DataFrame, hardcoded_track_
         pos_df.reset_index(drop=True, inplace=True) # Either way, reset the index
         lap_change_indicies = _subfn_perform_estimate_lap_splits_1D(pos_df, hardcoded_track_midpoint_x=None, debug_print=debug_print) # allow smart midpoint determiniation
         (desc_crossing_begining_idxs, desc_crossing_midpoint_idxs, desc_crossing_ending_idxs), (asc_crossing_begining_idxs, asc_crossing_midpoint_idxs, asc_crossing_ending_idxs), hardcoded_track_midpoint_x = lap_change_indicies    
-        custom_test_laps_obj = Laps.from_estimated_laps(pos_df['t'].to_numpy(), desc_crossing_begining_idxs, desc_crossing_ending_idxs, asc_crossing_begining_idxs, asc_crossing_ending_idxs) ## Get the timestamps corresponding to the indicies
+        custom_test_laps_obj = Laps.init_from_estimated_laps(pos_df['t'].to_numpy(), desc_crossing_begining_idxs, desc_crossing_ending_idxs, asc_crossing_begining_idxs, asc_crossing_ending_idxs) ## Get the timestamps corresponding to the indicies
         assert custom_test_laps_obj.n_laps > 0, f"estimation for {sess} produced no laps!"
         
     """
@@ -187,7 +187,7 @@ def _subfn_perform_estimate_lap_splits_1D(pos_df: pd.DataFrame, hardcoded_track_
     return (desc_crossing_begining_idxs, desc_crossing_midpoint_idxs, desc_crossing_ending_idxs), (asc_crossing_begining_idxs, asc_crossing_midpoint_idxs, asc_crossing_ending_idxs), hardcoded_track_midpoint_x
 
 
-def estimate_session_laps(sess, N=20, should_backup_extant_laps_obj=False, should_plot_laps_2d=False, time_variable_name=None, debug_plot=False, debug_print=False):
+def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, should_plot_laps_2d=False, time_variable_name=None, debug_plot=False, debug_print=False):
     """ 2021-12-21 - Pho's lap estimation from the position data (only)
     Replaces the sess.laps which is computed or loaded from the spikesII.mat spikes data (which isn't very good)
 
@@ -199,7 +199,7 @@ def estimate_session_laps(sess, N=20, should_backup_extant_laps_obj=False, shoul
 
     Note: Uses `sess.position`
 
-    Uses: ['_subfn_perform_estimate_lap_splits_1D', 'Laps.from_estimated_laps', '_subfn_compute_laps_spike_indicies']
+    Uses: ['_subfn_perform_estimate_lap_splits_1D', 'Laps.init_from_estimated_laps', '_subfn_compute_laps_spike_indicies']
     
     
     debug_plot: if True, plots a user-customizable laps view with the points detected for each
@@ -235,7 +235,8 @@ def estimate_session_laps(sess, N=20, should_backup_extant_laps_obj=False, shoul
     pos_df.reset_index(drop=True, inplace=True) # Either way, reset the index
     lap_change_indicies = _subfn_perform_estimate_lap_splits_1D(pos_df, hardcoded_track_midpoint_x=None, debug_print=debug_print) # allow smart midpoint determiniation
     (desc_crossing_begining_idxs, desc_crossing_midpoint_idxs, desc_crossing_ending_idxs), (asc_crossing_begining_idxs, asc_crossing_midpoint_idxs, asc_crossing_ending_idxs), hardcoded_track_midpoint_x = lap_change_indicies    
-    custom_test_laps_obj = Laps.from_estimated_laps(pos_df['t'].to_numpy(), desc_crossing_begining_idxs, desc_crossing_ending_idxs, asc_crossing_begining_idxs, asc_crossing_ending_idxs) ## Get the timestamps corresponding to the indicies
+    custom_test_laps_obj = Laps.init_from_estimated_laps(pos_df['t'].to_numpy(), desc_crossing_begining_idxs=desc_crossing_begining_idxs, desc_crossing_ending_idxs=desc_crossing_ending_idxs, asc_crossing_begining_idxs=asc_crossing_begining_idxs, asc_crossing_ending_idxs=asc_crossing_ending_idxs, 
+                                                    global_session=sess) ## Get the timestamps corresponding to the indicies
     assert custom_test_laps_obj.n_laps > 0, f"estimation for {sess} produced no laps!"
 
     ## Determine the spikes included with each computed lap:

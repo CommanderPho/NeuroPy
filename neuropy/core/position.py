@@ -752,6 +752,20 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
             self.t_stop)
         )
          
+
+    def adding_lap_info(self, laps_df: pd.DataFrame):
+        """ Updates the internal dataframe with the lap info 
+        """
+        curr_position_df: pd.DataFrame = self.to_dataframe() # get the position dataframe from the session
+        curr_position_df = curr_position_df.position.adding_lap_info(laps_df=laps_df, inplace=False)
+
+        # update:
+        if 'lap' in curr_position_df:
+            self._data['lap'] = curr_position_df['lap']
+        if 'lap_dir' in curr_position_df:
+            self._data['lap_dir'] = curr_position_df['lap_dir']
+
+
     # HDFMixin Conformances ______________________________________________________________________________________________ #
     def to_hdf(self, file_path, key: str, **kwargs):
         """ Saves the object to key in the hdf5 file specified by file_path

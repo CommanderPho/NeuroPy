@@ -2,8 +2,8 @@ from __future__ import annotations # prevents having to specify types for typehi
 from typing import TYPE_CHECKING
 from warnings import warn
 from copy import deepcopy
-from typing import Optional, Union
-from nptyping import NDArray, ND
+from typing import Optional, Union, List, Dict, Any, Tuple
+from nptyping import NDArray
 import numpy as np
 import pandas as pd
 from pandas.core.frame import DataFrame
@@ -44,9 +44,8 @@ class LapsAccessor(EpochsAccessor):
     @staticmethod
     def _validate(obj):
         # verify there is a column for timestamps ('t') and a column for at least 1D positions ('x')        
-        if "lap_id" not in obj.columns:
-            raise AttributeError("Must have at least one lap identity variable: specifically 'lap_id' for LapsAccessor.")
-        
+        # if "lap_id" not in obj.columns:
+        #     raise AttributeError("Must have at least one lap identity variable: specifically 'lap_id' for LapsAccessor.")
         return EpochsAccessor._validate(obj)
 
 
@@ -99,7 +98,7 @@ class LapsAccessor(EpochsAccessor):
 
         Usage:
             t_start, t_delta, t_end = owning_pipeline_reference.find_LongShortDelta_times()
-            laps_df = laps_df.laps.update_maze_id_if_needed(t_start, t_delta, t_end)
+            laps_df = laps_df.laps_accessor.update_maze_id_if_needed(t_start, t_delta, t_end)
         """
         updated_df = self._obj.epochs.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=True, labels_column_name='lap_id')
         self._obj = updated_df
@@ -107,7 +106,7 @@ class LapsAccessor(EpochsAccessor):
 
     def update_lap_dir_from_smoothed_velocity(self, pos_input: Union[Position, DataSession]) -> None:
         """ Updates lap direction from smoothed velocity """
-        self._obj = self._compute_lap_dir_from_smoothed_velocity(self._obj, pos_input, replace_existing=True)
+        self._obj = self._perform_compute_lap_dir_from_smoothed_velocity(self._obj, pos_input, replace_existing=True)
         assert 'is_LR_dir' in self._obj.columns, f"'is_LR_dir' is still missing even after adding it?!?"
 
     def adding_true_decoder_identifier(self, t_start: float, t_delta: float, t_end: float, labels_column_name: str = 'lap_id') -> pd.DataFrame:
@@ -115,7 +114,7 @@ class LapsAccessor(EpochsAccessor):
 
         Usage:
             t_start, t_delta, t_end = owning_pipeline_reference.find_LongShortDelta_times()
-            laps_df = laps_df.laps.adding_true_decoder_identifier(t_start, t_delta, t_end)
+            laps_df = laps_df.laps_accessor.adding_true_decoder_identifier(t_start, t_delta, t_end)
         """
         filter_epochs: pd.DataFrame = self._obj.epochs.get_valid_df()
         filter_epochs = filter_epochs.epochs.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=True, labels_column_name=labels_column_name)
@@ -157,7 +156,8 @@ class LapsAccessor(EpochsAccessor):
     def update_column_datatypes(self) -> pd.DataFrame:
         """ Updates the datatypes of the dataframe to the correct type if they exist
         """
-        self._obj[['lap_id']] = self._obj[['lap_id']].astype('int')
+        if 'lap_id' in self._obj.columns:
+            self._obj[['lap_id']] = self._obj[['lap_id']].astype('int')
         if 'maze_id' in self._obj.columns:
             self._obj[['maze_id']] = self._obj[['maze_id']].astype('int')
         if set(['start_spike_index','end_spike_index']).issubset(self._obj.columns):
@@ -184,17 +184,40 @@ class LapsAccessor(EpochsAccessor):
 
 
     # @function_attributes(short_name=None, tags=['laps', 'lap_dir', 'modern'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-07-16 06:10', related_items=[])
-    def compute_lap_dir_from_net_displacement(self, global_session: Union[Position, DataSession], **kwargs) -> pd.DataFrame:
+    def compute_lap_dir_from_net_displacement(self, global_session: Union[Position, DataSession], replace_existing:bool=True, **kwargs) -> pd.DataFrame:
         """ 2025-07-16 - uses the smoothed velocity to determine the proper lap direction
 
         Adds/Updates Columns in laps_df: ['is_LR_dir', 'lap_dir']
         
         for LR_dir, values become more positive with time
 
+        Usage:
+
+            global_session = deepcopy(curr_active_pipeline.filtered_sessions[global_epoch_name])
+            active_global_laps_df = active_global_laps_df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=global_session, replace_existing=True)
+            active_global_laps_df
+
         """
-        return self._compute_lap_dir_from_net_displacement(laps_df=self._obj, global_session=global_session, **kwargs)
+        return self._perform_compute_lap_dir_from_net_displacement(laps_df=self._obj, global_session=global_session, replace_existing=replace_existing, **kwargs)
         
 
+    def get_valid_laps_epochs_df(self, rebuild_lap_id_columns=True) -> pd.DataFrame:
+        """ De-duplicates, sorts, and filters by duration any potential laps. Pure (does not modify `original_laps_epoch_df`)
+        Usage:
+            override_laps_df = override_laps_df.laps_accessor.get_valid_laps_epochs_df(rebuild_lap_id_columns=True)
+        """
+        return self.ensure_valid_laps_epochs_df(original_laps_epoch_df=self._obj, rebuild_lap_id_columns=rebuild_lap_id_columns)
+    
+
+    def update_computed_columns(self, t_start: Optional[float] = None, t_delta: Optional[float] = None, t_end: Optional[float] = None,
+                            global_session: Optional[Union[Position, DataSession]] = None,
+                            replace_existing: bool = True) -> pd.DataFrame:
+        """ De-duplicates, sorts, and filters by duration any potential laps. Pure (does not modify `original_laps_epoch_df`)
+        Usage:
+            override_laps_df = override_laps_df.laps_accessor.get_valid_laps_epochs_df(rebuild_lap_id_columns=True)
+        """
+        return self._perform_update_dataframe_computed_vars(laps_df=self._obj, t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=replace_existing)
+        
     # ==================================================================================================================================================================================================================================================================================== #
     # Classmethods                                                                                                                                                                                                                                                                         #
     # ==================================================================================================================================================================================================================================================================================== #
@@ -202,31 +225,35 @@ class LapsAccessor(EpochsAccessor):
     
     # @function_attributes(short_name=None, tags=['laps', 'lap_dir', 'modern'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-07-16 06:10', related_items=[])
     @classmethod
-    def _compute_lap_dir_from_net_displacement(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession]) -> pd.DataFrame:
+    def _perform_compute_lap_dir_from_net_displacement(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession], replace_existing:bool=True) -> pd.DataFrame:
         """ 2025-07-16 - uses the smoothed velocity to determine the proper lap direction
 
         Adds/Updates Columns in laps_df: ['is_LR_dir', 'lap_dir']
         
         for LR_dir, values become more positive with time
 
-        global_session = deepcopy(curr_active_pipeline.filtered_sessions[global_epoch_name])
-        global_laps = compute_lap_dir_from_smoothed_velocity(global_session)
-        global_laps
+
 
         """
+        if not replace_existing:
+            if ('is_LR_dir' in laps_df.columns) and ('lap_dir' in laps_df.columns):
+                print(f'WARN: (replace_existing == False) and ["is_LR_dir", "lap_dir"] already exist in laps_df. Skipping recomputation.')
+                return laps_df
+
+        
         from neuropy.core.position import Position
         
         n_laps: int = np.shape(laps_df)[0]
         if isinstance(global_session, Position):
-            global_pos = global_session # passed variable is already a Position object
+            global_pos_obj = global_session # passed variable is already a Position object
         else:
             # passed variable is hopefully a DataSession: Extract the position from the passed in session.
-            global_pos = global_session.position
+            global_pos_obj = global_session.position
             
-        global_pos.compute_higher_order_derivatives()
-        global_pos.compute_smoothed_position_info()
+        global_pos_obj.compute_higher_order_derivatives()
+        global_pos_obj.compute_smoothed_position_info()
         
-        pos_df: pd.DataFrame = global_pos.to_dataframe()
+        pos_df: pd.DataFrame = global_pos_obj.to_dataframe()
 
         ## adds the 'lap' and 'lap_dir' columns -- always do this so they correctly correspond to any updated laps
         pos_df = pos_df.position.adding_lap_info(laps_df=laps_df, inplace=False)
@@ -242,60 +269,67 @@ class LapsAccessor(EpochsAccessor):
         # lap_displacement_df = lap_displacement_df.set_index('lap')
         ## Add in corrected columns to laps_df:
         laps_df = laps_df.merge(lap_displacement_df[['lap', 'is_LR_dir', 'lap_dir']], left_on='lap_id', right_on='lap', how='left')
+        
+        ## Update the pos_df now with the new info
+        global_pos_obj.adding_lap_info(laps_df=laps_df)
+
         return laps_df
 
 
     # @function_attributes(short_name=None, tags=['laps', 'lap_dir', 'OLD'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2024-01-17 00:00', related_items=[])
-    @classmethod
-    def _compute_lap_dir_from_smoothed_velocity(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession], replace_existing:bool=True) -> pd.DataFrame:
-        """ 2024-01-17 - uses the smoothed velocity to determine the proper lap direction
+    # @classmethod
+    # def _perform_compute_lap_dir_from_smoothed_velocity(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession], replace_existing:bool=True) -> pd.DataFrame:
+    #     """ 2024-01-17 - uses the smoothed velocity to determine the proper lap direction
 
-        Adds Columns to laps_df: ['is_LR_dir']
+    #     Adds Columns to laps_df: ['is_LR_dir']
         
-        for LR_dir, values become more positive with time
+    #     for LR_dir, values become more positive with time
 
-        global_session = deepcopy(curr_active_pipeline.filtered_sessions[global_epoch_name])
-        global_laps = compute_lap_dir_from_smoothed_velocity(global_session)
-        global_laps
+    #     global_session = deepcopy(curr_active_pipeline.filtered_sessions[global_epoch_name])
+    #     global_laps = compute_lap_dir_from_smoothed_velocity(global_session)
+    #     global_laps
 
-        #TODO 2025-07-16 06:11: - [ ] Observed not to work very well!!
+    #     #TODO 2025-07-16 06:11: - [ ] Observed not to work very well!!
         
-        """
-        from neuropy.core.position import Position
+    #     """
+    #     from neuropy.core.position import Position
         
-        n_laps = np.shape(laps_df)[0]
-        if isinstance(global_session, Position):
-            global_pos = global_session # passed variable is already a Position object
-        else:
-            # passed variable is hopefully a DataSession: Extract the position from the passed in session.
-            global_pos = global_session.position
+    #     n_laps = np.shape(laps_df)[0]
+    #     if isinstance(global_session, Position):
+    #         global_pos_obj = global_session # passed variable is already a Position object
+    #     else:
+    #         # passed variable is hopefully a DataSession: Extract the position from the passed in session.
+    #         global_pos_obj = global_session.position
             
-        global_pos.compute_higher_order_derivatives()
-        global_pos.compute_smoothed_position_info()
+    #     global_pos_obj.compute_higher_order_derivatives()
+    #     global_pos_obj.compute_smoothed_position_info()
         
-        pos_df: pd.DataFrame = global_pos.to_dataframe()
+    #     pos_df: pd.DataFrame = global_pos_obj.to_dataframe()
 
-        ## adds the 'lap' and 'lap_dir' columns -- always do this so they correctly correspond to any updated laps
-        pos_df = pos_df.position.adding_lap_info(laps_df=laps_df, inplace=False)
+    #     ## adds the 'lap' and 'lap_dir' columns -- always do this so they correctly correspond to any updated laps
+    #     pos_df = pos_df.position.adding_lap_info(laps_df=laps_df, inplace=False)
         
-        # Filter rows based on column: 'lap'
-        pos_df = pos_df[pos_df['lap'].notna()]
+    #     # Filter rows based on column: 'lap'
+    #     pos_df = pos_df[pos_df['lap'].notna()]
         
-        # Perform aggregation grouped on column: 'lap'
-        lap_speed_means = pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean')).reset_index()
+    #     # Perform aggregation grouped on column: 'lap'
+    #     lap_speed_means = pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean')).reset_index()
 
-        # Ensure alignment between pos_df['lap'] and laps_df['lap_id']
-        laps_in_both = laps_df.merge(lap_speed_means, left_on='lap_id', right_on='lap', how='left')
+    #     # Ensure alignment between pos_df['lap'] and laps_df['lap_id']
+    #     laps_in_both = laps_df.merge(lap_speed_means, left_on='lap_id', right_on='lap', how='left')
 
-        # Create the is_LR_dir boolean array
-        is_LR_dir = (laps_in_both['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
+    #     # Create the is_LR_dir boolean array
+    #     is_LR_dir = (laps_in_both['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
 
-        # is_LR_dir = ((pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean'))).reset_index()['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
-        # is_LR_dir = ((pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean'))).reset_index()['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
+    #     # is_LR_dir = ((pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean'))).reset_index()['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
+    #     # is_LR_dir = ((pos_df.groupby(['lap']).agg(speed_mean=('velocity_x_smooth', 'mean'))).reset_index()['speed_mean'] > 0.0).to_numpy() # increasing values => LR_dir
 
-        # could potentially improve by finding velocity only over a certain threshold, or looking at the direction of the peak velocity.
+    #     # could potentially improve by finding velocity only over a certain threshold, or looking at the direction of the peak velocity.
 
-        return laps_df
+    #     ## Update the pos_df now with the new info
+    #     global_pos_obj.adding_lap_info(laps_df=laps_df)
+
+    #     return laps_df
     
 
     # ==================================================================================================================== #
@@ -350,12 +384,16 @@ class LapsAccessor(EpochsAccessor):
 
         return global_laps_df, global_laps_end_change_indicies
 
+    # @function_attributes(short_name=None, tags=['PURE'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-07-16 08:14', related_items=[])
     @classmethod
     def ensure_valid_laps_epochs_df(cls, original_laps_epoch_df: pd.DataFrame, rebuild_lap_id_columns=True) -> pd.DataFrame:
-        """ De-duplicates, sorts, and filters by duration any potential laps """
+        """ De-duplicates, sorts, and filters by duration any potential laps. Pure (does not modify `original_laps_epoch_df`) """
         laps_epoch_df: pd.DataFrame = deepcopy(original_laps_epoch_df)
 
         # Filter rows based on column: 'duration'
+        if 'duration' not in laps_epoch_df.columns:
+            laps_epoch_df['duration'] = laps_epoch_df['stop'] - laps_epoch_df['start']
+
         laps_epoch_df = laps_epoch_df[laps_epoch_df['duration'] > 1]
         laps_epoch_df = laps_epoch_df[laps_epoch_df['duration'] <= 30]
         # Drop duplicate rows in columns: 'start', 'stop'
@@ -364,35 +402,59 @@ class LapsAccessor(EpochsAccessor):
         laps_epoch_df = laps_epoch_df.sort_values(['start']).reset_index(drop=True)
 
         ## Rebuild lap_id and label column:
-        if rebuild_lap_id_columns:
-            laps_epoch_df['lap_id'] = (laps_epoch_df.index + 1)
-            laps_epoch_df['label'] = laps_epoch_df['lap_id']
+        if rebuild_lap_id_columns or ('lap_id' not in laps_epoch_df):
+            laps_epoch_df['lap_id'] = (laps_epoch_df.index + 1).astype('int') ## set lap_id from the index
+        else:
+            laps_epoch_df[['lap_id']] = laps_epoch_df[['lap_id']].astype('int')
 
+        if rebuild_lap_id_columns or ('label' not in laps_epoch_df):
+            laps_epoch_df['label'] = laps_epoch_df['lap_id'].astype('str') # add the string "label" column
+        else:
+            laps_epoch_df['label'] = laps_epoch_df['label'].astype('str')
+
+        ## Ensure correct datatypes in the end                    
+        laps_epoch_df = laps_epoch_df.laps_accessor.update_column_datatypes()
+        
         return laps_epoch_df
 
 
     @classmethod
-    def _update_dataframe_computed_vars(cls, laps_df: pd.DataFrame,
+    def _perform_update_dataframe_computed_vars(cls, laps_df: pd.DataFrame,
                             t_start: Optional[float] = None, t_delta: Optional[float] = None, t_end: Optional[float] = None,
                             global_session: Optional[Union[Position, DataSession]] = None,
                             replace_existing: bool = True) -> pd.DataFrame:
-        """ Updates computed variables in the dataframe """
-        laps_df[['lap_id']] = laps_df[['lap_id']].astype('int')
-
+        """ Updates computed variables in the dataframe
+        
+        Internally calls: .get_valid_laps_epochs_df(rebuild_lap_id_columns=True)
+        
+        Updates global_session.position if `global_session` is not None
+        Updates columns: ['lap_dir', 'is_LR_dir', 'num_spikes', '
+        
+        Usage:
+            laps_df = cls._perform_update_dataframe_computed_vars(laps_df, t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=True)
+        INSTEAD USE:
+            laps_df = laps_df.laps_accessor.update_computed_columns(t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=True)
+        
+        """
+        if 'lap_id' not in laps_df.columns:
+            laps_df = laps_df.laps_accessor.get_valid_laps_epochs_df(rebuild_lap_id_columns=True)
+                    
         if ((t_start is not None) and (t_delta is not None) and (t_end is not None)):
             # computes 'track_id' from t_start, t_delta, and t_end where t_delta corresponds to the transition point (track change).
             laps_df = ensure_dataframe(laps_df).epochs.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=True, labels_column_name='lap_id')
 
-        laps_df = laps_df.laps.update_column_datatypes()
+        laps_df = laps_df.laps_accessor.update_column_datatypes()
 
         if set(['start_spike_index','end_spike_index']).issubset(laps_df.columns):
             laps_df['num_spikes'] = laps_df['end_spike_index'] - laps_df['start_spike_index'] # builds 'num_spikes'
 
+
+        ## ['lap_dir', 'is_LR_dir']
         if (('lap_dir' not in laps_df.columns) or ('is_LR_dir' not in laps_df.columns)):
             # compute the lap_dir if that field doesn't exist:
             if global_session is not None:
                 ## computes proper 'is_LR_dir' and 'lap_dir' columns:
-                laps_df = laps_df.laps.compute_lap_dir_from_net_displacement(global_session=global_session) # adds 'is_LR_dir'
+                laps_df = laps_df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=global_session) # adds 'is_LR_dir'
 
             else:
                 # No global_session or position passed, using old even/odd 'lap_dir' determination.
@@ -405,26 +467,31 @@ class LapsAccessor(EpochsAccessor):
                     # raise NotImplementedError(f"THIS SHOULD NEVER HAPPEN ANYMORE, HOW IS IT?")
                     warn(f"THIS SHOULD NEVER HAPPEN ANYMORE, HOW IS IT?")
                     laps_df['lap_dir'] = np.full_like(laps_df['lap_id'].to_numpy(), -1)
-                    laps_df.loc[np.logical_not(np.isnan(laps_df.lap_id.to_numpy())), 'lap_dir'] = np.mod(laps_df.loc[np.logical_not(np.isnan(laps_df.lap_id.to_numpy())), 'lap_id'], 2)
-
+                    # laps_df.loc[np.logical_not(np.isnan(laps_df.lap_id.to_numpy())), 'lap_dir'] = np.mod(laps_df.loc[np.logical_not(np.isnan(laps_df.lap_id.to_numpy())), 'lap_id'], 2)
 
         elif (replace_existing and (global_session is not None)):
             # laps_df = cls._compute_lap_dir_from_smoothed_velocity(laps_df=laps_df, global_session=global_session, replace_existing=True) # adds 'is_LR_dir'
-            laps_df = laps_df.laps.compute_lap_dir_from_net_displacement(global_session=global_session) # adds 'is_LR_dir'            
+            laps_df = laps_df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=global_session) # adds 'is_LR_dir'            
         else:
             pass
 
-        laps_df = laps_df.laps.update_column_datatypes()
+        laps_df = laps_df.laps_accessor.get_valid_laps_epochs_df(rebuild_lap_id_columns=True)
+        
+        if (global_session is not None):
+            ## Update the pos_df now with the new info
+            global_session.position.adding_lap_info(laps_df=laps_df)
+        
         return laps_df
 
 
     @classmethod
-    def build_dataframe(cls, mat_file_loaded_dict: dict, time_variable_name='t_rel_seconds', absolute_start_timestamp=None,
+    def init_dataframe_from_mat_loaded_dict(cls, mat_file_loaded_dict: dict, time_variable_name='t_rel_seconds', absolute_start_timestamp=None,
                             t_start: Optional[float] = None, t_delta: Optional[float] = None, t_end: Optional[float] = None,
                             global_session: Optional[Union[Position, DataSession]] = None) -> pd.DataFrame:
         """ Builds a laps dataframe from a mat file dictionary """
         laps_df = pd.DataFrame(mat_file_loaded_dict)
-        laps_df = cls._update_dataframe_computed_vars(laps_df, t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=True)
+        laps_df = laps_df.laps_accessor.update_computed_columns(t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=True)
+        # laps_df = cls._perform_update_dataframe_computed_vars(laps_df, t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=True)
 
         print('setting laps object.')
         if time_variable_name == 't_seconds':
@@ -446,7 +513,9 @@ class LapsAccessor(EpochsAccessor):
 
 
     @classmethod
-    def from_estimated_laps(cls, pos_t_rel_seconds: NDArray, desc_crossing_begining_idxs: NDArray, desc_crossing_ending_idxs: NDArray, asc_crossing_begining_idxs: NDArray, asc_crossing_ending_idxs: NDArray, debug_print=True) -> pd.DataFrame:
+    def init_from_estimated_laps(cls, pos_t_rel_seconds: NDArray, desc_crossing_begining_idxs: NDArray, desc_crossing_ending_idxs: NDArray, asc_crossing_begining_idxs: NDArray, asc_crossing_ending_idxs: NDArray, debug_print=True,
+                            t_start: Optional[float] = None, t_delta: Optional[float] = None, t_end: Optional[float] = None,
+                            global_session: Optional[Union[Position, DataSession]] = None) -> pd.DataFrame:
         """Builds a laps dataframe from the output of the neuropy.analyses.laps.estimate_laps function."""
 
         custom_test_laps_df = pd.DataFrame({
@@ -484,9 +553,11 @@ class LapsAccessor(EpochsAccessor):
         # Sort the laps based on the start time, reset the index, and finally assign lap_id's from the sorted laps
         custom_test_laps_df = custom_test_laps_df.sort_values(by=['start']).reset_index(drop=True)
         custom_test_laps_df['lap_id'] = (custom_test_laps_df.index + 1)
-
         custom_test_laps_df['label'] = custom_test_laps_df['lap_id']
-        return custom_test_laps_df.laps.filter_to_valid()
+        
+        custom_test_laps_df = custom_test_laps_df.laps_accessor.update_computed_columns(t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=True)
+        custom_test_laps_df = custom_test_laps_df.laps_accessor.filter_to_valid()
+        return custom_test_laps_df
 
 
 
@@ -538,10 +609,10 @@ class Laps(Epoch):
     
     def filtered_by_lap_flat_index(self, lap_indicies: NDArray):
         return self.filtered_by_lap_id(self.lap_id[lap_indicies])
-       
-     def filtered_by_lap_id(self, lap_ids):
+    
+    def filtered_by_lap_id(self, lap_ids: NDArray):
         sliced_copy = deepcopy(self) # get copy of the dataframe
-        sliced_copy._data = self._df.laps.filtered_by_lap_id(lap_ids)
+        sliced_copy._data = self._df.laps_accessor.filtered_by_lap_id(lap_ids)
         return sliced_copy
 
     def update_maze_id_if_needed(self, t_start: float, t_delta: float, t_end: float) -> None:
@@ -553,7 +624,7 @@ class Laps(Epoch):
         laps_df
 
         """
-        self._df.laps.update_maze_id_if_needed(t_start, t_delta, t_end)
+        self._df.laps_accessor.update_maze_id_if_needed(t_start, t_delta, t_end)
         return None
 
     def update_lap_dir_from_smoothed_velocity(self, pos_input: Union[Position, DataSession]) -> None:
@@ -571,10 +642,10 @@ class Laps(Epoch):
         laps_df
 
         """
-        return self._df.laps.adding_true_decoder_identifier(t_start, t_delta, t_end, labels_column_name)
+        return self._df.laps_accessor.adding_true_decoder_identifier(t_start, t_delta, t_end, labels_column_name)
 
     def filter_to_valid(self) -> "Laps":
-        filtered_laps_df = self._df.laps.filter_to_valid()
+        filtered_laps_df = self._df.laps_accessor.filter_to_valid()
         return Laps(filtered_laps_df, metadata=self.metadata)
 
     def trimmed_to_non_overlapping(self) -> "Laps":
@@ -582,18 +653,18 @@ class Laps(Epoch):
         return Laps(trimmed_laps_df, metadata=self.metadata)
 
     def get_lap_flat_indicies(self, lap_id):
-        return self._df.laps.get_lap_flat_indicies(lap_id)
+        return self._df.laps_accessor.get_lap_flat_indicies(lap_id)
 
     def get_lap_times(self, lap_id):
-        return self._df.laps.get_lap_times(lap_id)
+        return self._df.laps_accessor.get_lap_times(lap_id)
 
     def as_epoch_obj(self) -> Epoch:
         """ Converts into a core.Epoch object containing the time periods """
-        return self._df.laps.as_epoch_obj()
+        return self._df.laps_accessor.as_epoch_obj()
 
     def time_slice(self, t_start=None, t_stop=None):
         #TODO: #WM: Test this, it's not done! It should filter out the laps that occur outside of the start/end times that 
-        time_sliced_df = self._df.laps.time_slice(t_start, t_stop)
+        time_sliced_df = self._df.laps_accessor.time_slice(t_start, t_stop)
         return Laps(time_sliced_df, metadata=self.metadata)
 
     # ==================================================================================================================== #
@@ -658,7 +729,7 @@ class Laps(Epoch):
     @classmethod
     def _compute_lap_dir_from_smoothed_velocity(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession], replace_existing: bool = True) -> pd.DataFrame:
         """ 2024-01-17 - uses the smoothed velocity to determine the proper lap direction """
-        return LapsAccessor._compute_lap_dir_from_smoothed_velocity(laps_df, global_session, replace_existing)
+        return LapsAccessor._perform_compute_lap_dir_from_smoothed_velocity(laps_df, global_session, replace_existing)
 
     @classmethod
     def _update_dataframe_computed_vars(cls, laps_df: pd.DataFrame,
@@ -666,18 +737,22 @@ class Laps(Epoch):
                         global_session: Optional[Union[Position, DataSession]] = None,
                         replace_existing: bool = True):
         """ this function is pretty bad. """
-        return LapsAccessor._update_dataframe_computed_vars(laps_df, t_start, t_delta, t_end, global_session, replace_existing)
+        return LapsAccessor._perform_update_dataframe_computed_vars(laps_df, t_start, t_delta, t_end, global_session, replace_existing)
+
+    # @classmethod
+    # def init_dataframe_from_mat_loaded_dict(cls, mat_file_loaded_dict: dict, time_variable_name='t_rel_seconds', absolute_start_timestamp=None,
+    #                     t_start: Optional[float] = None, t_delta: Optional[float] = None, t_end: Optional[float] = None,
+    #                     global_session: Optional[Union[Position, DataSession]] = None):
+    #     """ Builds a laps dataframe from a mat file dictionary """
+    #     return LapsAccessor.init_dataframe_from_mat_loaded_dict(mat_file_loaded_dict, time_variable_name=time_variable_name, absolute_start_timestamp=absolute_start_timestamp, t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session)
 
     @classmethod
-    def build_dataframe(cls, mat_file_loaded_dict: dict, time_variable_name='t_rel_seconds', absolute_start_timestamp=None,
-                        t_start: Optional[float] = None, t_delta: Optional[float] = None, t_end: Optional[float] = None,
-                        global_session: Optional[Union[Position, DataSession]] = None):
-        """ Builds a laps dataframe from a mat file dictionary """
-        return LapsAccessor.build_dataframe(mat_file_loaded_dict, time_variable_name, absolute_start_timestamp, t_start, t_delta, t_end, global_session)
-
-    @classmethod
-    def from_estimated_laps(cls, pos_t_rel_seconds, desc_crossing_begining_idxs, desc_crossing_ending_idxs, asc_crossing_begining_idxs, asc_crossing_ending_idxs, debug_print=True):
+    def init_from_estimated_laps(cls, pos_t_rel_seconds, desc_crossing_begining_idxs, desc_crossing_ending_idxs, asc_crossing_begining_idxs, asc_crossing_ending_idxs, debug_print=True,
+                            t_start: Optional[float] = None, t_delta: Optional[float] = None, t_end: Optional[float] = None,
+                            global_session: Optional[Union[Position, DataSession]] = None) -> "Laps":
         """Builds a Laps object from the output of the neuropy.analyses.laps.estimate_laps function."""
-        filtered_laps_df = LapsAccessor.from_estimated_laps(pos_t_rel_seconds, desc_crossing_begining_idxs, desc_crossing_ending_idxs, asc_crossing_begining_idxs, asc_crossing_ending_idxs, debug_print)
+        filtered_laps_df = LapsAccessor.init_from_estimated_laps(pos_t_rel_seconds, desc_crossing_begining_idxs=desc_crossing_begining_idxs, desc_crossing_ending_idxs=desc_crossing_ending_idxs, asc_crossing_begining_idxs=asc_crossing_begining_idxs, asc_crossing_ending_idxs=asc_crossing_ending_idxs,
+                                                                  debug_print=debug_print,
+                                                                  t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session)
         return Laps(filtered_laps_df)
 

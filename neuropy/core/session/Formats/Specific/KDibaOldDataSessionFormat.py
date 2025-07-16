@@ -13,6 +13,7 @@ from neuropy.core.session.Formats.SessionSpecifications import SessionFolderSpec
 
 # For specific load functions:
 from neuropy.core import DataWriter, NeuronType, Neurons, BinnedSpiketrain, Mua, ProbeGroup, Position, Epoch, Signal, Laps, FlattenedSpiketrains
+from neuropy.core.laps import LapsAccessor
 from neuropy.utils.load_exported import import_mat_file
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta
 
@@ -1140,7 +1141,9 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
                 curr_var_name = mat_variables_to_extract[i]
                 flat_var_out_dict[curr_var_name] = laps_mat_file[curr_var_name].flatten()
                 
-            laps_df = Laps.build_dataframe(flat_var_out_dict, time_variable_name=time_variable_name, absolute_start_timestamp=session.config.absolute_start_timestamp)  # 1014937 rows × 11 columns
+            laps_df: pd.DataFrame = LapsAccessor.init_dataframe_from_mat_loaded_dict(flat_var_out_dict, time_variable_name=time_variable_name, absolute_start_timestamp=session.config.absolute_start_timestamp,
+                                                               global_session=session,
+                                                               )  # 1014937 rows × 11 columns
             session.laps = Laps(laps_df) # new DataFrame-based approach        
 
         return session, laps_df
@@ -1233,7 +1236,7 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         return spikes_df, flat_spikes_out_dict 
 
     @classmethod
-    def _default_kdiba_spikeII_compute_laps_vars(cls, session, spikes_df, time_variable_name='t_seconds'):
+    def _default_kdiba_spikeII_compute_laps_vars(cls, session, spikes_df: pd.DataFrame, time_variable_name='t_seconds'):
         """ Attempts to compute the Laps object from the loaded spikesII spikes, which have a 'lap' column.
         time_variable_name: (str) either 't' or 't_seconds', indicates which time variable to return in 'lap_start_stop_time'
         """
@@ -1317,7 +1320,10 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
                              'start_t':np.array(laps_first_spike_instances['t'].values), 'end_t':np.array(laps_last_spike_instances['t'].values),
                              'start_t_seconds':np.array(laps_first_spike_instances[time_variable_name].values), 'end_t_seconds':np.array(laps_last_spike_instances[time_variable_name].values)
                              }
-        laps_df = Laps.build_dataframe(flat_var_out_dict, time_variable_name=time_variable_name, absolute_start_timestamp=session.config.absolute_start_timestamp)
+        laps_df: pd.DataFrame = LapsAccessor.init_dataframe_from_mat_loaded_dict(flat_var_out_dict, time_variable_name=time_variable_name, absolute_start_timestamp=session.config.absolute_start_timestamp,
+                                                    global_session=session,
+                                                    )  # 1014937 rows × 11 columns
+
         session.laps = Laps(laps_df) # new DataFrame-based approach
         
         # session.laps = Laps(lap_id, laps_spike_counts, lap_start_stop_flat_idx, lap_start_stop_time)
