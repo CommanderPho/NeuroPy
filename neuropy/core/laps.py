@@ -510,7 +510,8 @@ class LapsAccessor(EpochsAccessor):
         custom_test_laps_df = custom_test_laps_df.sort_values(by=['start']).reset_index(drop=True)
         custom_test_laps_df['lap_id'] = (custom_test_laps_df.index + 1)
         custom_test_laps_df['label'] = custom_test_laps_df['lap_id']
-        
+        custom_test_laps_df = custom_test_laps_df.laps_accessor.filter_to_valid() ## drop invalid/zero index ones first
+        # #TODO 2025-07-16 11:38: - [ ] exception occured: CapturedException(Cannot convert non-finite values (NA or inf) to integer, traceback=/home/halechr/repos/Spike3D/.venv/lib/python3.9/site-packages/pandas/core/dtypes/astype.py:182<fn: _astype_float_to_int_nansafe>: pandas.errors.IntCastingNaNError: Cannot convert non-finite values (NA or inf) to integer)
         custom_test_laps_df = custom_test_laps_df.laps_accessor.update_computed_columns(t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session, replace_existing=True)
         custom_test_laps_df = custom_test_laps_df.laps_accessor.filter_to_valid()
         return custom_test_laps_df
