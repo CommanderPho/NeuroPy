@@ -920,7 +920,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'),
             # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?! Has horrible noise.
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), # 2024-10-04 - very bad position tracking data (jumping around everywhere at high frequency)
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), # 2024-10-04 - very bad position tracking data (jumping around everywhere at high frequency)
         ]
         return [v for v in good_sessions if (v not in bad_sessions)]
 
@@ -972,6 +972,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-2-0'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-55-7'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-03_11-0-53'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), # 2024-10-04 - very bad position tracking data (jumping around everywhere at high frequency)
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='redundant'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='showclus'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='sleep'),
