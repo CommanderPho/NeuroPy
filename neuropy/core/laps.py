@@ -36,6 +36,8 @@ class LapsAccessor(EpochsAccessor):
     def __init__(self, pandas_obj):
         self._validate(pandas_obj)
         self._obj = pandas_obj
+        self._obj = self.update_column_datatypes()
+        
 
     @staticmethod
     def _validate(obj):
@@ -62,6 +64,7 @@ class LapsAccessor(EpochsAccessor):
         return Laps(self._obj, metadata=metadata)
 
 
+
     # @function_attributes(short_name=None, tags=['laps', 'lap_dir', 'modern'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-07-16 06:10', related_items=[])
     def compute_lap_dir_from_net_displacement(self, global_session: Union[Position, DataSession], **kwargs) -> pd.DataFrame:
         """ 2025-07-16 - uses the smoothed velocity to determine the proper lap direction
@@ -77,7 +80,23 @@ class LapsAccessor(EpochsAccessor):
     # ==================================================================================================================================================================================================================================================================================== #
     # Classmethods                                                                                                                                                                                                                                                                         #
     # ==================================================================================================================================================================================================================================================================================== #
-
+    
+    def update_column_datatypes(self) -> pd.DataFrame:
+        """ Updates the datatypes of the dataframe to the correct type if they exist
+        """
+        self._obj[['lap_id']] = self._obj[['lap_id']].astype('int')
+        if 'maze_id' in self._obj.columns:
+            self._obj[['maze_id']] = self._obj[['maze_id']].astype('int')
+        if set(['start_spike_index','end_spike_index']).issubset(self._obj.columns):
+            self._obj[['start_spike_index', 'end_spike_index']] = self._obj[['start_spike_index', 'end_spike_index']].astype('int')
+            self._obj['num_spikes'] = self._obj['end_spike_index'] - self._obj['start_spike_index'] # builds 'num_spikes'
+        if 'lap_dir' in self._obj.columns:
+            # Either way, ensure that the lap_dir is an 'int' column.
+            self._obj['lap_dir'] = self._obj['lap_dir'].astype('int')
+        if 'label' in self._obj.columns:               
+            self._obj['label'] = self._obj['lap_id'].astype('str') # add the string "label" column
+        return self._obj
+    
     # @function_attributes(short_name=None, tags=['laps', 'lap_dir', 'modern'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-07-16 06:10', related_items=[])
     @classmethod
     def _compute_lap_dir_from_net_displacement(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession]) -> pd.DataFrame:
@@ -469,19 +488,17 @@ class Laps(Epoch):
             # computes 'track_id' from t_start, t_delta, and t_end where t_delta corresponds to the transition point (track change).
             laps_df = ensure_dataframe(laps_df).epochs.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=True, labels_column_name='lap_id')
 
-        if 'maze_id' in laps_df.columns:
-            laps_df[['maze_id']] = laps_df[['maze_id']].astype('int')
+        laps_df = laps_df.laps_accessor.update_column_datatypes()
+
         if set(['start_spike_index','end_spike_index']).issubset(laps_df.columns):
-            laps_df[['start_spike_index', 'end_spike_index']] = laps_df[['start_spike_index', 'end_spike_index']].astype('int')
             laps_df['num_spikes'] = laps_df['end_spike_index'] - laps_df['start_spike_index'] # builds 'num_spikes'
     
         if (('lap_dir' not in laps_df.columns) or ('is_LR_dir' not in laps_df.columns)):
             # compute the lap_dir if that field doesn't exist:
             if global_session is not None:
                 ## computes proper 'is_LR_dir' and 'lap_dir' columns:
-                laps_df = cls._compute_lap_dir_from_smoothed_velocity(laps_df=laps_df, global_session=global_session, replace_existing=True) # adds 'is_LR_dir'
-                # if 'lap_dir' not in laps_df.columns:
-                #     laps_df['lap_dir'] = laps_df['is_LR_dir']
+                laps_df = laps_df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=global_session) # adds 'is_LR_dir'
+
             else:
                 # No global_session or position passed, using old even/odd 'lap_dir' determination.
                 if (('lap_dir' not in laps_df) or replace_existing):
@@ -495,18 +512,14 @@ class Laps(Epoch):
                     laps_df['lap_dir'] = np.full_like(laps_df['lap_id'].to_numpy(), -1)
                     laps_df.loc[np.logical_not(np.isnan(laps_df.lap_id.to_numpy())), 'lap_dir'] = np.mod(laps_df.loc[np.logical_not(np.isnan(laps_df.lap_id.to_numpy())), 'lap_id'], 2)
                     
-                    # laps_df['lap_dir'] = np.full_like(laps_df['lap_id'].to_numpy(), -1)
-                    # laps_df.loc[np.logical_not(np.isnan(laps_df.lap_id.to_numpy())), 'lap_dir'] = np.mod(laps_df.loc[np.logical_not(np.isnan(laps_df.lap_id.to_numpy())), 'lap_id'], 2)
                     
         elif (replace_existing and (global_session is not None)):
-            laps_df = cls._compute_lap_dir_from_smoothed_velocity(laps_df=laps_df, global_session=global_session, replace_existing=True) # adds 'is_LR_dir'
+            # laps_df = cls._compute_lap_dir_from_smoothed_velocity(laps_df=laps_df, global_session=global_session, replace_existing=True) # adds 'is_LR_dir'
+            laps_df = laps_df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=global_session) # adds 'is_LR_dir'            
         else:
             pass
 
-        # Either way, ensure that the lap_dir is an 'int' column.
-        laps_df['lap_dir'] = laps_df['lap_dir'].astype('int')
-        
-        laps_df['label'] = laps_df['lap_id'].astype('str') # add the string "label" column
+        laps_df = laps_df.laps_accessor.update_column_datatypes()
         return laps_df
 
 
