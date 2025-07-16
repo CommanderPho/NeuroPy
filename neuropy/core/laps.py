@@ -398,13 +398,13 @@ class LapsAccessor(EpochsAccessor):
         if set(['start_spike_index','end_spike_index']).issubset(laps_df.columns):
             laps_df['num_spikes'] = laps_df['end_spike_index'] - laps_df['start_spike_index'] # builds 'num_spikes'
 
-
+        needs_recompute: bool = False
         ## ['lap_dir', 'is_LR_dir']
         if (('lap_dir' not in laps_df.columns) or ('is_LR_dir' not in laps_df.columns)):
             # compute the lap_dir if that field doesn't exist:
             if global_session is not None:
                 ## computes proper 'is_LR_dir' and 'lap_dir' columns:
-                laps_df = laps_df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=global_session) # adds 'is_LR_dir'
+                needs_recompute = True
 
             else:
                 # No global_session or position passed, using old even/odd 'lap_dir' determination.
@@ -419,11 +419,14 @@ class LapsAccessor(EpochsAccessor):
                     laps_df['lap_dir'] = np.full_like(laps_df['lap_id'].to_numpy(), -1)
                     # laps_df.loc[np.logical_not(np.isnan(laps_df.lap_id.to_numpy())), 'lap_dir'] = np.mod(laps_df.loc[np.logical_not(np.isnan(laps_df.lap_id.to_numpy())), 'lap_id'], 2)
 
-        elif (replace_existing and (global_session is not None)):
-            # laps_df = cls._compute_lap_dir_from_smoothed_velocity(laps_df=laps_df, global_session=global_session, replace_existing=True) # adds 'is_LR_dir'
-            laps_df = laps_df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=global_session) # adds 'is_LR_dir'            
+        elif (replace_existing and (global_session is not None)): 
+            needs_recompute = True
         else:
             pass
+        
+        if needs_recompute:
+            laps_df = laps_df.laps_accessor.compute_lap_dir_from_net_displacement(global_session=global_session) # adds 'is_LR_dir'
+
 
         laps_df = laps_df.laps_accessor.get_valid_laps_epochs_df(rebuild_lap_id_columns=True)
         
