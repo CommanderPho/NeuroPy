@@ -578,7 +578,8 @@ class Laps(Epoch):
         """
         super().__init__(laps, metadata=metadata)
         # self._data = laps # set to the laps dataframe
-        self._df = self._df.laps_accessor.laps_accessor.update_computed_columns(replace_existing=False) ## DO NOT allow replacement of the good epochs with the bad ones.
+        self._df = self._df.laps_accessor.update_computed_columns(replace_existing=False) ## DO NOT allow replacement of the good epochs with the bad ones.
+        self._df = self._df.laps_accessor.filter_to_valid()
         self._df = self._df.sort_values(by=['start']) # sorts all values in ascending order
 
     @property

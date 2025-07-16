@@ -296,8 +296,8 @@ def build_lap_computation_epochs(sess, use_direction_dependent_laps:bool = True)
     # use_direction_dependent_laps = True # whether to split the laps into left and right directions
 
     ## Depends on having a real `sess.laps` Laps object:
+    sess.laps.update_computed_columns(global_session=sess)
     active_laps_obj: Laps = deepcopy(sess.laps)
-    
     active_laps_obj.update_computed_columns(global_session=sess)
 
     # Strangely many of the laps are overlapping. 82-laps in `sess.laps.as_epoch_obj()`, 77 in `sess.laps.as_epoch_obj().get_non_overlapping()`
