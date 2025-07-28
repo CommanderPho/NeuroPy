@@ -54,6 +54,9 @@ def get_dict_subset(a_dict, included_keys=None, require_all_keys=False):
     
 def override_dict(lhs_dict, rhs_dict):
     """returns lhs_dict overriden with the values specified in rhs_dict (if they exist), otherwise returning the extant values.
+
+    from neuropy.utils.mixins.dict_representable import override_dict
+
     """
     limited_rhs_dict = get_dict_subset(rhs_dict, included_keys=lhs_dict.keys(), require_all_keys=False)  # restrict the other dict to the subset of keys in lhs_dict
     return lhs_dict.__or__(limited_rhs_dict) # now can perform normal __or__ using the restricted subset dict
