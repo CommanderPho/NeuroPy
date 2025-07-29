@@ -490,6 +490,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         # }
         
         ## Defined based on 80% median firing criteria - 2025-07-29 03:01 
+        ## Computed using `print(',\n'.join([': '.join([k.get_initialization_code_string(), str(v)]) for k, v in session_cell_exclusivity_annotations.items()]))`
         session_cell_exclusivity_annotations: Dict[IdentifyingContext, SessionCellExclusivityRecord] = {
             IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-08_14-26-15'): SessionCellExclusivityRecord(LxC=[16, 35, 73], LpC=[], Others=[], SpC=[], SxC=[3, 15, 24, 56, 58, 60]),
             IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_1-22-43'): SessionCellExclusivityRecord(LxC=[5, 13, 29, 38, 63, 67], LpC=[], Others=[], SpC=[], SxC=[33, 35, 58]),
