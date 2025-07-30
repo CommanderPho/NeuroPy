@@ -168,13 +168,17 @@ class PositionComputedDataMixin(PositionSlicedMixin):
     def _computed_column_component_labels(component_label):
         return [f'velocity_{component_label}', f'acceleration_{component_label}']
     @property
-    def dim_computed_columns(self, include_dt=False):
+    def dim_computed_columns(self, include_dt=False, include_optional_columns:bool=False):
         """ returns the labels for the computed columns
             output: ['dt', 'velocity_x', 'acceleration_x', 'velocity_y', 'acceleration_y']
         """
         computed_column_labels = [PositionComputedDataMixin._computed_column_component_labels(a_dim_label) for a_dim_label in self.dim_columns]
         if include_dt:
             computed_column_labels.insert(0, ['dt']) # insert 'dt' at the start of the list
+
+        if include_optional_columns:
+            computed_column_labels.extend([k for k in self.dim_optional_additional_columns if k in self.df.columns]) ## if we have these optional columns
+            
         # itertools.chain.from_iterable converts ['dt', ['velocity_x', 'acceleration_x'], ['velocity_y', 'acceleration_y']] to ['dt', 'velocity_x', 'acceleration_x', 'velocity_y', 'acceleration_y']
         computed_column_labels = list(itertools.chain.from_iterable(computed_column_labels)) # ['dt', 'velocity_x', 'acceleration_x', 'velocity_y', 'acceleration_y']
         return computed_column_labels
@@ -306,11 +310,19 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         return self
     
 
+    ## Optional Computed Variables:
+    @property
+    def dim_optional_additional_columns(self) -> List[str]:
+        """ returns the labels for the optional columns """
+        return ['normal_dir_unit_t', 'normal_dir_unit_x', 'approx_head_dir_degrees']
+    
+
     def adding_approx_head_dir_columns(self, N:int=15) -> pd.DataFrame:
         """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
         `active_computation_config` is not used/needed if the appropriate xbin_edges/ybin_edges are provided.
         Internally uses: `cls.perform_add_binned_position_columns(...)`
-        
+        adds columns: ['approx_head_dir_degrees']
+
         Usage:
             global_pos_obj: Position = deepcopy(global_session.position)
 
@@ -319,6 +331,44 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         self.df['approx_head_dir_degrees'] = ((np.rad2deg(np.arctan2(self.df['velocity_y_smooth'], self.df['velocity_x_smooth'])) + 360) % 360) # arctan2 is required to get the angle right
         self.df = self.df.dropna(axis='index', subset=['approx_head_dir_degrees'])
         return self.df
+
+
+
+    # @function_attributes(short_name=None, tags=['position', 'hairy', 'hair', 'normal', 'direction'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-07-30 12:24', related_items=[])
+    def adding_hairy_curve_normal_dir_columns(self, N:int=15, x_column_name: str = 'x_smooth', time_column_name: str = 't', replace_existing:bool=False) -> pd.DataFrame:
+        """ adds two columns indicating the direction orthogonal (normal) to the direction of position change at each point.        
+        Adds: ['normal_dir_unit_t', 'normal_dir_unit_x']
+        
+        Usage:
+            global_pos_obj: Position = deepcopy(global_session.position)
+
+        """
+        if ('normal_dir_unit_t' in self.df.columns) and ('normal_dir_unit_x' in self.df.columns) and (not replace_existing):
+            return self.df
+        else:       
+            self.df = self.compute_higher_order_derivatives().position.compute_smoothed_position_info(N=N)
+            # 1. Tangent slope  m = dx/dt  (use central differences with np.gradient)
+            self.df['m_tan'] = np.gradient(self.df[x_column_name].values, self.df[time_column_name].values)   # dx/dt
+
+            # 2a. Slope of the normal line
+            # self.df['m_normal'] = -1.0 / self.df['m_tan'] # −1/m
+
+            # 2b. Raw 2-D normal vector  n = (−m , 1)
+            # self.df['n_vec'] = list(zip(-self.df['m_tan'], np.ones(len(self.df))))
+
+            # 2c. Unit-length normal vector
+            n_x = -self.df['m_tan'].values
+            n_t = np.ones_like(n_x)
+            norm = np.sqrt(n_x**2 + n_t**2) # Normalise it
+            self.df['normal_dir_unit_t'] = n_t / norm
+            self.df['normal_dir_unit_x'] = n_x / norm
+            
+            # Optional: drop helper columns if you like
+            self.df = self.df.drop(columns=['m_tan'])
+            # self.df = self.df.dropna(axis='index', subset=['normal_dir_unit_t', 'normal_dir_unit_x']) ## should we drop undefined columns?
+            return self.df
+
+
             
     
     ## Computed Variable Properties:
