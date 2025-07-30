@@ -363,7 +363,8 @@ class PfnDMixin(SimplePrintable):
             ax = [ax]
 
         # plot trajectories
-        pos_df = self.position.to_dataframe()
+        # pos_df = self.position.to_dataframe()
+        pos_df: pd.DataFrame = self.position.adding_hairy_curve_normal_dir_columns() # .to_dataframe()
         
         # self.x, self.y contain filtered positions, pos_df's columns contain all positions.
         if not use_pandas_plotting: # don't need to worry about 't' for pandas plotting, we'll just use the one in the dataframe.
