@@ -193,14 +193,38 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
     # ==================================================================================================================== #
     
     # sets the 'x','y' positions by interpolating over a position data frame
-    def interpolate_spike_positions(self, position_sampled_times, position_x, position_y, position_linear_pos=None, position_speeds=None):
-        spike_timestamp_column_name=self.time_variable_name
-        self._obj['x'] = np.interp(self._obj[spike_timestamp_column_name], position_sampled_times, position_x)
-        self._obj['y'] = np.interp(self._obj[spike_timestamp_column_name], position_sampled_times, position_y)
+    def interpolate_spike_positions(self, position_sampled_times, position_x, position_y, position_linear_pos=None, position_speeds=None, spike_timestamp_column_name=None, replace_existing:bool=False, **position_additional_variables_dict):
+        """ Adds interpolated position properties to each spike in the spikes_df
+        
+        Usage:
+            global_pos = deepcopy(global_session.position)
+            pos_df: pd.DataFrame = global_pos.adding_hairy_curve_normal_dir_columns()
+            global_spikes_df: pd.DataFrame = get_proper_global_spikes_df(curr_active_pipeline)
+            global_spikes_df = global_spikes_df.spikes.interpolate_spike_positions(pos_df['t'], pos_df['x'], pos_df['y'], **{k:pos_df[k].to_numpy() for k in ['normal_dir_unit_t', 'normal_dir_unit_x']})
+            global_spikes_df
+        """
+        if spike_timestamp_column_name is None:
+            spike_timestamp_column_name = self.time_variable_name
+        else:
+            assert spike_timestamp_column_name in self._obj
+            
+        if position_x is not None:
+            if ('x' not in self._obj) or replace_existing:
+                self._obj['x'] = np.interp(self._obj[spike_timestamp_column_name], position_sampled_times, position_x)
+        if position_y is not None:
+            if ('y' not in self._obj) or replace_existing:
+                self._obj['y'] = np.interp(self._obj[spike_timestamp_column_name], position_sampled_times, position_y)
         if position_linear_pos is not None:
-            self._obj['lin_pos'] = np.interp(self._obj[spike_timestamp_column_name], position_sampled_times, position_linear_pos)
+            if ('lin_pos' not in self._obj) or replace_existing:
+                self._obj['lin_pos'] = np.interp(self._obj[spike_timestamp_column_name], position_sampled_times, position_linear_pos)
         if position_speeds is not None:
-            self._obj['speed'] = np.interp(self._obj[spike_timestamp_column_name], position_sampled_times, position_speeds)
+            if ('speed' not in self._obj) or replace_existing:
+                self._obj['speed'] = np.interp(self._obj[spike_timestamp_column_name], position_sampled_times, position_speeds)
+
+        for a_var_name, a_var_arr in position_additional_variables_dict.items():
+            assert len(a_var_arr) == len(position_sampled_times)
+            if (a_var_name not in self._obj) or replace_existing:
+                self._obj[a_var_name] = np.interp(self._obj[spike_timestamp_column_name], position_sampled_times, a_var_arr)
         return self._obj
     
     def add_same_cell_ISI_column(self):
@@ -570,14 +594,8 @@ class FlattenedSpiketrains(HDFMixin, ConcatenationInitializable, NeuronUnitSlica
         return FlattenedSpiketrains(new_df, t_start=new_t_start, metadata=objList[0].metadata)
         
     @staticmethod
-    def interpolate_spike_positions(spikes_df, position_sampled_times, position_x, position_y, position_linear_pos=None, position_speeds=None, spike_timestamp_column_name='t_rel_seconds'):
-        spikes_df['x'] = np.interp(spikes_df[spike_timestamp_column_name], position_sampled_times, position_x)
-        spikes_df['y'] = np.interp(spikes_df[spike_timestamp_column_name], position_sampled_times, position_y)
-        if position_linear_pos is not None:
-            spikes_df['lin_pos'] = np.interp(spikes_df[spike_timestamp_column_name], position_sampled_times, position_linear_pos)
-        if position_speeds is not None:
-            spikes_df['speed'] = np.interp(spikes_df[spike_timestamp_column_name], position_sampled_times, position_speeds)
-        return spikes_df
+    def interpolate_spike_positions(spikes_df: pd.DataFrame, position_sampled_times, position_x, position_y, position_linear_pos=None, position_speeds=None, spike_timestamp_column_name='t_rel_seconds', replace_existing:bool=False, **position_additional_variables_dict):
+        return spikes_df.spikes.interpolate_spike_positions(position_sampled_times, position_x, position_y, position_linear_pos=position_linear_pos, position_speeds=position_speeds, spike_timestamp_column_name=spike_timestamp_column_name, replace_existing=replace_existing, **position_additional_variables_dict)
 
     @staticmethod
     def build_spike_dataframe(active_session, timestamp_scale_factor=(1/1E4), spike_timestamp_column_name='t_rel_seconds', progress_tracing=True):
