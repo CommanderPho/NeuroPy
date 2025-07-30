@@ -339,7 +339,8 @@ class PfnDMixin(SimplePrintable):
 
     @safely_accepts_kwargs
     def plotRaw_v_time(self, cellind, speed_thresh=False, spikes_color=None, spikes_alpha=None, ax=None, position_plot_kwargs=None, spike_plot_kwargs=None,
-        should_include_trajectory=True, should_include_spikes=True, should_include_filter_excluded_spikes=True, should_include_labels=True, use_filtered_positions=False, use_pandas_plotting=False):
+        should_include_trajectory=True, should_include_spikes=True, should_include_filter_excluded_spikes=True, should_include_labels=True, use_filtered_positions=False, use_pandas_plotting=False,
+        should_use_hairy_plot_for_spikes:bool=True):
         """ Builds one subplot for each dimension of the position data
         Updated to work with both 1D and 2D Placefields
 
@@ -352,6 +353,8 @@ class PfnDMixin(SimplePrintable):
         use_filtered_positions:bool = False # If True, uses only the filtered positions (which are missing the end caps) and the default a.plot(...) results in connected lines which look bad.
 
         """
+        if should_use_hairy_plot_for_spikes:
+            from pyphocorehelpers.plotting.hairy_lines_plot import HairyLinePlot
         if ax is None:
             fig, ax = plt.subplots(self.ndim, 1, sharex=True)
             fig.set_size_inches([23, 9.7])
@@ -430,9 +433,13 @@ class PfnDMixin(SimplePrintable):
                     spikes_color_RGBA = [*(0, 0, 0.8), spikes_alpha]
 
                 for a, pos in zip(ax, spk_pos_[cellind]):
-                    # WARNING: if spike_plot_kwargs contains the 'markerfacecolor' key, it's value will override plot's color= argument, so the specified spikes_color will be ignored.
-                    a.plot(spk_t_[cellind], pos, color=spikes_color_RGBA, **(spike_plot_kwargs or {})) # , color=[*spikes_color, spikes_alpha]
-                    #TODO 2023-09-06 02:23: - [ ] Note that without extra `spike_plot_kwargs` this plots spikes as connected lines without markers which is nearly always wrong.
+                    if should_use_hairy_plot_for_spikes:
+                        hairs_line_collection, _ = HairyLinePlot._perform_plot_hairy_overlayed_position(x=spk_t_[cellind], y=pos, ax=a, color=spikes_color_RGBA, should_draw_reference_line=False, **(spike_plot_kwargs or {}))
+
+                    else:
+                        # WARNING: if spike_plot_kwargs contains the 'markerfacecolor' key, it's value will override plot's color= argument, so the specified spikes_color will be ignored.
+                        a.plot(spk_t_[cellind], pos, color=spikes_color_RGBA, **(spike_plot_kwargs or {})) # , color=[*spikes_color, spikes_alpha]
+                        #TODO 2023-09-06 02:23: - [ ] Note that without extra `spike_plot_kwargs` this plots spikes as connected lines without markers which is nearly always wrong.
 
             # Put info on title
             if should_include_labels:
