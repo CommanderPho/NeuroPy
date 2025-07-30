@@ -1273,7 +1273,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         new_pf1D_ratemap = new_pf1D.ratemap.to_1D_maximum_projection()
         new_pf1D = PfND(spikes_df=new_pf1D.spikes_df, position=new_pf1D.position, epochs=new_pf1D.epochs, config=new_pf1D.config, position_srate=new_pf1D.position.sampling_rate,
             setup_on_init=True, compute_on_init=False,
-            ratemap=new_pf1D_ratemap, ratemap_spiketrains=new_pf1D._ratemap_spiketrains,ratemap_spiketrains_pos=new_pf1D._ratemap_spiketrains_pos, filtered_pos_df=new_pf1D._filtered_pos_df, filtered_spikes_df=new_pf1D._filtered_spikes_df,
+            ratemap=new_pf1D_ratemap, ratemap_spiketrains=new_pf1D._ratemap_spiketrains, ratemap_spiketrains_pos=new_pf1D._ratemap_spiketrains_pos, filtered_pos_df=new_pf1D._filtered_pos_df, filtered_spikes_df=new_pf1D._filtered_spikes_df,
             ndim=1, xbin=new_pf1D.xbin, ybin=None, bin_info=None)
 
         # new_pf1D.ratemap = new_pf1D_ratemap
