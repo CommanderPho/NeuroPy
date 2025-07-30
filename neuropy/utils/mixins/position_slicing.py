@@ -12,14 +12,14 @@ class PositionSlicedMixin:
     @property
     def position_variable_names(self) -> Tuple[str, ...]:
         """ Returns tuple of position dimension column names ('x', 'y', 'z') """
-        if 'y' in self._obj.columns:
+        if 'y' in self.df.columns:
             return ('x', 'y')
         return ('x',)
 
     @property
     def binned_position_variable_names(self) -> Tuple[str, ...]:
         """ Returns tuple of binned position column names ('binned_x', 'binned_y') """
-        if 'y' in self._obj.columns:
+        if 'y' in self.df.columns:
             return ('binned_x', 'binned_y')
         return ('binned_x',)
 
@@ -37,10 +37,10 @@ class PositionSlicedMixin:
                 ymin, ymax = ymin_ymax_tuple
     
         if xmin is not None and xmax is not None:
-            filter_conditions.append((self._obj['x'] >= xmin) & (self._obj['x'] <= xmax))
+            filter_conditions.append((self.df['x'] >= xmin) & (self.df['x'] <= xmax))
     
-        if 'y' in self._obj.columns and ymin is not None and ymax is not None:
-            filter_conditions.append((self._obj['y'] >= ymin) & (self._obj['y'] <= ymax))
+        if 'y' in self.df.columns and ymin is not None and ymax is not None:
+            filter_conditions.append((self.df['y'] >= ymin) & (self.df['y'] <= ymax))
     
         # Combine all conditions
         if filter_conditions:
@@ -48,8 +48,8 @@ class PositionSlicedMixin:
             for condition in filter_conditions[1:]:
                 is_pos_sample_included = is_pos_sample_included & condition
                 
-            filtered_df = self._obj[is_pos_sample_included]
+            filtered_df = self.df[is_pos_sample_included]
         else:
-            filtered_df = self._obj
+            filtered_df = self.df
             
         return filtered_df.copy()
