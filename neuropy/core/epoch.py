@@ -1316,7 +1316,8 @@ epochs_df
 
 class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrameRepresentable, DataFrameInitializable, DataWriter):
     """ An Epoch object holds one ore more periods of time (marked by start/end timestamps) along with their corresponding metadata.
-
+    from neuropy.core.epoch import Epoch
+    
     """
     def __init__(self, epochs: pd.DataFrame, metadata=None) -> None:
         """[summary]
