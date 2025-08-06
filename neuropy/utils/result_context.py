@@ -516,6 +516,27 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
     def _get_session_context_keys() -> List[str]:
         return ['format_name','animal','exper_name', 'session_name']
 
+
+    @classmethod
+    def _get_session_global_uid(cls, session_context: "IdentifyingContext") -> str:
+        """ gets the globally unique (to this session) session identifier that can be used as 'session_uid' and to form 'neuron_uid'
+        
+        Suitable for use like `neuron_indexed_df['neuron_uid'] = session_uid + "|" + neuron_indexed_df['aclu'].astype(str)`
+        """
+        session_uid: str = session_context.get_description(separator="|", include_property_names=False)
+        return session_uid
+    
+
+    def get_description_as_session_global_uid(self) -> str:
+        """ gets the globally unique (to this session) session identifier that can be used as 'session_uid' and to form 'neuron_uid'        
+        Suitable for use like `neuron_indexed_df['neuron_uid'] = session_uid + "|" + neuron_indexed_df['aclu'].astype(str)`
+        
+        session_uid: str = a_ctxt.get_description_as_session_global_uid()
+        session_uid
+        """
+        return self.get_description(separator="|", include_property_names=False)
+
+
     @classmethod
     def resolve_key(cls, duplicate_ctxt: "IdentifyingContext", name:str, value, collision_prefix:str, strategy:CollisionOutcome=CollisionOutcome.APPEND_USING_KEY_PREFIX):
         """ensures no collision between attributes occur, and if they do resolve them according to strategy. e.g. rename them with an identifying prefix
