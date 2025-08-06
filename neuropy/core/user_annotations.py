@@ -414,8 +414,8 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-08_14-26-15'):
         #     SessionCellExclusivityRecord(LxC=[8, 97, 109],
         #         LpC=[],
-        #         SpC=[13, 67, 52],
-        #         SxC=[4,23,58]),
+        #         SpC=[67, 52, 60],
+        #         SxC=[4,13,23,58]),
         # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_1-22-43'):
         #     SessionCellExclusivityRecord(LxC=[3, 5, 29, 103],
         #         LpC=[23, 38, 63],
