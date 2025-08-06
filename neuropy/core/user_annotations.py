@@ -414,23 +414,23 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-08_14-26-15'):
         #     SessionCellExclusivityRecord(LxC=[8, 97, 109],
         #         LpC=[],
-        #         SpC=[67, 52],
-        #         SxC=[23,4,58]),
+        #         SpC=[13, 67, 52],
+        #         SxC=[4,23,58]),
         # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_1-22-43'):
         #     SessionCellExclusivityRecord(LxC=[3, 5, 29, 103],
         #         LpC=[23, 38, 63],
-        #         SpC=[33, 35, 58],
-        #         SxC=[55]),
+        #         SpC=[33, 58, 62, 69, 100],
+        #         SxC=[16, 35, 55]),
         # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-12_15-55-31'):
         #     SessionCellExclusivityRecord(LxC=[3, 34], # LxC=[],
         #         LpC=[2, 3, 34],
-        #         SpC=[31, 33, 53],
-        #         SxC=[30]),
+        #         SpC=[27, 31, 53],
+        #         SxC=[30, 33]),
         # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-07_16-40-19'):
         #     SessionCellExclusivityRecord(LxC=[],
         #         LpC=[],
-        #         SpC=[18, 65],
-        #         SxC=[3, 19]),
+        #         SpC=[],
+        #         SxC=[3, 18, 19, 65]),  # 18, 65 - time dependent
         # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_21-16-25'):
         #     SessionCellExclusivityRecord(LxC=[90],
         #         LpC=[23, 73],
@@ -444,8 +444,8 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-12_16-53-46'):
         #     SessionCellExclusivityRecord(LxC=[38, 59],
         #         LpC=[51, 60],
-        #         SpC=[7],
-        #         SxC=[8]),
+        #         SpC=[40],
+        #         SxC=[7, 8]),
         # ## Break
         # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'):
         #     SessionCellExclusivityRecord(LxC=[],
@@ -455,13 +455,13 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'):
         #     SessionCellExclusivityRecord(LxC=[19, 23],
         #         LpC=[20], #LpC=[19],
-        #         SpC=[36],
-        #         SxC=[29]),
+        #         SpC=[],
+        #         SxC=[29, 36]),
         # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'):
         #     SessionCellExclusivityRecord(LxC=[12, 14, 25, 17],
         #         LpC=[],
-        #         SpC=[30],
-        #         SxC=[]),
+        #         SpC=[],
+        #         SxC=[30]),
         # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'):
         #     SessionCellExclusivityRecord(LxC=[14, 30, 32],
         #         LpC=[40],
@@ -480,8 +480,8 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'):
         #     SessionCellExclusivityRecord(LxC=[25, 8, 24], # LxC=[],
         #         LpC=[],
-        #         SpC=[13,22,28],
-        #         SxC=[]),
+        #         SpC=[],
+        #         SxC=[13,22,28]),
         # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'):
         #     SessionCellExclusivityRecord(LxC=[6, 10, 16, 19],
         #         LpC=[14, 31],
