@@ -412,17 +412,17 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         """ hand-labeled by pho on 2023-10-04 """
         # session_cell_exclusivity_annotations: Dict[IdentifyingContext, SessionCellExclusivityRecord] = {
         # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-08_14-26-15'):
-        #     SessionCellExclusivityRecord(LxC=[109],
+        #     SessionCellExclusivityRecord(LxC=[8, 97, 109],
         #         LpC=[],
         #         SpC=[67, 52],
         #         SxC=[23,4,58]),
         # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_1-22-43'):
-        #     SessionCellExclusivityRecord(LxC=[3, 29, 103],
-        #         LpC=[],
+        #     SessionCellExclusivityRecord(LxC=[3, 5, 29, 103],
+        #         LpC=[23, 38, 63],
         #         SpC=[33, 35, 58],
         #         SxC=[55]),
         # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-12_15-55-31'):
-        #     SessionCellExclusivityRecord(LxC=[],
+        #     SessionCellExclusivityRecord(LxC=[3, 34], # LxC=[],
         #         LpC=[2, 3, 34],
         #         SpC=[31, 33, 53],
         #         SxC=[30]),
@@ -453,13 +453,13 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         #         SpC=[21, 31],
         #         SxC=[41]),
         # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'):
-        #     SessionCellExclusivityRecord(LxC=[23],
-        #         LpC=[19],
+        #     SessionCellExclusivityRecord(LxC=[19, 23],
+        #         LpC=[20], #LpC=[19],
         #         SpC=[36],
         #         SxC=[29]),
         # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'):
-        #     SessionCellExclusivityRecord(LxC=[25],
-        #         LpC=[12, 14, 17],
+        #     SessionCellExclusivityRecord(LxC=[12, 14, 25, 17],
+        #         LpC=[],
         #         SpC=[30],
         #         SxC=[]),
         # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'):
@@ -478,13 +478,13 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         #         SpC=[],
         #         SxC=[]),
         # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'):
-        #     SessionCellExclusivityRecord(LxC=[],
+        #     SessionCellExclusivityRecord(LxC=[25, 8, 24], # LxC=[],
         #         LpC=[],
         #         SpC=[13,22,28],
         #         SxC=[]),
         # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'):
-        #     SessionCellExclusivityRecord(LxC=[],
-        #         LpC=[6, 10, 16, 19],
+        #     SessionCellExclusivityRecord(LxC=[6, 10, 16, 19],
+        #         LpC=[14, 31],
         #         SpC=[24],
         #         SxC=[]),
         # }
