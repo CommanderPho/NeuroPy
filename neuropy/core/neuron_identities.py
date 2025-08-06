@@ -183,19 +183,6 @@ class NeuronIdentityDataframeAccessor:
         return neuron_indexed_df
 
 
-    @classmethod
-    def _add_global_uid(cls, neuron_indexed_df: pd.DataFrame, session_context: "IdentifyingContext", force_overwrite: bool=False) -> pd.DataFrame:
-        """ adds the ['session_uid', 'neuron_uid'] columns to the dataframe. """
-        assert 'aclu' in neuron_indexed_df.columns
-        session_uid: str = session_context.get_description(separator="|", include_property_names=False)
-        if ('session_uid' not in neuron_indexed_df.columns) or force_overwrite:
-            neuron_indexed_df['session_uid'] = session_uid  # Provide an appropriate session identifier here
-        if ('neuron_uid' not in neuron_indexed_df.columns) or force_overwrite:
-            # neuron_indexed_df['neuron_uid'] = neuron_indexed_df.apply(lambda row: f"{session_uid}|{str(row['aclu'])}", axis=1) 
-            neuron_indexed_df['neuron_uid'] = session_uid + "|" + neuron_indexed_df['aclu'].astype(str) # Vectorized string concatenation - much faster than apply()
-
-        return neuron_indexed_df
-
 
     def make_neuron_indexed_df_global(self, curr_session_context: "IdentifyingContext", add_expanded_session_context_keys:bool=False, add_extended_aclu_identity_columns:bool=False, inplace:bool=False) -> pd.DataFrame:
         """ 2023-10-04 - Builds session-relative neuron identifiers, adding the global columns to the neuron_indexed_df
