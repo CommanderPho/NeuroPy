@@ -85,13 +85,28 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
 
 
     @function_attributes(short_name=None, tags=['XxC','LxC', 'SxC'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2023-10-05 16:18', related_items=[])
-    def add_neuron_exclusivity_column(self, neuron_indexed_df: pd.DataFrame, included_session_contexts: List[IdentifyingContext], neuron_uid_column_name: str = 'neuron_uid'):
+    def add_neuron_exclusivity_column(self, neuron_indexed_df: pd.DataFrame, included_session_contexts: List[IdentifyingContext], neuron_uid_column_name: str = 'neuron_uid', neuron_added_XdC_column_name: str = 'XxC_status'):
         """ adds 'XxC_status' column to the `neuron_indexed_df`: the user-labeled cell exclusivity (LxC/SxC/Shared) status {'LxC', 'SxC', 'Shared'}
         
             annotation_man = UserAnnotationsManager()
             long_short_fr_indicies_analysis_table = annotation_man.add_neuron_exclusivity_column(long_short_fr_indicies_analysis_table, included_session_contexts, aclu_column_name='neuron_id')
             long_short_fr_indicies_analysis_table
     
+            # Usage 2:
+                from neuropy.core.user_annotations import UserAnnotationsManager, SessionCellExclusivityRecord
+
+                ## INPUTS: included_session_contexts, across_session_inst_fr_computation_df, all_neuron_stats_table
+                annotation_man = UserAnnotationsManager()
+                across_session_inst_fr_computation_df = annotation_man.add_neuron_exclusivity_column(across_session_inst_fr_computation_df, included_session_contexts=included_session_contexts,
+                                                                                            neuron_uid_column_name='neuron_uid', neuron_added_XdC_column_name='active_set_membership_from_user_annotations')
+
+                all_neuron_stats_table = annotation_man.add_neuron_exclusivity_column(all_neuron_stats_table, included_session_contexts=included_session_contexts,
+                                                                                            neuron_uid_column_name='neuron_uid', neuron_added_XdC_column_name='active_set_membership_from_user_annotations')
+
+
+                across_session_inst_fr_computation_df
+                all_neuron_stats_table
+
         """
         LxC_uids = []
         SxC_uids = []
@@ -99,12 +114,17 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         for a_ctxt in included_session_contexts:
             session_uid = a_ctxt.get_description(separator="|", include_property_names=False)
             session_cell_exclusivity: SessionCellExclusivityRecord = self.annotations[a_ctxt].get('session_cell_exclusivity', None)
-            LxC_uids.extend([f"{session_uid}|{aclu}" for aclu in session_cell_exclusivity.LxC])
-            SxC_uids.extend([f"{session_uid}|{aclu}" for aclu in session_cell_exclusivity.SxC])
+            if session_cell_exclusivity is None:
+                print(f'session: {session_uid} has no user annotations')
+                continue
+            else:
+                LxC_uids.extend([f"{session_uid}|{aclu}" for aclu in session_cell_exclusivity.LxC])
+                SxC_uids.extend([f"{session_uid}|{aclu}" for aclu in session_cell_exclusivity.SxC])
             
-        neuron_indexed_df['XxC_status'] = 'Shared'
-        neuron_indexed_df.loc[np.isin(neuron_indexed_df[neuron_uid_column_name], LxC_uids), 'XxC_status'] = 'LxC'
-        neuron_indexed_df.loc[np.isin(neuron_indexed_df[neuron_uid_column_name], SxC_uids), 'XxC_status'] = 'SxC'
+        # neuron_indexed_df[neuron_added_XdC_column_name] = 'Shared'
+        neuron_indexed_df[neuron_added_XdC_column_name] = 'AnyC'
+        neuron_indexed_df.loc[np.isin(neuron_indexed_df[neuron_uid_column_name], LxC_uids), neuron_added_XdC_column_name] = 'LxC'
+        neuron_indexed_df.loc[np.isin(neuron_indexed_df[neuron_uid_column_name], SxC_uids), neuron_added_XdC_column_name] = 'SxC'
 
         return neuron_indexed_df
 
