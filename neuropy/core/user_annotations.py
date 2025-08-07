@@ -431,85 +431,25 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
     def get_hardcoded_specific_session_cell_exclusivity_annotations_dict(cls) -> Dict[IdentifyingContext, SessionCellExclusivityRecord]:
         """ hand-labeled by Kamran + Pho on 2025-08-06
 
-        # hand-labeled by pho on 2023-10-04 
+        
         """
+        # hand-labeled by pho on 2023-10-04 __________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
         # session_cell_exclusivity_annotations: Dict[IdentifyingContext, SessionCellExclusivityRecord] = {
-        # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-08_14-26-15'):
-        #     SessionCellExclusivityRecord(LxC=[8, 97, 109],
-        #         LpC=[],
-        #         SpC=[67, 52, 60],
-        #         SxC=[4,13,23,58]),
-        # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_1-22-43'):
-        #     SessionCellExclusivityRecord(LxC=[3, 5, 29, 103],
-        #         LpC=[23, 38, 63],
-        #         SpC=[33, 58, 62, 69, 100],
-        #         SxC=[16, 35, 55]),
-        # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-12_15-55-31'):
-        #     SessionCellExclusivityRecord(LxC=[3, 34], # LxC=[],
-        #         LpC=[2, 3, 34],
-        #         SpC=[27, 31, 53],
-        #         SxC=[30, 33]),
-        # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-07_16-40-19'):
-        #     SessionCellExclusivityRecord(LxC=[],
-        #         LpC=[],
-        #         SpC=[],
-        #         SxC=[3, 18, 19, 65]),  # 18, 65 - time dependent
-        # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_21-16-25'):
-        #     SessionCellExclusivityRecord(LxC=[90],
-        #         LpC=[23, 73],
-        #         SpC=[4, 16, 82],
-        #         SxC=[8]),
-        # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-09_22-24-40'):
-        #     SessionCellExclusivityRecord(LxC=[91, 95],
-        #         LpC=[15, 16, 32],
-        #         SpC=[11],
-        #         SxC=[]),
-        # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-12_16-53-46'):
-        #     SessionCellExclusivityRecord(LxC=[38, 59],
-        #         LpC=[51, 60],
-        #         SpC=[40],
-        #         SxC=[7, 8]),
-        # ## Break
-        # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'):
-        #     SessionCellExclusivityRecord(LxC=[],
-        #         LpC=[4, 6, 17, 28, 12],
-        #         SpC=[21, 31],
-        #         SxC=[41]),
-        # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'):
-        #     SessionCellExclusivityRecord(LxC=[19, 23],
-        #         LpC=[20], #LpC=[19],
-        #         SpC=[],
-        #         SxC=[29, 36]),
-        # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'):
-        #     SessionCellExclusivityRecord(LxC=[12, 14, 25, 17],
-        #         LpC=[],
-        #         SpC=[],
-        #         SxC=[30]),
-        # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'):
-        #     SessionCellExclusivityRecord(LxC=[14, 30, 32],
-        #         LpC=[40],
-        #         SpC=[42],
-        #         SxC=[]),
-        # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'):
-        #     SessionCellExclusivityRecord(LxC=[8, 27],
-        #         LpC=[10],
-        #         SpC=[18,20,40],
-        #         SxC=[17]),
-        # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'):
-        #     SessionCellExclusivityRecord(LxC=[27],
-        #         LpC=[8, 13],
-        #         SpC=[],
-        #         SxC=[]),
-        # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'):
-        #     SessionCellExclusivityRecord(LxC=[25, 8, 24], # LxC=[],
-        #         LpC=[],
-        #         SpC=[],
-        #         SxC=[13,22,28]),
-        # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'):
-        #     SessionCellExclusivityRecord(LxC=[6, 10, 16, 19],
-        #         LpC=[14, 31],
-        #         SpC=[24],
-        #         SxC=[]),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-08_14-26-15'): SessionCellExclusivityRecord(LxC=[109], LpC=[], Others=[], SpC=[67, 52], SxC=[23, 4, 58]),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_1-22-43'): SessionCellExclusivityRecord(LxC=[3, 29, 103], LpC=[], Others=[], SpC=[33, 35, 58], SxC=[55]),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-12_15-55-31'): SessionCellExclusivityRecord(LxC=[], LpC=[2, 3, 34], Others=[], SpC=[31, 33, 53], SxC=[30]),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-07_16-40-19'): SessionCellExclusivityRecord(LxC=[], LpC=[], Others=[], SpC=[18, 65], SxC=[3, 19]),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_21-16-25'): SessionCellExclusivityRecord(LxC=[90], LpC=[23, 73], Others=[], SpC=[4, 16, 82], SxC=[8]),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-09_22-24-40'): SessionCellExclusivityRecord(LxC=[91, 95], LpC=[15, 16, 32], Others=[], SpC=[11], SxC=[]),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-12_16-53-46'): SessionCellExclusivityRecord(LxC=[38, 59], LpC=[51, 60], Others=[], SpC=[7], SxC=[8]),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'): SessionCellExclusivityRecord(LxC=[], LpC=[4, 6, 17, 28, 12], Others=[], SpC=[21, 31], SxC=[41]),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'): SessionCellExclusivityRecord(LxC=[23], LpC=[19], Others=[], SpC=[36], SxC=[29]),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'): SessionCellExclusivityRecord(LxC=[25], LpC=[12, 14, 17], Others=[], SpC=[30], SxC=[]),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'): SessionCellExclusivityRecord(LxC=[14, 30, 32], LpC=[40], Others=[], SpC=[42], SxC=[]),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'): SessionCellExclusivityRecord(LxC=[8, 27], LpC=[10], Others=[], SpC=[18, 20, 40], SxC=[17]),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'): SessionCellExclusivityRecord(LxC=[27], LpC=[8, 13], Others=[], SpC=[], SxC=[]),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'): SessionCellExclusivityRecord(LxC=[], LpC=[], Others=[], SpC=[13, 22, 28], SxC=[]),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'): SessionCellExclusivityRecord(LxC=[], LpC=[6, 10, 16, 19], Others=[], SpC=[24], SxC=[]),
         # }
         
         # ## Defined based on 80% median firing criteria - 2025-07-29 03:01 
