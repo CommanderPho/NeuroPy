@@ -23,6 +23,8 @@ from typing import Dict, OrderedDict, List, Tuple, Optional, Callable, Union, An
 from typing_extensions import TypeAlias
 from typing import NewType
 import neuropy.utils.type_aliases as types
+import nptyping as ND
+from nptyping import NDArray
 
 SnapshotTimestamp = NewType('SnapshotTimestamp', float)
 
@@ -988,6 +990,73 @@ class PfND_TimeDependent(PfND):
         # assert (active_pf_nD_dt.ratemap.spikes_maps == active_pf_nD.ratemap.spikes_maps).all(), f"active_pf_nD_dt.ratemap.spikes_maps: {active_pf_nD_dt.ratemap.spikes_maps}\nactive_pf_nD.ratemap.spikes_maps: {active_pf_nD.ratemap.spikes_maps}"
         assert np.isclose(active_pf_nD_dt.ratemap.spikes_maps, active_pf_nD.ratemap.spikes_maps).all(), f"active_pf_nD_dt.ratemap.spikes_maps: {active_pf_nD_dt.ratemap.spikes_maps}\nactive_pf_nD.ratemap.spikes_maps: {active_pf_nD.ratemap.spikes_maps}"
         
+
+
+    # @function_attributes(short_name=None, tags=['stability', 'aclu', 'placefields', 'field-formation'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-08-15 18:29', related_items=[])
+    @classmethod
+    def find_aclu_stabilizing_times(cls, _a_pf1D_dt_snapshots, included_neuron_IDs: NDArray, fr_threshold_Hz: float = 2.0):
+        """take `_a_pf1D_dt_snapshots` and find when each cell exceecds its required fr threshold 
+
+            ## Find the snapshot where the occupancy normalized firing map first met the threshold for pf inclusion
+            
+            
+        Usage:
+        
+            from neuropy.core.epoch import subdivide_epochs, ensure_dataframe
+            from neuropy.analyses.time_dependent_placefields import PfND_TimeDependent
+
+            ## INPUTS: long_LR_epochs_obj, long_LR_results
+
+            a_pf1D_dt: PfND_TimeDependent = deepcopy(long_LR_results.pf1D_dt)
+            a_pf2D_dt: PfND_TimeDependent = deepcopy(long_LR_results.pf2D_dt)
+
+            df: pd.DataFrame = ensure_dataframe(deepcopy(long_LR_epochs_obj)) 
+            df['epoch_type'] = 'lap'
+            df['interval_type_id'] = 666
+
+            subdivide_bin_size = 0.050 # Specify the size of each sub-epoch in seconds
+            subdiv_df: pd.DataFrame = subdivide_epochs(df, subdivide_bin_size)
+
+            ## Evolve the ratemaps:
+            _a_pf1D_dt_snapshots = a_pf1D_dt.batch_snapshotting(subdiv_df, reset_at_start=True)
+            
+            included_neuron_IDs = deepcopy(a_pf1D_dt.included_neuron_IDs)
+            (aclu_first_firing_snapshot_duration_fraction, aclu_first_firing_snapshot_timestep, aclu_first_firing_snapshot_idx) = PfND_TimeDependent.find_aclu_stabilizing_times(_a_pf1D_dt_snapshots=_a_pf1D_dt_snapshots, included_neuron_IDs=included_neuron_IDs)
+            aclu_first_firing_snapshot_duration_fraction
+
+
+        """
+        # a_snapshot: PlacefieldSnapshot = _a_pf1D_dt_snapshots[6.113009874126874]
+
+        # a_pf1D_dt.neuron_extended_ids
+        total_epoch_duration: float = list(_a_pf1D_dt_snapshots.keys())[-1] - list(_a_pf1D_dt_snapshots.keys())[0] ## end minus start time (seconds)
+        total_epoch_duration
+
+
+
+        snapshot_timestamps: NDArray = np.array([snapshot_t for snapshot_t in _a_pf1D_dt_snapshots.keys()]) # (2879,)
+        # np.shape(snapshot_timestamps)
+        n_snapshots: int = len(snapshot_timestamps)
+        print(f'n_snapshots: {n_snapshots}')
+        peak_fr_over_all_pos: NDArray[ND.Shape["N_SNAPSHOTS, N_ACLUS"], Any] = np.vstack([np.nanmax(a_snapshot.occupancy_weighted_tuning_maps_matrix, axis=-1) for snapshot_t, a_snapshot in _a_pf1D_dt_snapshots.items()]) ## find peak fr (Hz) over all positions for each cells - (2879, 78)
+        # peak_fr_over_all_pos.shape (n_snapshot_timestamps, n_aclus)
+        
+        n_aclus: int = len(included_neuron_IDs)
+        # n_aclus: int = np.shape(peak_fr_over_all_pos)[-1]
+        print(f'n_aclus: {n_aclus}')
+
+        # idx_exceeding_threshold: NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], Any] = np.nonzero(peak_fr_over_all_pos > fr_threshold_Hz)
+        # np.shape(idx_exceeding_threshold)
+        idx_exceeding_threshold: NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], Any] = [np.nonzero(peak_fr_over_all_pos[:,i] > fr_threshold_Hz)[0] for i in np.arange(n_aclus)]
+        does_aclu_end_above_threshold: NDArray[ND.Shape["N_ACLUS"], Any] = np.array([(idx_exceeding_threshold[i][-1] == (n_snapshots-1)) if (len(idx_exceeding_threshold[i]) > 0) else False for i in np.arange(n_aclus)])
+
+        aclu_first_firing_snapshot_idx: Dict = {aclu:(idx_exceeding_threshold[i][0]) for i, aclu in enumerate(included_neuron_IDs) if does_aclu_end_above_threshold[i]}
+        aclu_first_firing_snapshot_timestep: Dict = {aclu:(snapshot_timestamps[idx_exceeding_threshold[i][0]]) for i, aclu in enumerate(included_neuron_IDs) if does_aclu_end_above_threshold[i]}
+        aclu_first_firing_snapshot_duration_fraction: Dict = {aclu:(snapshot_timestamps[idx_exceeding_threshold[i][0]])/total_epoch_duration for i, aclu in enumerate(included_neuron_IDs) if does_aclu_end_above_threshold[i]}
+
+        # aclu_first_firing_snapshot_idx
+        # aclu_first_firing_snapshot_timestep
+        return (aclu_first_firing_snapshot_duration_fraction, aclu_first_firing_snapshot_timestep, aclu_first_firing_snapshot_idx)
 
 
     # HDFMixin Conformances ______________________________________________________________________________________________ #
