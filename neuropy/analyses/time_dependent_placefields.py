@@ -370,11 +370,13 @@ class PfND_TimeDependent(PfND):
                     self.snapshot()
                     
 
-    def batch_snapshotting(self, combined_records_list, reset_at_start:bool = True, debug_print=False) -> Dict[SnapshotTimestamp, PlacefieldSnapshot]:
+    def batch_snapshotting(self, combined_records_list, reset_at_start:bool = True, is_start_relative_t:bool=True, debug_print=False) -> Dict[SnapshotTimestamp, PlacefieldSnapshot]:
         """ Updates sequentially, snapshotting each time.
 
         combined_records_list: can be an Epoch object, a epoch-formatted pd.DataFrame, or a series of tuples to convert into combined_records_list
 
+        is_start_relative_t: If True, combined_records_list is assumed to have all times defined relative to the earliest first valid time, meaning the snapshot `t` will be `t < - t0 + t`
+        
         Usage:
             laps_df = deepcopy(global_any_laps_epochs_obj.to_dataframe())
             laps_df['epoch_type'] = 'lap'
@@ -398,13 +400,13 @@ class PfND_TimeDependent(PfND):
 
         # Tuples list:
         initial_start_t = float(combined_records_list[0][1])
-        self.update(t=initial_start_t, start_relative_t=True, should_snapshot=True)
+        self.update(t=initial_start_t, start_relative_t=is_start_relative_t, should_snapshot=True)
 
         ## Use the combined records list (which is a list of tuples) to update the self:
         for epoch_type, start_t, stop_t, item_id in combined_records_list: ## tuple list
             if debug_print:
                 print(f'{epoch_type}, start_t: {start_t}, stop_t: {stop_t}, item_id: {item_id}')
-            self.update(t=float(stop_t), start_relative_t=True, should_snapshot=True) # advance the self to the current start time
+            self.update(t=float(stop_t), start_relative_t=is_start_relative_t, should_snapshot=True) # advance the self to the current start time
         if debug_print:
             print(f'done.')
         
@@ -1026,15 +1028,13 @@ class PfND_TimeDependent(PfND):
 
 
         """
-        # a_snapshot: PlacefieldSnapshot = _a_pf1D_dt_snapshots[6.113009874126874]
-
         # a_pf1D_dt.neuron_extended_ids
-        total_epoch_duration: float = list(_a_pf1D_dt_snapshots.keys())[-1] - list(_a_pf1D_dt_snapshots.keys())[0] ## end minus start time (seconds)
-        total_epoch_duration
-
-
-
-        snapshot_timestamps: NDArray = np.array([snapshot_t for snapshot_t in _a_pf1D_dt_snapshots.keys()]) # (2879,)
+        snapshot_timestamps: NDArray = np.array(list(_a_pf1D_dt_snapshots.keys())) # (2879,)
+        total_epoch_start_t: float = snapshot_timestamps[0]
+        total_epoch_duration: float = snapshot_timestamps[-1] - snapshot_timestamps[0] ## end minus start time (seconds)
+        epoch_start_rel_snapshot_timestamps: NDArray = snapshot_timestamps - total_epoch_start_t
+        
+        # snapshot_timestamps: NDArray = np.array([snapshot_t for snapshot_t in _a_pf1D_dt_snapshots.keys()]) # (2879,)
         # np.shape(snapshot_timestamps)
         n_snapshots: int = len(snapshot_timestamps)
         print(f'n_snapshots: {n_snapshots}')
@@ -1052,11 +1052,15 @@ class PfND_TimeDependent(PfND):
 
         aclu_first_firing_snapshot_idx: Dict = {aclu:(idx_exceeding_threshold[i][0]) for i, aclu in enumerate(included_neuron_IDs) if does_aclu_end_above_threshold[i]}
         aclu_first_firing_snapshot_timestep: Dict = {aclu:(snapshot_timestamps[idx_exceeding_threshold[i][0]]) for i, aclu in enumerate(included_neuron_IDs) if does_aclu_end_above_threshold[i]}
-        aclu_first_firing_snapshot_duration_fraction: Dict = {aclu:(snapshot_timestamps[idx_exceeding_threshold[i][0]])/total_epoch_duration for i, aclu in enumerate(included_neuron_IDs) if does_aclu_end_above_threshold[i]}
+        aclu_first_firing_snapshot_duration_fraction: Dict = {aclu:(epoch_start_rel_snapshot_timestamps[idx_exceeding_threshold[i][0]])/total_epoch_duration for i, aclu in enumerate(included_neuron_IDs) if does_aclu_end_above_threshold[i]}
 
-        # aclu_first_firing_snapshot_idx
-        # aclu_first_firing_snapshot_timestep
-        return (aclu_first_firing_snapshot_duration_fraction, aclu_first_firing_snapshot_timestep, aclu_first_firing_snapshot_idx)
+        return (aclu_first_firing_snapshot_duration_fraction, aclu_first_firing_snapshot_timestep, aclu_first_firing_snapshot_idx), (snapshot_timestamps, _a_pf1D_dt_snapshots)
+
+
+
+
+
+
 
 
     # HDFMixin Conformances ______________________________________________________________________________________________ #
