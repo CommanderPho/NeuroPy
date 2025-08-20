@@ -109,9 +109,9 @@ def perform_plot_occupancy(occupancy: NDArray, xbin_centers: Optional[NDArray]=N
     
     
     """
-    def _subfn_plot_occupancy_1D(occupancy_1D, xbin_centers, xbin_edges, should_max_normalize, drop_below_threshold=None, fig=None, ax=None):
+    def _subfn_plot_occupancy_1D(occupancy_1D, xbin_centers, xbin_edges, should_max_normalize, drop_below_threshold=None, fig=None, ax=None, should_fill: bool = False, **occ_plot_kwargs):
         """ Draws an occupancy curve showing the relative proprotion of the recorded positions that occured in a given position bin. """
-        should_fill = False
+        
         
         if fig is None:
             occupancy_fig = plt.figure()
@@ -147,10 +147,10 @@ def perform_plot_occupancy(occupancy: NDArray, xbin_centers: Optional[NDArray]=N
         #     xbin_edges = get_bin_edges(xbin_centers)
 
         if should_fill:
-            occupancy_ax.plot(xbin_centers, only_visited_occupancy)
-            occupancy_ax.scatter(xbin_centers, only_visited_occupancy, color='r')
+            occupancy_ax.plot(xbin_centers, only_visited_occupancy, **occ_plot_kwargs)
+            occupancy_ax.scatter(xbin_centers, only_visited_occupancy, color='r', **occ_plot_kwargs)
         
-        occupancy_ax.stairs(only_visited_occupancy, xbin_edges, fill=False, label='1D Placefield Occupancy', hatch='//') # can also use: , orientation='horizontal'
+        occupancy_ax.stairs(only_visited_occupancy, xbin_edges, fill=False, label='1D Placefield Occupancy', hatch='//', **occ_plot_kwargs) # can also use: , orientation='horizontal'
         if should_max_normalize:
             occupancy_ax.set_ylim([0, np.nanmax(only_visited_occupancy)])
         
@@ -158,7 +158,7 @@ def perform_plot_occupancy(occupancy: NDArray, xbin_centers: Optional[NDArray]=N
         occupancy_ax.set_title('Occupancy 1D')
         return occupancy_fig, occupancy_ax
 
-    def _subfn_plot_occupancy_custom(occupancy, xbin, ybin, should_max_normalize: bool, drop_below_threshold: float=None, fig=None, ax=None):
+    def _subfn_plot_occupancy_custom(occupancy, xbin, ybin, should_max_normalize: bool, drop_below_threshold: float=None, fig=None, ax=None, **occ_plot_kwargs):
         """ Plots a 2D Heatmap of the animal's occupancy (the amount of time the animal spent in each posiution bin)
 
         Args:
@@ -188,7 +188,7 @@ def perform_plot_occupancy(occupancy: NDArray, xbin_centers: Optional[NDArray]=N
             only_visited_occupancy[np.where(only_visited_occupancy < drop_below_threshold)] = np.nan
         if should_max_normalize:
             only_visited_occupancy = only_visited_occupancy / np.nanmax(only_visited_occupancy)
-        im = occupancy_ax.pcolorfast(xbin, ybin, np.rot90(np.fliplr(only_visited_occupancy)), cmap="jet", vmin=0.0)  # rot90(flipud... is necessary to match plotRaw configuration.
+        im = occupancy_ax.pcolorfast(xbin, ybin, np.rot90(np.fliplr(only_visited_occupancy)), cmap="jet", vmin=0.0, **occ_plot_kwargs)  # rot90(flipud... is necessary to match plotRaw configuration.
         occupancy_ax.set_title('Custom Occupancy')
         occupancy_ax.set_aspect('equal', adjustable=None)
         occupancy_cbar = occupancy_fig.colorbar(im, ax=occupancy_ax, location='right')
