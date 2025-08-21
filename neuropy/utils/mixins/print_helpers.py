@@ -295,6 +295,99 @@ def print_array(a: np.array) -> str:
 
 
 
+class BaseFieldPrintingReprMixin:
+    """ Defines the __repr__ for implementors that only renders the implementors fields and their sizes
+
+    from neuropy.utils.mixins.print_helpers import BaseFieldPrintingReprMixin
+    Based off of `SimpleFieldSizesReprMixin`
+    
+    Prints something like:
+    
+        DecodedFilterEpochsResult(decoding_time_bin_size: float,
+            filter_epochs: neuropy.core.epoch.Epoch,
+            num_filter_epochs: int,
+            most_likely_positions_list: list | shape (n_epochs),
+            p_x_given_n_list: list | shape (n_epochs),
+            marginal_x_list: list | shape (n_epochs),
+            marginal_y_list: list | shape (n_epochs),
+            most_likely_position_indicies_list: list | shape (n_epochs),
+            spkcount: list | shape (n_epochs),
+            nbins: numpy.ndarray | shape (n_epochs),
+            time_bin_containers: list | shape (n_epochs),
+            time_bin_edges: list | shape (n_epochs),
+            epoch_description_list: list | shape (n_epochs)
+        )
+
+    for an attrs-based object
+    
+    """    
+    def __repr__(self):
+        """ 2025-08-21 - Renders only the fields and their sizes, generalized to work for both attrs and non-attrs classes """
+        from pyphocorehelpers.print_helpers import strip_type_str_to_classname
+
+        attr_reprs = []
+        is_attrs_class: bool = False
+        try:
+            if hasattr(self, '__attrs_attrs__'):
+                is_attrs_class = True
+            else:
+                is_attrs_class = False
+        except AttributeError as e:
+            is_attrs_class = False
+        except Exception as e:
+            raise e
+
+        if not is_attrs_class:
+            ## Non-attrs class
+            for k, v in self.__dict__.items():
+                attr_type = strip_type_str_to_classname(type(getattr(self, k)))
+                # if 'shape' in a.metadata:
+                #     shape = ', '.join(a.metadata['shape'])  # this joins tuple elements with a comma, creating a string without quotes
+                #     attr_reprs.append(f"{a.name}: {attr_type} | shape ({shape})")  # enclose the shape string with parentheses
+                # else:
+                #     attr_reprs.append(f"{a.name}: {attr_type}")
+                attr_reprs.append(f"{k}: {attr_type}")
+            content = ",\n\t".join(attr_reprs)
+            
+        else:
+            ## attrs class:
+            for a in self.__attrs_attrs__:
+                attr_type = strip_type_str_to_classname(type(getattr(self, a.name)))
+                if 'shape' in a.metadata:
+                    shape = ', '.join(a.metadata['shape'])  # this joins tuple elements with a comma, creating a string without quotes
+                    attr_reprs.append(f"{a.name}: {attr_type} | shape ({shape})")  # enclose the shape string with parentheses
+                else:
+                    attr_reprs.append(f"{a.name}: {attr_type}")
+            content = ",\n\t".join(attr_reprs)
+            
+
+        return f"{type(self).__name__}({content}\n)"
+
+
+    # def values_only_repr(self, attr_separator_str: str=",\n", sub_attr_additive_seperator_str:str='\t'):
+    #     """ renders only the field names and their values
+        
+    #     _out_str: str = param_typed_parameters.values_only_repr(attr_separator_str=",\n", sub_attr_additive_seperator_str='\t')
+    #     print(_out_str)
+
+    #     """
+    #     attr_reprs = []
+    #     for a in self.__attrs_attrs__:
+    #         attr_value = getattr(self, a.name)
+    #         if hasattr(attr_value, 'values_only_repr'):
+    #             _new_attr_sep_str: str = f"{attr_separator_str}{sub_attr_additive_seperator_str}"
+    #             # attr_value = attr_value.values_only_repr(attr_separator_str=attr_separator_str, sub_attr_additive_seperator_str=sub_attr_additive_seperator_str)
+    #             attr_value = attr_value.values_only_repr(attr_separator_str=_new_attr_sep_str, sub_attr_additive_seperator_str=sub_attr_additive_seperator_str)
+    #         attr_reprs.append(f"{a.name}: {attr_value}")
+            
+    #     content = attr_separator_str.join(attr_reprs)
+    #     # return f"{type(self).__name__}({content}\n)"
+    #     return content
+
+
+    
+
+
 # # related: `pyphocorehelpers.general_helpers.disable_function_context`
 # @contextmanager
 # def suppress_print_context(suppressed_print_fn_names: Optional[str]=None):
