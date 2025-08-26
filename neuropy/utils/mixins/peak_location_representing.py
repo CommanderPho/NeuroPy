@@ -50,10 +50,35 @@ def compute_placefield_center_of_mass_positions(tuning_curves: NDArray, xbin: ND
     
     if ybin is not None:
         # 2D Case
-        assert np.ndim(tuning_curves) == 2, f"{np.shape(tuning_curves)} is not 2D?"
-        tuning_curve_x_CoM_positions = _subfn_interpolate_coord_indicies_to_positions_1D(np.squeeze(tuning_curve_CoM_coordinates[:, 0]), xbin) # in position space
-        tuning_curve_y_CoM_positions = _subfn_interpolate_coord_indicies_to_positions_1D(np.squeeze(tuning_curve_CoM_coordinates[:, 1]), ybin)
-        tuning_curve_CoM_positions = np.stack((tuning_curve_x_CoM_positions, tuning_curve_y_CoM_positions), axis=-1) # (79, 2)
+        tuning_curves_ndim: int = np.ndim(tuning_curves)
+        # assert np.ndim(tuning_curves) == 2, f"{np.shape(tuning_curves)} is not 2D?"
+        if tuning_curves_ndim == 2:
+            # 2D Case
+            tuning_curve_x_CoM_positions = _subfn_interpolate_coord_indicies_to_positions_1D(np.squeeze(tuning_curve_CoM_coordinates[:, 0]), xbin) # in position space
+            tuning_curve_y_CoM_positions = _subfn_interpolate_coord_indicies_to_positions_1D(np.squeeze(tuning_curve_CoM_coordinates[:, 1]), ybin)
+            tuning_curve_CoM_positions = np.stack((tuning_curve_x_CoM_positions, tuning_curve_y_CoM_positions), axis=-1) # (79, 2)
+        elif tuning_curves_ndim == 3:
+            ## 3D Case
+            n_aclus, n_pos_bins, n_decoders = np.shape(tuning_curves)
+            # tuning_curves_most_likely_pos = np.nanmax(tuning_curves, axis=-1) ## last axis, should be 2D now
+            # assert np.ndim(tuning_curves_most_likely_pos) == 2, f"{np.shape(tuning_curves_most_likely_pos)} is not 2D?"
+            tuning_curve_CoM_coordinates = compute_placefield_center_of_mass_coord_indicies(tuning_curves) # (44,)
+            tuning_curve_x_CoM_positions = _subfn_interpolate_coord_indicies_to_positions_1D(np.squeeze(tuning_curve_CoM_coordinates[:, 0]), xbin) # in position space
+            tuning_curve_y_CoM_positions = _subfn_interpolate_coord_indicies_to_positions_1D(np.squeeze(tuning_curve_CoM_coordinates[:, 1]), ybin)
+            tuning_curve_CoM_positions = np.stack((tuning_curve_x_CoM_positions, tuning_curve_y_CoM_positions), axis=-1) # (79, 2) 
+            ## Each 1D decoder separately:
+            # out_CoM_pos_arr = []
+            # for i in np.arange(n_decoders):
+            #     ## 1D Position:
+            #     tuning_curve_CoM_coordinates = compute_placefield_center_of_mass_coord_indicies(np.squeeze(tuning_curves[:, :, i])) # (44,)
+            #     tuning_curve_CoM_positions = _subfn_interpolate_coord_indicies_to_positions_1D(tuning_curve_CoM_coordinates, xbin) # 1D in position space
+            #     out_CoM_pos_arr.append(tuning_curve_CoM_positions)
+            
+            # tuning_curve_CoM_positions = np.stack(out_CoM_pos_arr, axis=-1) # (44, 4) 
+
+
+        else:
+            raise ValueError(f'{np.shape(tuning_curves)} is not 2D or 3D?')
             
     else:
         # 1D Case

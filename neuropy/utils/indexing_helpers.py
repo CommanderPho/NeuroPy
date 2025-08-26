@@ -607,7 +607,15 @@ def paired_individual_sorting(neuron_IDs_lists, sortable_values_lists):
     assert len(neuron_IDs_lists) == len(sortable_neuron_id_dicts)
     for a_sortable_neuron_id_dict in sortable_neuron_id_dicts:
         # Sort them now as needed:
-        curr_sorted_list = np.array(list(dict(sorted(a_sortable_neuron_id_dict.items(), key=lambda item: item[1])).keys()))
+        try:
+            curr_sorted_list = np.array(list(dict(sorted(a_sortable_neuron_id_dict.items(), key=lambda item: item[1])).keys()))
+        except ValueError as e:
+            ## ValueError: The truth value of an array with more than one element is ambiguous. Use a.any() or a.all() - happens with 2D Pseudo2D frames
+            curr_sorted_list = np.array(list(dict(sorted(a_sortable_neuron_id_dict.items(), key=lambda item: item[1][0])).keys())) ## use only the position value, indpendent of the decoder
+
+        except Exception as e:
+            raise e
+
         sorted_lists.append(curr_sorted_list)
 
     assert [len(neuron_ids) == len(sorted_neuron_ids) for neuron_ids, sorted_neuron_ids in zip(neuron_IDs_lists, sorted_lists)], f"all items must be the same length."
