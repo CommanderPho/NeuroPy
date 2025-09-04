@@ -754,7 +754,8 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         return self._obj[["start", "stop"]].to_numpy()
 
     def get_unique_labels(self):
-        return np.unique(self.labels)
+        # return np.unique(self.labels) # this is sorted, which is mostly WRONG
+        return self._obj.label.unique()
 
     def get_start_stop_tuples_list(self):
         """ returns a list of (start, stop) tuples. """
@@ -834,6 +835,9 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
                 
         # Create a copy of the dataframe to modify
         modified_df = self._obj.copy()
+        # modified_df = modified_df.sort_values(by=["start"]).reset_index(drop=True) ## this will mis-sort the global epoch
+        modified_df = modified_df.sort_values(by=["stop", "start"]).reset_index(drop=True) ## this should preserve the global epoch at the end property while keeping the other in the right place
+        
         # Find pairs where stop[i] == start[i+1] (gapless)
         stops = modified_df['stop'].values[:-1]  # all except last
         next_starts = modified_df['start'].values[1:]  # all except first
@@ -861,7 +865,8 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             result_df = modified_df
         else:
             # Sort the dataframe by start time (should already be sorted, but ensure it)
-            modified_df = modified_df.sort_values(by=["start"]).reset_index(drop=True)
+            # modified_df = modified_df.sort_values(by=["start"]).reset_index(drop=True)
+            modified_df = modified_df.sort_values(by=["stop", "start"]).reset_index(drop=True) ## this should preserve the global epoch at the end property while keeping the other in the right place
             # Check if any epochs overlap after gapless handling
             # This is a fast check that can avoid the more expensive PortionInterval processing
             remaining_stops = modified_df['stop'].values[:-1]
@@ -1251,11 +1256,19 @@ epochs_df
             maze_epochs_df = maze_epochs_df.epochs.adding_global_epoch_row()
             maze_epochs_df
 
+        NOTE: Undoing this can be done with
+            modified_df = curr_active_pipeline.sess.paradigm.adding_global_epoch_row().to_dataframe()
+            modified_df = modified_df[np.logical_not(np.isin(modified_df['label'], ('maze', 'maze_GLOBAL')))]
+            curr_active_pipeline.sess.paradigm._df = modified_df
         """
         all_epoch_names = list(self.get_unique_labels()) # all_epoch_names # ['maze1', 'maze2']
         if global_epoch_name in all_epoch_names:
             global_epoch_name = f"{global_epoch_name}_GLOBAL"
             print(f'WARNING: name collision "{global_epoch_name}" already exists in all_epoch_names: {all_epoch_names}! Using {global_epoch_name} instead.')
+            if (global_epoch_name in all_epoch_names):
+                print(F'\t\tDOUBLE-WARNING: already had the _GLOBAL suffixed one too! Skipping and returning unaltered!')
+                return self._obj
+                
         
         if first_included_epoch_name is not None:
             # global_start_end_times[0] = sess.epochs[first_included_epoch_name][0] # 'maze1'
@@ -1376,7 +1389,8 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
         return self._df.epochs.labels
 
     def get_unique_labels(self):
-        return np.unique(self.labels)
+        # return np.unique(self.labels)
+        return self._df.label.unique()
     
     def get_named_timerange(self, epoch_name):
         return NamedTimerange(name=epoch_name, start_end_times=self[epoch_name])
