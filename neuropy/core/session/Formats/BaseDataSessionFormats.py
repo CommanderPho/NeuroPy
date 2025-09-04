@@ -378,10 +378,24 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
 				raise # unhandled exception
 
 		post_data_root_dir_parts = dir_parts[data_index+1:] # ('KDIBA', 'gor01', 'one', '2006-6-07_11-26-53')
-
 		num_parts = len(post_data_root_dir_parts)
 		context_keys = cls.get_session_basepath_to_context_parsing_keys()
-		assert len(context_keys) == num_parts
+		if (len(context_keys) != num_parts):
+			## for Bapun sessions
+			try:        
+				data_index = tuple(map(str.casefold, dir_parts)).index('DATA'.casefold()) # .casefold is equivalent to .lower, but works for unicode characters
+			except ValueError:
+				# Enables looking for 'FASTDATA' in the path when DATA is not found
+				data_index = tuple(map(str.casefold, dir_parts)).index('FASTDATA'.casefold()) # .casefold is equivalent to .lower, but works for unicode characters
+			except Exception:
+				raise # unhandled exception
+			post_data_root_dir_parts = dir_parts[data_index+1:] # ('KDIBA', 'gor01', 'one', '2006-6-07_11-26-53')
+			num_parts = len(post_data_root_dir_parts)
+			context_keys = cls.get_session_basepath_to_context_parsing_keys()
+				
+
+
+		assert len(context_keys) == num_parts, f"context_keys: {context_keys}, post_data_root_dir_parts: {post_data_root_dir_parts}"
 		context_kwargs_dict = dict(zip(context_keys, post_data_root_dir_parts))
 		curr_sess_ctx = IdentifyingContext(**context_kwargs_dict)
 		# want to replace the 'format_name' with the one known for this session (e.g. 'KDIBA' vs. 'kdiba')
