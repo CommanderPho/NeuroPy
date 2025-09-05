@@ -117,17 +117,18 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         """
         
         bapun_epochs_df: pd.DataFrame = bapun_epochs.to_dataframe()
-        assert len(bapun_epochs_df) == 4
-        bapun_epochs_arr = bapun_epochs_df.to_numpy()
-        new_roam_row = [bapun_epochs_arr[1, 0], (bapun_epochs_arr[2, 0]-1), 'roam', 0.0] # ['start', 'stop', 'label', 'duration']
-        
-        # bapun_epochs_arr[1, 1] = bapun_epochs_arr[2, 0] - 1 # overwrite the "maze" portion's end-time
-        fixed_bapun_epochs_arr = deepcopy(bapun_epochs_arr)
-        fixed_bapun_epochs_arr[1, :] = new_roam_row ## replace the entire 2nd row (the 'maze' row) with the new 'roam' row.
-        # build final epochs_df from fixed_bapun_epochs_arr
-        bapun_epochs_df: pd.DataFrame = pd.DataFrame(fixed_bapun_epochs_arr, columns=['start', 'stop', 'label', 'duration'])
-        bapun_epochs_df[['start', 'stop', 'duration']] = bapun_epochs_df[['start', 'stop', 'duration']].astype(float)
-        bapun_epochs_df['duration'] = bapun_epochs_df['stop'] - bapun_epochs_df['start']
+        if (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list()):
+            ## Applicable to Day4OpenField only: add the 'roam' row if it doesn't already exist
+            bapun_epochs_arr = bapun_epochs_df.to_numpy()
+            new_roam_row = [bapun_epochs_arr[1, 0], (bapun_epochs_arr[2, 0]-1), 'roam', 0.0] # ['start', 'stop', 'label', 'duration']
+            
+            # bapun_epochs_arr[1, 1] = bapun_epochs_arr[2, 0] - 1 # overwrite the "maze" portion's end-time
+            fixed_bapun_epochs_arr = deepcopy(bapun_epochs_arr)
+            fixed_bapun_epochs_arr[1, :] = new_roam_row ## replace the entire 2nd row (the 'maze' row) with the new 'roam' row.
+            # build final epochs_df from fixed_bapun_epochs_arr
+            bapun_epochs_df: pd.DataFrame = pd.DataFrame(fixed_bapun_epochs_arr, columns=['start', 'stop', 'label', 'duration'])
+            bapun_epochs_df[['start', 'stop', 'duration']] = bapun_epochs_df[['start', 'stop', 'duration']].astype(float)
+            bapun_epochs_df['duration'] = bapun_epochs_df['stop'] - bapun_epochs_df['start']
 
         if enable_global_epoch:
             # maze_epochs_df = deepcopy(curr_active_pipeline.sess.epochs).to_dataframe()
