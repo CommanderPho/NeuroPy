@@ -274,7 +274,18 @@ class PositionComputedDataMixin(PositionSlicedMixin):
     def linear_pos_obj(self) -> "Position":
         """ returns a Position object containing only the linear_pos as its trace. This is used for compatibility with Bapun's Pf1D function """ 
         if not self.has_linear_pos:
-            self.compute_linearized_position()
+            # Uses`self.pf_params.linearization_method`
+            linearization_method: str = 'isomap'
+            try:
+                linearization_method = self.pf_params.linearization_method
+                print(f'linearization_method: {linearization_method}')
+            except (ValueError, AttributeError) as e:
+                linearization_method = 'isomap' ## fallback to isomap                
+            except Exception as e:
+                linearization_method = 'isomap' ## fallback to isomap
+                raise e
+            
+            self.compute_linearized_position(method=linearization_method)
             assert self.has_linear_pos, "Doesn't have linear position even after `self.compute_linearized_position()` was called!"
             
         lin_pos_df = deepcopy(self.df[[self.time_variable_name, 'lin_pos']])
