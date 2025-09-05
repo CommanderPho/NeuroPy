@@ -1717,25 +1717,37 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
             for a_decoder_name, a_ratemap in unidirectional_ratemap_dict.items():
                 n_xbin_centers = np.shape(a_ratemap.xbin_centers)[0]
-                
+                if a_ratemap.ybin_centers is not None:
+                    ## 2 spatial dimensions
+                    n_ybin_centers = np.shape(a_ratemap.ybin_centers)[0]
+                    shape_bins = (n_xbin_centers, n_ybin_centers)
+                else:
+                    ## 1 spatial dimension
+                    shape_bins = (n_xbin_centers,)
                 ## Just builds the pdf_normalized_tuning_curves for this decoder with the correct size (including zeros for neuron_ids not present in this ratemap:
                 if debug_print:
                     print(f'at_least_one_decoder_n_neurons: {at_least_one_decoder_n_neurons}')
-                    print(f'n_xbin_centers: {n_xbin_centers}')
-                a_ratemap_full_spikes_maps = np.full((at_least_one_decoder_n_neurons, n_xbin_centers), fill_value=0)
-                a_ratemap_full_unsmoothed_tuning_curves = np.full((at_least_one_decoder_n_neurons, n_xbin_centers), fill_value=0.0)
-                
-                a_ratemap_full_tuning_curves = np.full((at_least_one_decoder_n_neurons, n_xbin_centers), fill_value=0.0)
-                a_ratemap_full_pdf_normalized_tuning_curves = np.full((at_least_one_decoder_n_neurons, n_xbin_centers), fill_value=0.0)
-                
+                    print(f'shape_bins: {shape_bins}')
+
+                a_ratemap_full_spikes_maps = np.full((at_least_one_decoder_n_neurons, *shape_bins), fill_value=0)
+                a_ratemap_full_unsmoothed_tuning_curves = np.full((at_least_one_decoder_n_neurons, *shape_bins), fill_value=0.0)
+                a_ratemap_full_tuning_curves = np.full((at_least_one_decoder_n_neurons, *shape_bins), fill_value=0.0)
+                a_ratemap_full_pdf_normalized_tuning_curves = np.full((at_least_one_decoder_n_neurons, *shape_bins), fill_value=0.0)
+
                 for aclu, aclu_extended_id, spikes_map, unsmoothed_tuning_map, tuning_curve, pdf_norm_curve in zip(a_ratemap.neuron_ids, a_ratemap.neuron_extended_ids, a_ratemap.spikes_maps, a_ratemap.unsmoothed_tuning_maps, a_ratemap.tuning_curves, a_ratemap.pdf_normalized_tuning_curves):
                     curr_fragile_IDX = at_least_one_decoder_neuron_ids_index_dict[aclu]
                     
-                    a_ratemap_full_spikes_maps[curr_fragile_IDX, :] = spikes_map
-                    a_ratemap_full_unsmoothed_tuning_curves[curr_fragile_IDX, :] = unsmoothed_tuning_map
-                    a_ratemap_full_tuning_curves[curr_fragile_IDX, :] = tuning_curve
-                    a_ratemap_full_pdf_normalized_tuning_curves[curr_fragile_IDX, :] = pdf_norm_curve
+                    # a_ratemap_full_spikes_maps[curr_fragile_IDX, :] = spikes_map
+                    # a_ratemap_full_unsmoothed_tuning_curves[curr_fragile_IDX, :] = unsmoothed_tuning_map
+                    # a_ratemap_full_tuning_curves[curr_fragile_IDX, :] = tuning_curve
+                    # a_ratemap_full_pdf_normalized_tuning_curves[curr_fragile_IDX, :] = pdf_norm_curve
                     
+                    a_ratemap_full_spikes_maps[curr_fragile_IDX, ...] = spikes_map
+                    a_ratemap_full_unsmoothed_tuning_curves[curr_fragile_IDX, ...] = unsmoothed_tuning_map
+                    a_ratemap_full_tuning_curves[curr_fragile_IDX, ...] = tuning_curve
+                    a_ratemap_full_pdf_normalized_tuning_curves[curr_fragile_IDX, ...] = pdf_norm_curve
+                    
+                
                     if at_least_one_decoder_neuron_extended_ids[aclu] is None:
                         # use this ratemaps neuron_extended_id for this aclu
                         at_least_one_decoder_neuron_extended_ids[aclu] = aclu_extended_id # a_ratemap.neuron_extended_ids[a_ratemap_relative_aclu_fragile_linear_idx]
