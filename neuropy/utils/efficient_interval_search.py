@@ -393,7 +393,7 @@ def _compiled_searchsorted_event_interval_is_included(times_arr, start_stop_time
 
 def determine_event_interval_is_included(times_arr, start_stop_times_arr):
     assert verify_non_overlapping(start_stop_times_arr=start_stop_times_arr), 'Intervals in start_stop_times_arr must be non-overlapping'
-    return _compiled_searchsorted_event_interval_is_included(times_arr, start_stop_times_arr)
+    return _compiled_searchsorted_event_interval_is_included(times_arr, start_stop_times_arr) # ValueError: The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()
 
 # ==================================================================================================================== #
 # De-Duplication                                                                                                       #
