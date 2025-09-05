@@ -317,11 +317,11 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         return ['normal_dir_unit_t', 'normal_dir_unit_x', 'approx_head_dir_degrees']
     
 
-    def adding_approx_head_dir_columns(self, N:int=15) -> pd.DataFrame:
+    def adding_approx_head_dir_columns(self, N:int=15, n_dir_angular_bins: int = 8) -> pd.DataFrame:
         """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
         `active_computation_config` is not used/needed if the appropriate xbin_edges/ybin_edges are provided.
         Internally uses: `cls.perform_add_binned_position_columns(...)`
-        adds columns: ['approx_head_dir_degrees']
+        adds columns: ['approx_head_dir_degrees', 'head_dir_angle_binned']
 
         Usage:
             global_pos_obj: Position = deepcopy(global_session.position)
@@ -330,6 +330,14 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         self.df = self.compute_higher_order_derivatives().position.compute_smoothed_position_info(N=N)
         self.df['approx_head_dir_degrees'] = ((np.rad2deg(np.arctan2(self.df['velocity_y_smooth'], self.df['velocity_x_smooth'])) + 360) % 360) # arctan2 is required to get the angle right
         self.df = self.df.dropna(axis='index', subset=['approx_head_dir_degrees'])
+        
+        if n_dir_angular_bins is not None:
+            angle_dir_bin_edges = np.linspace(0, 360, (n_dir_angular_bins + 1))
+            n_dir_angular_bins: int = len(angle_dir_bin_edges) - 1
+            # Use pd.cut with the explicit bin edges
+            self.df['head_dir_angle_binned'] = pd.cut(self.df['approx_head_dir_degrees'], bins=angle_dir_bin_edges, labels=False, include_lowest=True)
+            self.df = self.df.dropna(axis='index', subset=['head_dir_angle_binned'])
+
         return self.df
 
 
