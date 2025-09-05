@@ -58,6 +58,49 @@ def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", s
         if iso_pos.std(axis=0)[0] < iso_pos.std(axis=0)[1]:
             iso_pos[:, [0, 1]] = iso_pos[:, [1, 0]]
         xlinear = iso_pos[:, 0]
+        
+
+    elif method.lower() == "umap":
+        try:
+            import umap
+        except ImportError as e:
+            raise ImportError("UMAP method requires the 'umap-learn' library. Please install it via 'pip install umap-learn'.") from e
+
+        # Downsample points for fitting, as in ISOMAP
+        if override_position_sampling_rate_Hz is not None:
+            position_sampling_rate_Hz = override_position_sampling_rate_Hz
+        else:
+            assert 't' in pos_df.columns
+            position_sampling_rate_Hz = 1.0 / np.nanmean(np.diff(pos_df['t'].to_numpy()))
+        num_end_samples = int(np.round(position_sampling_rate_Hz * sample_sec))
+        pos_ds = xy_pos[::num_end_samples]
+        t_ds = pos_df['t'].to_numpy()[::num_end_samples]
+        t_all = pos_df['t'].to_numpy()
+
+        reducer = umap.UMAP(
+            n_neighbors=10,       # or tune as desired
+            n_components=2,       # retain 2D manifold for possible future use; will use first dimension for linearization
+            metric='euclidean',   # or tune if necessary
+            random_state=1337,      # for reproducibility
+            verbose=False
+        )
+        embedding_ds = reducer.fit_transform(pos_ds)
+
+        # For continuity, you may want to flip axes based on variance as with ISOMAP
+        if embedding_ds.std(axis=0)[0] < embedding_ds.std(axis=0)[1]:
+            embedding_ds[:, [0, 1]] = embedding_ds[:, [1, 0]]
+
+        # Use the first UMAP dimension as the linearized projection for now
+        xlinear_ds = embedding_ds[:, 0]
+
+        # Interpolate for all timepoints
+        from scipy.interpolate import interp1d
+        interp_func = interp1d(
+            t_ds, xlinear_ds, kind='linear', fill_value="extrapolate", assume_sorted=True)
+        xlinear = interp_func(t_all)
+
+
+
     else:
         print('ERROR: invalid method name: {}'.format(method))
         
