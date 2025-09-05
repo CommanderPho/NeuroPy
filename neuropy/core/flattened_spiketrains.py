@@ -351,7 +351,7 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
         
         
     # @function_attributes(short_name=None, tags=['unit-spike-counts', 'mask', 'time-bin', 'spikes'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-03-04 10:09', related_items=[])
-    def compute_unit_time_binned_spike_counts_and_mask(self, time_bin_edges: NDArray[ND.Shape["N_TIME_BINS"], Any], included_neuron_ids: Optional[NDArray[ND.Shape["N_ACLUS"], ND.Int]]=None, min_num_spikes_per_bin_to_be_considered_active:int=1, min_num_unique_active_neurons_per_time_bin:int=2) -> Tuple[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int], NDArray[ND.Shape["N_ACLUS"], ND.Int], Tuple[NDArray[ND.Shape["N_TIME_BINS"], Any], NDArray[ND.Shape["N_TIME_BINS"], Any], NDArray[ND.Shape["1, N_TIME_BINS, 4"], np.uint8]]]:
+    def compute_unit_time_binned_spike_counts_and_mask(self, time_bin_edges: NDArray[ND.Shape["N_TIME_BINS"], Any], included_neuron_ids: Optional[NDArray[ND.Shape["N_ACLUS"], ND.Int]]=None, min_num_spikes_per_bin_to_be_considered_active:int=1, min_num_unique_active_neurons_per_time_bin:int=3) -> Tuple[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int], NDArray[ND.Shape["N_ACLUS"], ND.Int], Tuple[NDArray[ND.Shape["N_TIME_BINS"], Any], NDArray[ND.Shape["N_TIME_BINS"], Any], NDArray[ND.Shape["1, N_TIME_BINS, 4"], np.uint8]]]:
         """ Computes the number of neurons in each spike time bin (specified by time_bin_edges) and threshold based on some criteria
 
         Usage:    
