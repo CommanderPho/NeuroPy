@@ -706,7 +706,7 @@ class MissingGridBinBoundsError(Exception):
 # it's more likely that any cell, not just the ones that hold it as a valid place field, will fire there.
     # this can be done by either binning (lumping close position points together based on a standardized grid), neighborhooding, or continuous smearing.
 
-
+from neuropy.utils.mixins.time_slicing import TimeColumnAliasesProtocol
         
 @define(slots=False)
 class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresentingMixin, PeakLocationRepresentingMixin, NeuronUnitSlicableObjectProtocol, BinnedPositionsMixin, PfnConfigMixin, PfnDMixin, PfnDPlottingMixin):
@@ -800,6 +800,12 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
         pos_df = position.to_dataframe()
         spk_df = spikes_df.copy()
+
+        target_time_variable_name: str = deepcopy(spk_df.spikes.time_variable_name)
+        if target_time_variable_name not in spk_df.columns:    
+            # t_col_name: str = TimeColumnAliasesProtocol.find_first_extant_suitable_columns_name(spk_df, col_connonical_name=target_time_variable_name, required_columns_synonym_dict={target_time_variable_name:{'t','t_seconds',"t_rel_seconds"}}, should_raise_exception_on_fail=False)
+            spk_df = TimeColumnAliasesProtocol.renaming_synonym_columns_if_needed(spk_df, required_columns_synonym_dict={target_time_variable_name:{'t','t_seconds',"t_rel_seconds"}}) #.drop_duplicates(column='t_rel_seconds', inplace=False)
+            assert target_time_variable_name in spk_df.columns, f"target t col name ('{target_time_variable_name}') still not in list(spk_df.columns): {list(spk_df.columns)}"
 
         # filtering: _________________________________________________________________________________________________________ #
         if epochs is not None:
