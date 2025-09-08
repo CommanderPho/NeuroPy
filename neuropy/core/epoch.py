@@ -1293,7 +1293,33 @@ epochs_df
 
         self._obj = maze_epochs_df
         return self._obj
+
+
+    # @function_attributes(short_name=None, tags=['epochs', 'combine' 'global'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-09-08 16:19', related_items=[])
+    def adding_concatenated_epoch(self, epochs_to_create_global_from_names = ['roam', 'sprinkle'], created_epoch_name: str = 'maze') -> pd.DataFrame:
+        """ Creates an additional epoch with the desired merged epoch name in the epochs_df
+
+        Usage:        
+            from neuropy.core.epoch import Epoch, ensure_dataframe, ensure_Epoch, EpochsAccessor
+
+            epochs_df = ensure_dataframe(curr_active_pipeline.sess.epochs)
+            epochs_df = epochs_df.epochs.adding_concatenated_epoch(epochs_to_create_global_from_names=['roam', 'sprinkle'], created_epoch_name='maze')
+
+
+        """
+        assert created_epoch_name not in self._obj['label'], f"self._obj['label']: {self._obj['label']} already contains the desired created epoch name: '{created_epoch_name}'"
+        assert np.all(np.isin(epochs_to_create_global_from_names, self._obj['label'])), f"missing epochs: epochs_to_create_global_from_names: {epochs_to_create_global_from_names}, epochs_df['label']: {self._obj['label'].values()}"
+
+        filtered_epochs_df = self._obj[np.isin(self._obj['label'], epochs_to_create_global_from_names)] ## grab only the epochs of interest
+        ## Create the concatenated epoch from the desired epochs:
+        concatenated_epoch = {'start': filtered_epochs_df['start'].min(), 'stop': filtered_epochs_df['stop'].max(), 'label': created_epoch_name, 'duration': (filtered_epochs_df['stop'].max() - filtered_epochs_df['start'].min())}
+        self._obj.loc[-1] = concatenated_epoch  # adding a row
+        self._obj = self._obj.reset_index(drop=True, inplace=False)
         
+        return self._obj
+
+
+
 
 
     def adding_or_updating_metadata(self, **metadata_update_kwargs) -> pd.DataFrame:
