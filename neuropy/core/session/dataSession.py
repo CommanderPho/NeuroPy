@@ -319,9 +319,10 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         # returns Position objects for active_epoch_pos and linear_pos
         active_epoch_times = session.epochs[epochLabelName] # array([11070, 13970], dtype=int64)
         acitve_epoch_timeslice_indicies = session.position.time_slice_indicies(active_epoch_times[0], active_epoch_times[1])
-        active_epoch_pos = session.position.time_slice(active_epoch_times[0], active_epoch_times[1])
+        active_epoch_pos: Position = session.position.time_slice(active_epoch_times[0], active_epoch_times[1])
         # linear_pos = position_util.linearize_position(active_epoch_pos, method=method)
-        linear_pos = active_epoch_pos.compute_linearized_position(method=method)
+        active_epoch_pos = active_epoch_pos.compute_linearized_position(method=method)
+        linear_pos = active_epoch_pos.linear_pos_obj
         return acitve_epoch_timeslice_indicies, active_epoch_pos, linear_pos
     
 
