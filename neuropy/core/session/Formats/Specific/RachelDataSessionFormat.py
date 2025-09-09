@@ -2,6 +2,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from typing import Dict, List, Tuple, Optional, Callable, Union, Any
+from nptyping import NDArray
 from neuropy.core.session.Formats.BaseDataSessionFormats import DataSessionFormatBaseRegisteredClass
 from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass
 from neuropy.core.session.dataSession import DataSession
@@ -117,6 +119,42 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
         session.paradigm = Epoch.from_file(filepath)  # "epoch" field of file
         return session
     
+
+    @classmethod
+    def build_filters_any_epochs(cls, sess, filter_name_suffix=None):
+        return build_custom_epochs_filters(sess, filter_name_suffix=filter_name_suffix)
+    
+    # Any epoch on the maze, not limited to pyramidal cells, etc
+    @classmethod
+    def build_filters_any_maze_epochs(cls, sess, filter_name_suffix=None, override_epoch_name_includelist: Optional[List[str]]=None):
+        all_epochs_names: List[str] = sess.epochs.to_dataframe()['label'].to_list()
+        if override_epoch_name_includelist is not None:
+            ## use `override_epoch_name_includelist`
+            maze_only_name_filter_fn = lambda names: list(filter(lambda elem: elem.lower() in override_epoch_name_includelist, names))
+            assert (len(maze_only_name_filter_fn(all_epochs_names)) > 0), f"could not match any of the epochs in override_epoch_name_includelist: {override_epoch_name_includelist} session name formats. Need an override!\n\tall_epochs_names: {all_epochs_names}"
+
+        else:
+            maze_only_name_filter_fn = lambda names: list(filter(lambda elem: elem.lower().startswith('maze'), names))
+            if len(maze_only_name_filter_fn(all_epochs_names)) == 0:
+                ## no epochs starting with "maze", assume it's the other type of session
+                maze_only_name_filter_fn = lambda names: list(filter(lambda elem: elem.lower() in ['maze'], names))
+                assert (len(maze_only_name_filter_fn(all_epochs_names)) > 0), f"could not match either 'maze*' or ['maze'] session name formats. Need an override!\n\tall_epochs_names: {all_epochs_names}"
+
+        maze_only_filters = build_custom_epochs_filters(sess, epoch_name_includelist=maze_only_name_filter_fn, filter_name_suffix=filter_name_suffix)
+        return maze_only_filters
+
+
+    @classmethod
+    def build_default_filter_functions(cls, sess, epoch_name_includelist=None, filter_name_suffix=None, include_global_epoch=False):
+        ## TODO: currently hard-coded
+        # active_session_filter_configurations = cls.build_filters_any_epochs(sess)
+        active_session_filter_configurations = cls.build_filters_any_maze_epochs(sess, filter_name_suffix=filter_name_suffix, override_epoch_name_includelist=epoch_name_includelist)
+        return active_session_filter_configurations
+    
+        
+
+
+
     #######################################################
     ## Rachel Nupy Format Only Methods:
     @classmethod
