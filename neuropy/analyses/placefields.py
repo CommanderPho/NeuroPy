@@ -755,6 +755,9 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
     ndim: int = field(default=None)
     xbin: np.ndarray = field(default=None)
     ybin: np.ndarray = field(default=None)
+    zbin: np.ndarray = field(default=None)
+    # NDIMbin_arr: List[NDArray] = field(default=None)
+
     bin_info: dict = field(default=None) # dict with keys: ['mode', 'xstep', 'xnum_bins'] and if 2D ['ystep', 'ynum_bins']
 
     def __attrs_post_init__(self):
@@ -1783,40 +1786,47 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
             assert np.all(lhs.ndim == rhs.ndim)
         ndim = lhs.ndim
         new_pseduo_ndim = ndim + 1
-        new_pseudo_num_ybins: int = len(directional_1D_decoder_list) # number of y-bins we'll need
+        new_pseudo_num_VNEWbins: int = len(directional_1D_decoder_list) # number of y-bins we'll need
         if debug_print:
-            print(f'ndim: {ndim}, new_pseduo_ndim: {new_pseduo_ndim}\n\tnew_pseudo_num_ybins: {new_pseudo_num_ybins}')
-            
-        assert ndim == 1, f"currently only works for ndim == 1 but ndim: {ndim}! ybin will need to be changed to zbin for higher-order than 1D initial decoders."
-        ybin = np.arange(new_pseudo_num_ybins + 1) # [0, 1, 2] because they are the edges of the bins
-        if debug_print:
-            print(f'ybin: {ybin}')
+            print(f'ndim: {ndim}, new_pseduo_ndim: {new_pseduo_ndim}\n\tnew_pseudo_num_VNEWbins: {new_pseudo_num_VNEWbins}')
+
+        bin_kwargs = dict(xbin=deepcopy(xbin), )          
+        # assert ndim == 1, f"currently only works for ndim == 1 but ndim: {ndim}! ybin will need to be changed to zbin for higher-order than 1D initial decoders."
+        if (ndim == 1):
+            ## the 1D -> Pseudo2D Case, ybin will be set
+            ybin = np.arange(new_pseudo_num_VNEWbins + 1) # [0, 1, 2] because they are the edges of the bins
+            if debug_print:
+                print(f'ybin: {ybin}')
+            bin_kwargs.update(ybin=deepcopy(ybin))
+        elif ((ndim > 1) and (ybin is not None)):
+            zbin = np.arange(new_pseudo_num_VNEWbins + 1) # [0, 1, 2] because they are the edges of the bins
+            if debug_print:
+                print(f'ybin: {ybin}')
+                print(f'zbin: {zbin}')
+            bin_kwargs.update(ybin=deepcopy(ybin), zbin=deepcopy(zbin))
+        else:
+            raise ValueError(f'')
+
         for rhs in remaining_decoder_list:
             assert np.isclose(lhs.position_srate, rhs.position_srate, 0.01)
         position_srate = lhs.position_srate
-
-        # stacked_pdf = np.stack(list(at_least_one_decoder_pdf_normalized_tuning_curves_dict.values()), axis=-1) # .shape (n_neurons, n_xbins, n_ybins): (80, 62, 2)
-        
-        # stacked_results_dict = {np.stack(list(at_least_one_decoder_all_results_dict.values()), axis=-1) for k,v in at_least_one_decoder_all_results_dict.items()} # .shape (n_neurons, n_xbins, n_ybins): (80, 62, 2)
-
         stacked_results_dict = {a_value_key:np.stack([v[a_value_key] for v in list(at_least_one_decoder_all_results_dict.values())], axis=-1) for a_value_key in ['tuning_curves', 'unsmoothed_tuning_maps', 'spikes_maps']}
         stacked_occupancy = np.stack([v.occupancy for k, v in directional_1D_decoder_dict.items()], axis=-1) # .shape: (62, 2)
-
         # normalized_stacked_pdf = stacked_pdf / np.sum(stacked_pdf, axis=-1, keepdims=True)
         # normalized_stacked_pdf
 
         new_ratemap = Ratemap(tuning_curves=stacked_results_dict['tuning_curves'], unsmoothed_tuning_maps=stacked_results_dict['unsmoothed_tuning_maps'], spikes_maps=stacked_results_dict['spikes_maps'],
-                            xbin=xbin, ybin=ybin, occupancy=stacked_occupancy, neuron_ids=at_least_one_decoder_neuron_ids, neuron_extended_ids=list(at_least_one_decoder_neuron_extended_ids.values())) # #TODO 2024-04-05 22:17: - [ ] This is where the ratemap's neuron_extended_ids is becoming a list
+                            # xbin=xbin, ybin=ybin,
+                            **bin_kwargs,
+                            occupancy=stacked_occupancy, neuron_ids=at_least_one_decoder_neuron_ids, neuron_extended_ids=list(at_least_one_decoder_neuron_extended_ids.values())) # #TODO 2024-04-05 22:17: - [ ] This is where the ratemap's neuron_extended_ids is becoming a list
         
         ## Pre-computation variables:
         # These variables below are pre-computation variables and are used by `PfND.compute()` to actually build the ratemaps and filtered versions. They aren't quite right as is.
         # epochs are merged:
-        # epochs: Epoch = Epoch(pd.concat([a_decoder.epochs.to_dataframe() for a_decoder in directional_1D_decoder_list], ignore_index=True, verify_integrity=True).sort_values(['start', 'stop']))
-        
+        # epochs: Epoch = Epoch(pd.concat([a_decoder.epochs.to_dataframe() for a_decoder in directional_1D_decoder_list], ignore_index=True, verify_integrity=True).sort_values(['start', 'stop']))        
         # spikes_df are merged:
-        time_variable_name:str = lhs.spikes_df.spikes.time_variable_name
+        # time_variable_name:str = lhs.spikes_df.spikes.time_variable_name
         # spikes_df = pd.concat([a_decoder.spikes_df for a_decoder in directional_1D_decoder_list]).sort_values([time_variable_name, 'aclu']).drop_duplicates(subset=[time_variable_name, 'aclu'], inplace=False) # make sure this drops duplicates in (time_variable_name, 'aclu')
-
         # positions merge:
         # position = cls.build_pseduo_2D_directional_placefield_positions(*directional_1D_decoder_list)
         
@@ -1826,9 +1836,12 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         config.is_directional = True
         config.grid_bin = (*config.grid_bin[:ndim], 1.0) # bin size is exactly one (because there will be two pseduo-dimensions)
         config.smooth = (*config.smooth[:ndim], 0.0) # do not allow smooth along the pseduo-y direction
-        config.grid_bin_bounds = (*config.grid_bin_bounds[:ndim], (0, new_pseudo_num_ybins))
+        config.grid_bin_bounds = (*config.grid_bin_bounds[:ndim], (0, new_pseudo_num_VNEWbins))
         # config # result: <PlacefieldComputationParameters: {'speed_thresh': 10.0, 'grid_bin': (3.793023081021702, 1.0), 'grid_bin_bounds': ((29.16, 261.7), (0, 2)), 'smooth': (2.0, None), 'frate_thresh': 1.0, 'is_directional': True};>
-        merged_pf = PfND(spikes_df=None, position=None, epochs=None, config=config, position_srate=position_srate, xbin=xbin, ybin=ybin, ndim=new_pseduo_ndim,
+        merged_pf = PfND(spikes_df=None, position=None, epochs=None, config=config, position_srate=position_srate,
+                        #   xbin=xbin, ybin=ybin,
+                         **bin_kwargs,
+                          ndim=new_pseduo_ndim,
                     setup_on_init=False, compute_on_init=False) # , ybin=  #TODO 2024-04-05 22:19: - [ ] This is where the `spikes_df` (and thus `_filtered_spikes_df`) is being set to None
         merged_pf._ratemap = new_ratemap
         
@@ -1957,6 +1970,23 @@ def perform_compute_placefields(active_session_spikes_df, active_pos, computatio
     if ((active_epoch_placefields1D is None) or should_force_recompute_placefields):
         progress_logger('Recomputing active_epoch_placefields1D...', end=' ')
         spikes_df = deepcopy(active_session_spikes_df).spikes.sliced_by_neuron_type('PYRAMIDAL') # Only use PYRAMIDAL neurons
+        # linearization_method = computation_config.linearization_method
+        
+        if not active_pos.has_linear_pos:
+            # Uses`self.pf_params.linearization_method`
+            linearization_method: str = 'isomap'
+            try:
+                linearization_method = computation_config.linearization_method
+                # linearization_method = computation_config.__dict__.get('linearization_method', 'isomap')
+                print(f'linearization_method: {linearization_method}')
+            except (ValueError, AttributeError) as e:
+                linearization_method = 'isomap' ## fallback to isomap                
+            except Exception as e:
+                linearization_method = 'isomap' ## fallback to isomap
+                raise e
+            active_pos.compute_linearized_position(method=linearization_method)
+                    
+
         active_epoch_placefields1D = PfND.from_config_values(spikes_df, deepcopy(active_pos.linear_pos_obj), epochs=included_epochs,
                                           speed_thresh=computation_config.speed_thresh, frate_thresh=computation_config.frate_thresh,
                                           grid_bin=computation_config.grid_bin, grid_bin_bounds=computation_config.grid_bin_bounds, smooth=computation_config.smooth)
