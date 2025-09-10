@@ -139,6 +139,46 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
 
 
+    @classmethod
+    def session_fixup_epochs(cls, sess, override_session_epochs: Optional[Epoch]=None, enable_global_epoch: bool=True, **kwargs) -> Epoch:
+        """ fixes up the loaded epochs
+        has two conflicting (overlapping) epochs:
+        "maze"
+        "sprinkle"
+        
+        
+                start   stop     label  duration
+        0      0   7407       pre      7407
+        1   7423  11483      maze      4060
+        3  10186  11483  sprinkle      1297
+        2  11497  25987      post     14490
+
+        [4 rows x 4 columns]
+
+        --- we want to compute the disjoint set 'roam', 'sprinkle'
+        
+        
+        Usage:
+
+        session_epochs: Epoch = BapunDataSessionFormatRegisteredClass.session_fixup_epochs(sess=curr_active_pipeline.sess)
+        """
+        if override_session_epochs is None:
+            override_session_epochs = deepcopy(sess.epochs)
+
+        updated_epochs: Epoch = deepcopy(sess.epochs)
+        if (not hasattr(sess, 'epochs_bak')):
+            print(f'fixing up session computation epochs...')
+            updated_epochs = cls._bapun_session_fixup_epochs_to_be_non_overlapping(bapun_epochs=override_session_epochs, enable_global_epoch=enable_global_epoch, **kwargs)
+            sess.epochs_bak = deepcopy(sess.epochs) ## backup the bad ones
+            sess.epochs = updated_epochs
+            print(f'\tdone. new epochs: \n{updated_epochs}\n')
+        else:
+            print(f'WARN: already fixedup session epochs.')
+            
+        return updated_epochs
+
+
+
     
     # Not limited:
     @classmethod

@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -13,6 +14,8 @@ from neuropy.core.session.Formats.SessionSpecifications import SessionFolderSpec
 from neuropy.core import DataWriter, NeuronType, Neurons, BinnedSpiketrain, Mua, ProbeGroup, Position, Epoch, Signal, Laps, FlattenedSpiketrains, Shank, Probe, ProbeGroup
 from neuropy.io import OptitrackIO, PhyIO
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta
+from neuropy.core.epoch import Epoch, ensure_dataframe, ensure_Epoch, EpochsAccessor
+from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epochs_filters # used particularly to build Bapun-style filters
 
 from neuropy.core.session.Formats.BaseDataSessionFormats import DataSessionFormatRegistryHolder, DataSessionFormatBaseRegisteredClass
 from neuropy.utils.result_context import IdentifyingContext
@@ -119,6 +122,55 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
         session.paradigm = Epoch.from_file(filepath)  # "epoch" field of file
         return session
     
+
+    @classmethod
+    def session_fixup_epochs(cls, session_epochs: Epoch, enable_global_epoch: bool=True, **kwargs) -> Epoch:
+        """ fixes up the loaded epochs
+        has two conflicting (overlapping) epochs:
+        "maze"
+        "sprinkle"
+        
+        
+                start   stop     label  duration
+        0      0   7407       pre      7407
+        1   7423  11483      maze      4060
+        3  10186  11483  sprinkle      1297
+        2  11497  25987      post     14490
+
+        [4 rows x 4 columns]
+
+        --- we want to compute the disjoint set 'roam', 'sprinkle'
+        
+        
+        Usage:
+        
+        
+        bapun_epochs: Epoch = deepcopy(curr_active_pipeline.sess.epochs)
+        bapun_epochs = BapunDataSessionFormatRegisteredClass._bapun_session_fixup_epochs_to_be_non_overlapping(bapun_epochs=bapun_epochs)
+        
+        """
+        bapun_epochs_df: pd.DataFrame = session_epochs.to_dataframe()
+        if (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list()):
+            ## Applicable to Day4OpenField only: add the 'roam' row if it doesn't already exist
+            bapun_epochs_arr = bapun_epochs_df.to_numpy()
+            new_roam_row = [bapun_epochs_arr[1, 0], (bapun_epochs_arr[2, 0]-1), 'roam', 0.0] # ['start', 'stop', 'label', 'duration']
+            
+            # bapun_epochs_arr[1, 1] = bapun_epochs_arr[2, 0] - 1 # overwrite the "maze" portion's end-time
+            fixed_bapun_epochs_arr = deepcopy(bapun_epochs_arr)
+            fixed_bapun_epochs_arr[1, :] = new_roam_row ## replace the entire 2nd row (the 'maze' row) with the new 'roam' row.
+            # build final epochs_df from fixed_bapun_epochs_arr
+            bapun_epochs_df: pd.DataFrame = pd.DataFrame(fixed_bapun_epochs_arr, columns=['start', 'stop', 'label', 'duration'])
+            bapun_epochs_df[['start', 'stop', 'duration']] = bapun_epochs_df[['start', 'stop', 'duration']].astype(float)
+            bapun_epochs_df['duration'] = bapun_epochs_df['stop'] - bapun_epochs_df['start']
+
+        if enable_global_epoch:
+            # maze_epochs_df = deepcopy(curr_active_pipeline.sess.epochs).to_dataframe()
+            bapun_epochs_df = bapun_epochs_df.epochs.adding_global_epoch_row()
+
+        # cls.make_last_epoch_finite_from_dataseries(
+        return Epoch(bapun_epochs_df, metadata=session_epochs.metadata)
+
+
 
     @classmethod
     def build_filters_any_epochs(cls, sess, filter_name_suffix=None):
@@ -262,6 +314,67 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
 
         return _out_map
     
+
+    
+
+    @classmethod
+    def make_last_epoch_finite_from_dataseries(cls, sess, epochs_df: Optional[pd.DataFrame]=None) -> Epoch:
+        max_spike_t: float = sess.spikes_df['t'].max()
+        max_pos_t: float = sess.position.to_dataframe()['t'].max()
+        max_pos_t
+        max_spike_t
+
+        max_any_dataseries_t: float = max(max_pos_t, max_spike_t)
+        max_any_dataseries_t
+        if epochs_df is None:
+            epochs_df = sess.epochs.to_dataframe()
+        epochs_df = ensure_dataframe(epochs_df)
+        epochs_df['stop'] = [*epochs_df['stop'].values[:-1], max_any_dataseries_t]
+        epochs_df['duration'] = epochs_df['stop'] - epochs_df['start']
+        return ensure_Epoch(epochs_df)
+
+    @classmethod
+    def session_fixup_epochs(cls, sess, override_session_epochs: Optional[Epoch]=None, enable_global_epoch: bool=True, **kwargs) -> Epoch:
+        """ fixes up the loaded epochs
+        has two conflicting (overlapping) epochs:
+        "maze"
+        "sprinkle"
+        
+        
+                start   stop     label  duration
+        0      0   7407       pre      7407
+        1   7423  11483      maze      4060
+        3  10186  11483  sprinkle      1297
+        2  11497  25987      post     14490
+
+        [4 rows x 4 columns]
+
+        --- we want to compute the disjoint set 'roam', 'sprinkle'
+        
+        
+        Usage:
+        
+            session_epochs: Epoch = BapunDataSessionFormatRegisteredClass.session_fixup_epochs(sess=curr_active_pipeline.sess)
+        
+        """
+        if override_session_epochs is None:
+            override_session_epochs = deepcopy(sess.epochs)
+
+        updated_epochs: Epoch = deepcopy(sess.epochs)
+        if (not hasattr(sess, 'epochs_bak')):
+            print(f'fixing up session computation epochs...')
+            # updated_epochs = cls._bapun_session_fixup_epochs_to_be_non_overlapping(bapun_epochs=override_session_epochs, enable_global_epoch=enable_global_epoch, **kwargs)
+            updated_epochs = cls.make_last_epoch_finite_from_dataseries(sess=sess, epochs_df=updated_epochs)
+            sess.epochs_bak = deepcopy(sess.epochs) ## backup the bad ones
+            sess.epochs = updated_epochs
+            print(f'\tdone. new epochs: \n{updated_epochs}\n')
+        else:
+            print(f'WARN: already fixedup session epochs.')
+            
+
+        assert np.isfinite(ensure_dataframe(updated_epochs)[['start', 'stop', 'duration']].to_numpy()).all(), f"ensure_dataframe(updated_epochs): {ensure_dataframe(updated_epochs)} has non-finite elements!"
+
+        return updated_epochs
     
     ## Initial Function required to wrangle the data from the raw output to a format like Bapun's .npy format:
     @classmethod
