@@ -1,3 +1,4 @@
+from copy import deepcopy
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
@@ -34,7 +35,9 @@ def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", s
     
     Modifies:
         Adds the 'lin_pos' column to the provided position dataframe.
-    """    
+    """
+    pos_df = deepcopy(pos_df).dropna(subset=['x','y'], how='any')
+    
     xy_pos = pos_df[['x','y']].to_numpy()
     
     xlinear = None
