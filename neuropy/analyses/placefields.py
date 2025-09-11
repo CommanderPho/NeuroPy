@@ -1792,6 +1792,9 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
         bin_kwargs = dict(xbin=deepcopy(xbin), )          
         # assert ndim == 1, f"currently only works for ndim == 1 but ndim: {ndim}! ybin will need to be changed to zbin for higher-order than 1D initial decoders."
+        if debug_print:
+            print(f'xbin: {xbin}')        
+
         if (ndim == 1):
             ## the 1D -> Pseudo2D Case, ybin will be set
             ybin = np.arange(new_pseudo_num_VNEWbins + 1) # [0, 1, 2] because they are the edges of the bins
@@ -1805,7 +1808,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
                 print(f'zbin: {zbin}')
             bin_kwargs.update(ybin=deepcopy(ybin), zbin=deepcopy(zbin))
         else:
-            raise ValueError(f'')
+            raise ValueError(f'unexpected ndim: {ndim}, max support is for ndim==3')
 
         for rhs in remaining_decoder_list:
             assert np.isclose(lhs.position_srate, rhs.position_srate, 0.01)
