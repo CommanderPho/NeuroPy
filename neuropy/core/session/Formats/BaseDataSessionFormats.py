@@ -393,10 +393,23 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
 			num_parts = len(post_data_root_dir_parts)
 			context_keys = cls.get_session_basepath_to_context_parsing_keys()
 				
+		# ('Rachel', 'Petunia', 'Recordings', 'CA1', '2024-12-09')
+		if ('rachel' == post_data_root_dir_parts[0].lower()) and (num_parts == 5) and ('recordings' == post_data_root_dir_parts[2].lower()):
+			# 2025-09-11 Format - TODO does not need to be done here, should be done in RachelDataSessionFormat's override
+			context_kwargs_dict = {'format_name': post_data_root_dir_parts[0], 
+				'animal': post_data_root_dir_parts[1],
+				# post_data_root_dir_parts[2] == 'Recordings' and is skipped 
+				'region': post_data_root_dir_parts[3], # ('CA1', 'DG', 'Cortex')
+				'session_name': post_data_root_dir_parts[-1],
+			}
+			
+		else:
+			## Fallback to older/default way of parsing:
+			assert len(context_keys) == num_parts, f"context_keys: {context_keys}, post_data_root_dir_parts: {post_data_root_dir_parts}"
+			context_kwargs_dict = dict(zip(context_keys, post_data_root_dir_parts))
+		## END if
+				
 
-
-		assert len(context_keys) == num_parts, f"context_keys: {context_keys}, post_data_root_dir_parts: {post_data_root_dir_parts}"
-		context_kwargs_dict = dict(zip(context_keys, post_data_root_dir_parts))
 		curr_sess_ctx = IdentifyingContext(**context_kwargs_dict)
 		# want to replace the 'format_name' with the one known for this session (e.g. 'KDIBA' vs. 'kdiba')
 		format_name = cls.get_session_format_name() 
