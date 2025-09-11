@@ -1308,7 +1308,7 @@ epochs_df
 
         """
         assert created_epoch_name not in self._obj['label'], f"self._obj['label']: {self._obj['label']} already contains the desired created epoch name: '{created_epoch_name}'"
-        assert np.all(np.isin(epochs_to_create_global_from_names, self._obj['label'])), f"missing epochs: epochs_to_create_global_from_names: {epochs_to_create_global_from_names}, epochs_df['label']: {self._obj['label'].values()}"
+        assert np.all(np.isin(epochs_to_create_global_from_names, self._obj['label'])), f"missing epochs: epochs_to_create_global_from_names: {epochs_to_create_global_from_names},\n\tACtual epoch names:_{self._obj['label'].to_list()}"
 
         filtered_epochs_df = self._obj[np.isin(self._obj['label'], epochs_to_create_global_from_names)] ## grab only the epochs of interest
         ## Create the concatenated epoch from the desired epochs:
