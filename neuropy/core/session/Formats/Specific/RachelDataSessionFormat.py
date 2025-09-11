@@ -29,38 +29,38 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
     """
 
     # Example Filesystem Hierarchy:
-	📦Rachel
-	┣ 📂merged_M1_20211123_raw_phy
-	┃ ┣ 📜whitening_mat_inv.npy
-	┃ ┣ 📜spike_templates.npy
-	┃ ┣ 📜tempClustering.klg.3
-	┃ ┣ 📜cluster_info.tsv
-	┃ ┣ 📜channel_shanks.npy
-	┃ ┣ 📜merged_M1_20211123_raw.eeg
-	┃ ┣ 📜cluster_purity.tsv
-	┃ ┣ 📜spike_clusters.npy
-	┃ ┣ 📜similar_templates.npy
-	┃ ┣ 📜pc_feature_ind.npy
-	┃ ┣ 📜phy.log
-	┃ ┣ 📜merged_M1_20211123_raw.paradigm.npy
-	┃ ┣ 📜cluster_group.tsv
-	┃ ┣ 📜spike_times.npy
-	┃ ┣ 📜tempClustering.fet.3
-	┃ ┣ 📜tempClustering.clu.3
-	┃ ┣ 📜merged_M1_20211123_raw.xml
-	┃ ┣ 📜whitening_mat.npy
-	┃ ┣ 📜templates.npy
-	┃ ┣ 📜params.py
-	┃ ┣ 📜channel_map.npy
-	┃ ┣ 📜pc_features.npy
-	┃ ┣ 📜channel_positions.npy
-	┃ ┣ 📜ttl_check.ipynb
-	┃ ┣ 📜amplitudes.npy
-	┃ ┣ 📜merged_M1_20211123_raw.position.npy
-	┃ ┣ 📜tempClustering.temp.clu.3
-	┃ ┣ 📜merged_M1_20211123_raw.neurons.npy
-	┃ ┣ 📜merged_M1_20211123_raw.probegroup.npy
-	┃ ┗ 📜cluster_q.tsv
+    📦Rachel
+    ┣ 📂merged_M1_20211123_raw_phy
+    ┃ ┣ 📜whitening_mat_inv.npy
+    ┃ ┣ 📜spike_templates.npy
+    ┃ ┣ 📜tempClustering.klg.3
+    ┃ ┣ 📜cluster_info.tsv
+    ┃ ┣ 📜channel_shanks.npy
+    ┃ ┣ 📜merged_M1_20211123_raw.eeg
+    ┃ ┣ 📜cluster_purity.tsv
+    ┃ ┣ 📜spike_clusters.npy
+    ┃ ┣ 📜similar_templates.npy
+    ┃ ┣ 📜pc_feature_ind.npy
+    ┃ ┣ 📜phy.log
+    ┃ ┣ 📜merged_M1_20211123_raw.paradigm.npy
+    ┃ ┣ 📜cluster_group.tsv
+    ┃ ┣ 📜spike_times.npy
+    ┃ ┣ 📜tempClustering.fet.3
+    ┃ ┣ 📜tempClustering.clu.3
+    ┃ ┣ 📜merged_M1_20211123_raw.xml
+    ┃ ┣ 📜whitening_mat.npy
+    ┃ ┣ 📜templates.npy
+    ┃ ┣ 📜params.py
+    ┃ ┣ 📜channel_map.npy
+    ┃ ┣ 📜pc_features.npy
+    ┃ ┣ 📜channel_positions.npy
+    ┃ ┣ 📜ttl_check.ipynb
+    ┃ ┣ 📜amplitudes.npy
+    ┃ ┣ 📜merged_M1_20211123_raw.position.npy
+    ┃ ┣ 📜tempClustering.temp.clu.3
+    ┃ ┣ 📜merged_M1_20211123_raw.neurons.npy
+    ┃ ┣ 📜merged_M1_20211123_raw.probegroup.npy
+    ┃ ┗ 📜cluster_q.tsv
     
     
     By default it attempts to find the single *.xml file in the root of this basedir, from which it determines the `session_name` as the stem (the part before the extension) of this file:
@@ -122,6 +122,83 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
         session.paradigm = Epoch.from_file(filepath)  # "epoch" field of file
         return session
     
+    @classmethod
+    def parse_session_basepath_to_context(cls, basedir) -> IdentifyingContext:
+        """ parses the session's path to determine its proper context. Depends on the data_type.
+        finds global_data_root
+
+        USED: Called only in `cls.build_session(.)`
+
+        KDIBA: 'W:/Data/KDIBA/gor01/one/2006-6-09_3-23-37' | context_keys = ['format_name','animal','exper_name', 'session_name']
+        HIRO: 'W:/Data/Hiro/RoyMaze1' | context_keys = ['format_name', 'session_name']
+            # Additional parsing needed: W:\Data\Hiro\RoyMaze2
+
+        BAPUN: 'W:/Data/Bapun/RatS/Day5TwoNovel' | context_keys = ['format_name','animal', 'session_name']
+        RACHEL: 'W:/Data/Rachel/merged_M1_20211123_raw_phy' | context_keys = ['format_name', 'session_name']
+
+        """
+        # IdentifyingContext<('kdiba', 'gor01', 'one', '2006-6-07_11-26-53')>
+        basedir = Path(basedir) # basedir WindowsPath('W:/Data/KDIBA/gor01/one/2006-6-07_11-26-53')
+        dir_parts = basedir.parts # ('W:\\', 'Data', 'KDIBA', 'gor01', 'one', '2006-6-07_11-26-53')
+        # Finds the index of the 'Data' or 'data' (global_data_root) part of the path to include only what's after that.
+
+        # 'umms-kdiba' in '/nfs/turbo/umms-kdiba/Data' is basically a Data folder
+        if basedir.resolve().is_relative_to(Path('/nfs/turbo/umms-kdiba').resolve()):
+            _parent_path = Path('/nfs/turbo/umms-kdiba').resolve()
+            # relative_basedir = basedir.resolve().relative_to(_parent_path)
+            # dir_parts = basedir.parts
+            data_index = len(_parent_path.parts) - 1 # -1 for index
+        else:
+            try:        
+                data_index = tuple(map(str.casefold, dir_parts)).index('DATA'.casefold()) # .casefold is equivalent to .lower, but works for unicode characters
+            except ValueError:
+                # Enables looking for 'FASTDATA' in the path when DATA is not found
+                data_index = tuple(map(str.casefold, dir_parts)).index('FASTDATA'.casefold()) # .casefold is equivalent to .lower, but works for unicode characters
+            except Exception:
+                raise # unhandled exception
+
+        post_data_root_dir_parts = dir_parts[data_index+1:] # ('KDIBA', 'gor01', 'one', '2006-6-07_11-26-53')
+        num_parts = len(post_data_root_dir_parts)
+        context_keys = cls.get_session_basepath_to_context_parsing_keys()
+        if (len(context_keys) != num_parts):
+            ## for Bapun sessions
+            try:        
+                data_index = tuple(map(str.casefold, dir_parts)).index('DATA'.casefold()) # .casefold is equivalent to .lower, but works for unicode characters
+            except ValueError:
+                # Enables looking for 'FASTDATA' in the path when DATA is not found
+                data_index = tuple(map(str.casefold, dir_parts)).index('FASTDATA'.casefold()) # .casefold is equivalent to .lower, but works for unicode characters
+            except Exception:
+                raise # unhandled exception
+            post_data_root_dir_parts = dir_parts[data_index+1:] # ('KDIBA', 'gor01', 'one', '2006-6-07_11-26-53')
+            num_parts = len(post_data_root_dir_parts)
+            context_keys = cls.get_session_basepath_to_context_parsing_keys()
+                
+        # ('Rachel', 'Petunia', 'Recordings', 'CA1', '2024-12-09')
+        if ('rachel' == post_data_root_dir_parts[0].lower()) and (num_parts == 5) and ('recordings' == post_data_root_dir_parts[2].lower()):
+            # 2025-09-11 Format
+            context_kwargs_dict = {'format_name': post_data_root_dir_parts[0], 
+                'animal': post_data_root_dir_parts[1],
+                # post_data_root_dir_parts[2] == 'Recordings' and is skipped 
+                'region': post_data_root_dir_parts[3], # ('CA1', 'DG', 'Cortex')
+                'session_name': post_data_root_dir_parts[-1],
+            }
+            
+        else:
+            ## Fallback to older/default way of parsing:
+            assert len(context_keys) == num_parts, f"context_keys: {context_keys}, post_data_root_dir_parts: {post_data_root_dir_parts}"
+            context_kwargs_dict = dict(zip(context_keys, post_data_root_dir_parts))
+        ## END if
+                
+
+        curr_sess_ctx = IdentifyingContext(**context_kwargs_dict)
+        
+        # want to replace the 'format_name' with the one known for this session (e.g. 'KDIBA' vs. 'kdiba')
+        format_name = cls.get_session_format_name() 
+        curr_sess_ctx.format_name = format_name
+        return curr_sess_ctx # IdentifyingContext<('KDIBA', 'gor01', 'one', '2006-6-07_11-26-53')>
+        
+
+
 
     @classmethod
     def session_fixup_epochs(cls, session_epochs: Epoch, enable_global_epoch: bool=True, **kwargs) -> Epoch:
@@ -295,7 +372,7 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
         ## Post 2023-07-31 - Excluding "double fields" qclues on Kamran's request
         ## 2023-12-07 12:22: - [ ] Kamran wants me to exclude [6, 7]
         ## 2023-12-07 20:59: - [ ] Updated to only include [1,2,4,9] as pyramidal
-		## 2024-10-25 - Including [1,2,4,6,7,9]
+        ## 2024-10-25 - Including [1,2,4,6,7,9]
 
 
         
