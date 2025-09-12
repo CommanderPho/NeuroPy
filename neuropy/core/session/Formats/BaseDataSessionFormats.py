@@ -506,10 +506,18 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
 		_eeg_file_spec = session.config.resolved_optional_filespecs_dict[session.recinfo.eeg_filename]
 		session = _eeg_file_spec.session_load_callback(session.recinfo.eeg_filename, session)
 		loaded_file_record_list.append(session.recinfo.eeg_filename)
-		
-		_dat_file_spec = session.config.resolved_optional_filespecs_dict[session.recinfo.dat_filename]
-		session = _dat_file_spec.session_load_callback(session.recinfo.dat_filename, session)
-		loaded_file_record_list.append(session.recinfo.dat_filename)
+
+		try:
+			_dat_file_spec = session.config.resolved_optional_filespecs_dict[session.recinfo.dat_filename]
+			session = _dat_file_spec.session_load_callback(session.recinfo.dat_filename, session)
+			loaded_file_record_list.append(session.recinfo.dat_filename)
+		except ValueError as e:
+			print(f'encountered error while loading .dat file, potentially wrong number of channels? error: {e}\n\tskipping.')
+			pass		
+
+		except Exception as e:
+			raise
+
 		
 		return session, loaded_file_record_list
 		
@@ -745,9 +753,16 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
 
 	@classmethod
 	def _load_datfile(cls, filepath, session):
-		# .datfile
-		if filepath.is_file():
-			session.datfile = BinarysignalIO(filepath, n_channels=session.recinfo.n_channels, sampling_rate=session.recinfo.dat_sampling_rate)
-		else:
-			session.datfile = None   
+		# .datfile		
+		try:
+			if filepath.is_file():
+				session.datfile = BinarysignalIO(filepath, n_channels=session.recinfo.n_channels, sampling_rate=session.recinfo.dat_sampling_rate)
+			else:
+				session.datfile = None   	
+		except (ValueError, FileNotFoundError):
+			print('.datfile exists ({}) but file cannot be loaded in the appropriate format. Skipping. \n'.format(filepath))
+			session.datfile = None
+		except (FileNotFoundError):
+			print('.datfile does not exist or is not accessible ({}). Skipping. \n'.format(filepath))
+			session.datfile = None
 		return session

@@ -114,7 +114,7 @@ class Neurons(HDF_SerializationMixin, NeuronUnitSlicableObjectProtocol, StartSto
                     print('\t done.')
                 else:
                     print('ERROR: neuron_type value was of unknown type!')
-                    raise NotImplementedError
+                    raise NotImplementedError(f"value[0]: {value[0]}, type(value[0]): {type(value[0])}")
         self._neuron_type = value
 
     @property
