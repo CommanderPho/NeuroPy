@@ -1,5 +1,19 @@
 ## Implementors can be faithfully (although maybe not completely) represented by a Pandas DataFrame. 
 # dataframe_representable.py
+from typing import Union
+import pandas as pd
+
+class DataFrameInitializable:
+	""" Implementors can be initialized from a Pandas DataFrame. 
+	"""
+	@classmethod
+	def from_dataframe(cls, df):
+		raise NotImplementedError
+
+class DataFrameRepresentable(DataFrameInitializable):
+	def to_dataframe(self):
+		raise NotImplementedError
+
 
 def ensure_dataframe(epochs: Union[DataFrameRepresentable, pd.DataFrame]) -> pd.DataFrame:
     """ Ensures that the item are returned as an Pandas DataFrame, does nothing if they already are a DataFrame.
@@ -12,14 +26,3 @@ def ensure_dataframe(epochs: Union[DataFrameRepresentable, pd.DataFrame]) -> pd.
     else:
         return epochs.to_dataframe()
 	
-
-class DataFrameInitializable:
-	""" Implementors can be initialized from a Pandas DataFrame. 
-	"""
-	@classmethod
-	def from_dataframe(cls, df):
-		raise NotImplementedError
-
-class DataFrameRepresentable(DataFrameInitializable):
-	def to_dataframe(self):
-		raise NotImplementedError
