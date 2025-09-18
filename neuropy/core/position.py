@@ -846,14 +846,17 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
     @classmethod
     def concat(cls, objList: Union[Sequence, np.array]):
         """ Concatenates the object list """
+        if isinstance(objList, dict):
+            objList = list(objList.values()) ## convert to a list
+
         # objList = np.array(objList)
         # concat_df = pd.concat([obj._data for obj in objList])
         # return cls(concat_df)
         merged_pos_df: pd.DataFrame = pd.concat([ensure_dataframe(p) for p in objList], ignore_index=True).drop_duplicates(subset=['t'], keep='first', inplace=False, ignore_index=True).sort_values(by='t', axis='index', ascending=True, inplace=False, ignore_index=True)
         merged_metadata = None
-        try:
+        try:                
             ## Build merged metadata:
-            merged_metadata = pd.DataFrame.from_records([(p.metadata or {}) for p in pos_dict.values()])
+            merged_metadata = pd.DataFrame.from_records([(p.metadata or {}) for p in objList])
             #TODO 2025-09-11 15:33: - [ ] Assert.all_equal(merged_metadata['sampling_rate'].tolist())
             merged_metadata = {'t_start': merged_metadata['t_start'].min(),
             't_stop': merged_metadata['t_stop'].max(),
