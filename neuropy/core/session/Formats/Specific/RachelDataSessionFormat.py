@@ -24,6 +24,29 @@ from neuropy.utils.result_context import IdentifyingContext
 from pyphocorehelpers.Filesystem.path_helpers import find_first_extant_path
 from pyphocorehelpers.Filesystem.open_in_system_file_manager import reveal_in_system_file_manager
 
+def find_data_files(project_path, glob_str: str = f"**/*.npy", exclude_dirs=[]):
+    """ Find all files matching the glob in the project directory and its subdirectories
+    Usage:
+        glob_str: str = f"**/*.npy"
+        included_files = find_data_files(basedir, glob_str=glob_str)
+        included_files
+
+    """
+    if not isinstance(project_path, Path):
+        project_path = Path(project_path)
+    found_files = project_path.glob(glob_str)
+    found_files = [file_path for file_path in found_files] # to list
+
+    excluded_files = []
+    if exclude_dirs is not None:
+        # Find all .py files in the project directory and its subdirectories, excluding the 'my_exclude_dir' directory
+        exclude_paths = [project_path.joinpath(a_dir) for a_dir in exclude_dirs]
+        for an_exclude_path in exclude_paths:
+            excluded_files.extend([file_path for file_path in an_exclude_path.glob(glob_str)])
+
+    included_files = [x for x in found_files if x not in excluded_files]
+    return included_files
+
 
 class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
     """
@@ -645,3 +668,188 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
         # # paradigm = Epoch(paradigmdf)
         # # paradigm.filename = Path('/home/wahlberg/Exp_Data/M1_Nov2021/20211123/merged_M1_20211123_raw/merged_M1_20211123_raw_phy/merged_M1_20211123_raw.paradigm.npy')
         # # paradigm.save()
+
+
+
+    @classmethod
+    def perform_initialize_combined_pos_file(cls, filepath=Path('/nfs/turbo/umms-kdiba/Data/Rachel/Petunia/Recordings/CA1/2024-12-09/'), filename: str = 'petunia_241209_merged', override_position_npy_paths=None):
+        """ builds session positions from scratch
+        Fixes errors like:
+            neuropy.core.session.Formats.SessionSpecifications.RequiredFileError: Required File: /nfs/turbo/umms-kdiba/Data/Rachel/Petunia/Recordings/CA1/2024-12-09/petunia_241209_merged.position.npy does not exist.
+            
+        """
+        if isinstance(filepath, str):
+            filepath: Path = Path(filepath)
+        print(f'Processing Rachel-style datafolder at filepath: "{filepath.as_posix()}"')
+
+
+        basedir: Path = filepath.resolve()
+        assert basedir.exists()
+        # print(f'basedir: {basedir}')
+
+        # filename: str = '20230614_Rachel'
+        # print(f'filename: {filename}')
+
+        ## Position File
+        ## INPUTS: basedir, 
+        from neuropy.core.position import Position, PositionAccessor
+
+        # ## Find *.npy files in the basedir folder
+        # glob_str: str = f"**/*.position*.npy"
+        # position_npy_paths = find_data_files(basedir, glob_str=glob_str)
+        # position_npy_paths
+
+        # position_npy_paths = ["W:/Data/Rachel/Petunia/Recordings/CA1/2024-12-09/petunia_241209_merged.position_2.npy",
+        #     "W:/Data/Rachel/Petunia/Recordings/CA1/2024-12-09/petunia_241209_merged.position_track_2.npy",
+        #     "W:/Data/Rachel/Petunia/Recordings/CA1/2024-12-09/petunia_241209_merged.position_1.npy",
+        #     "W:/Data/Rachel/Petunia/Recordings/CA1/2024-12-09/petunia_241209_merged.position_track_1.npy",
+        # ]
+
+        ## INPUTS: basedir
+        if override_position_npy_paths is not None:
+            position_npy_paths = override_position_npy_paths
+        else:
+            position_npy_paths = [
+                # basedir.joinpath('petunia_241209_merged.position_linear_1.npy'),
+                basedir.joinpath(f'{filename}.position_track_1.npy'),
+                basedir.joinpath(f'{filename}.position_track_2.npy'),
+                # basedir.joinpath('petunia_241209_merged.position_linear_2.npy'),
+                basedir.joinpath(f'{filename}.position_1.npy'),
+                basedir.joinpath(f'{filename}.position_2.npy'),
+            ]
+
+        # pos_dict = {Path(f).stem.split('.')[-1]:np.load(f, allow_pickle=True).item() for f in position_npy_paths}
+
+        pos_dict: Dict[str, Position] = {Path(f).stem.split('.')[-1]:Position.init(**np.load(f, allow_pickle=True).item()) for f in position_npy_paths}
+        # pos_dict
+        # pos_list: List[Position] = list(pos_dict.values())
+        # merged_pos: Position = Position.concat(pos_list)
+        merged_pos: Position = Position.concat(list(pos_dict.values()))
+        merged_pos
+
+        ## OUTPUTS: merged_pos
+
+        pos_file_path: Path = basedir.joinpath(f'{filename}.position.npy')
+        # pos_file = sess.filePrefix.with_suffix(".position.npy")
+        # pos_file = Path(r"W:\Data\Rachel\Petunia\Recordings\CA1\2024-12-09\petunia_241209_merged.position.npy").resolve() # sess.filePrefix.with_suffix(".position.npy")
+        # pos_file = Path(r"W:\Data\Rachel\Petunia\Recordings\CA1\2024-12-09\petunia_241209_merged.position.npy").resolve() # sess.filePrefix.with_suffix(".position.npy")
+        merged_pos.filename = pos_file_path
+        merged_pos.save()
+        print(f'saved required position file "{pos_file_path.as_posix()}" to basedir.')
+        
+        # position_npy_paths
+
+        ## OUTPUT FILES: pos_file_path
+        return pos_file_path, (merged_pos, pos_dict)
+
+
+
+    @classmethod
+    def perform_initialize_combined_sess_paradigm_epochs_file(cls, pos_dict: Dict, filepath=Path('/nfs/turbo/umms-kdiba/Data/Rachel/Petunia/Recordings/CA1/2024-12-09/'), filename: str = 'petunia_241209_merged'):
+        """ builds session paradigm epochs from scratch 
+        
+        Fixes errors like:
+            neuropy.core.session.Formats.SessionSpecifications.RequiredFileError: Required File: /nfs/turbo/umms-kdiba/Data/Rachel/Petunia/Recordings/CA1/2024-12-09/petunia_241209_merged.position.npy does not exist.
+            
+        """
+        if isinstance(filepath, str):
+            filepath: Path = Path(filepath)
+        print(f'Processing Rachel-style datafolder at filepath: "{filepath.as_posix()}"')
+
+
+        basedir: Path = filepath.resolve()
+        assert basedir.exists()
+        # print(f'basedir: {basedir}')
+
+        ### Build epochs from track positions, not sure if correct:
+        # paradigm_file_path = Path(r"W:\Data\Rachel\Petunia\Recordings\CA1\2024-12-09\petunia_241209_merged.paradigm.npy").resolve()
+        paradigm_file_path: Path = basedir.joinpath(f'{filename}.paradigm.npy').resolve()
+
+        epochs_df = pd.DataFrame.from_records([
+            dict(label='maze1', start=pos_dict['position_track_1'].t_start, stop=pos_dict['position_track_1'].t_stop),
+            dict(label='maze2', start=pos_dict['position_track_2'].t_start, stop=pos_dict['position_track_2'].t_stop),
+        ]).epochs.get_valid_df()
+
+        epochs_df
+
+        paradigm_epochs: Epoch = Epoch(epochs=epochs_df)
+
+        paradigm_epochs.filename = paradigm_file_path
+        paradigm_epochs.save()
+
+        ## OUTPUT FILES: paradigm_file_path
+        print(f'saved required epochs paradigm file "{paradigm_file_path.as_posix()}" to basedir.')
+        
+        # position_npy_paths
+
+        ## OUTPUT FILES: paradigm_file_path
+        return paradigm_file_path, paradigm_epochs
+
+
+    @classmethod
+    def initialize_data_directory_circular_maze(cls, filepath=Path('/nfs/turbo/umms-kdiba/Data/Rachel/Petunia/Recordings/CA1/2024-12-09/'), filename: str = 'petunia_241209_merged'):
+        """ TODO: this function is supposed to combine all the steps needed to process a freshly output recording directory to generate the required *.npy files that are used to build the session. 
+        
+            I did my best to piece together the relevant looking parts of Rachel's pre-processing scripts/notebooks (`test.py` and `ttl_check.ipynb`) but they don't appear sufficient to perform all the pre-processing. I think this was becuase Rachel did some of the conversion in MATLAB. These scripts will need to be converted to folded in to this function. 
+
+        Fixes errors like:
+            neuropy.core.session.Formats.SessionSpecifications.RequiredFileError: Required File: /nfs/turbo/umms-kdiba/Data/Rachel/Petunia/Recordings/CA1/2024-12-09/petunia_241209_merged.position.npy does not exist.
+            
+        """
+        
+        # global_data_root_parent_path = find_first_extant_path([Path(r'W:\Data'), Path(r'/home/halechr/FastData'), Path(r'/media/MAX/Data'), Path(r'/Volumes/MoverNew/data'), Path(r'/home/halechr/turbo/Data'), Path(r'/home/halechr/cloud/turbo/Data')])
+        # assert global_data_root_parent_path.exists(), f"global_data_root_parent_path: {global_data_root_parent_path} does not exist! Is the right computer's config commented out above?"
+
+
+        # ## Rachel:
+        # active_data_mode_name = 'rachel'
+        # local_session_root_parent_context = IdentifyingContext(format_name=active_data_mode_name) # , animal_name='', configuration_name='one', session_name=a_sess.session_name
+        # local_session_root_parent_path = global_data_root_parent_path.joinpath('Rachel')
+
+        # basedir: Path = Path(r'W:\Data\Rachel\20230614_Rachel').resolve()
+
+        # basedir: Path = Path('/home/halechr/FastData/Rachel/20230614_Rachel/merged_20230614_2crs.GUI').resolve()
+
+        # basedir: Path = Path('/home/halechr/FastData/Rachel/20230614_Rachel').resolve()
+        
+        if isinstance(filepath, str):
+            filepath: Path = Path(filepath)
+        print(f'Processing Rachel-style datafolder at filepath: "{filepath.as_posix()}"')
+
+
+        basedir: Path = filepath.resolve()
+        assert basedir.exists()
+        print(f'basedir: {basedir}')
+
+        # filename: str = '20230614_Rachel'
+        print(f'filename: {filename}')
+
+        ## Position File
+        ## INPUTS: basedir, 
+        pos_file_path, (merged_pos, pos_dict) = cls.perform_initialize_combined_pos_file(filepath=filepath, filename=filename)
+        
+        paradigm_file_path, paradigm_epochs = cls.perform_initialize_combined_sess_paradigm_epochs_file(pos_dict=pos_dict, filepath=filepath, filename=filename)
+
+        # neuronIDs = pd.read_csv(basedir.joinpath('cluster_q.tsv'))
+        # neurons = Neurons(spiketrains=phydata.spiketrains, t_stop=2*3600, sampling_rate=30000, neuron_ids = {1:'pyr1',2:'pyr2',3:'pyr3',4:'int1',5:'int2',6:'int3',7:"mua1",8:'mua2',9:'mua3'})
+        # neurons.filename = folder.joinpath(f'{filename}.neurons.npy')
+        # neurons.save()
+
+        # from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epochs_filters # used particularly to build Bapun-style filters
+
+        # # active_data_mode_name = 'bapun'
+        # active_data_mode_name = 'rachel'
+        # print(f'active_data_session_types_registered_classes_dict: {active_data_session_types_registered_classes_dict}')
+        # active_data_mode_registered_class = active_data_session_types_registered_classes_dict[active_data_mode_name]
+        # active_data_mode_type_properties = known_data_session_type_properties_dict[active_data_mode_name]
+
+        # # basedir = Path('/media/halechr/MAX/Data/Rachel/Cho_241117_Session2').resolve()
+        # ## INPUTS: basedir
+
+        # force_reload = force_reload #True
+        # print(f'force_reload: {force_reload}')
+        # curr_active_pipeline = NeuropyPipeline.try_init_from_saved_pickle_or_reload_if_needed(active_data_mode_name, active_data_mode_type_properties, override_basepath=Path(basedir), force_reload=force_reload) # , override_parameters_flat_keypaths_dict=override_parameters
+
+
+        print(f'2025-09-17 - Rachel-formatted session is now ready to load with the regular `NeuropyPipeline.try_init_from_saved_pickle_or_reload_if_needed(...)` code.')
+        
