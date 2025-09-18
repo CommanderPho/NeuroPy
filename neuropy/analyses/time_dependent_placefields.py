@@ -256,13 +256,15 @@ class PfND_TimeDependent(PfND):
         # return Ratemap(self.curr_occupancy_weighted_tuning_maps_matrix, spikes_maps=self.curr_spikes_maps_matrix, xbin=self.xbin, ybin=self.ybin, neuron_ids=self.included_neuron_IDs, occupancy=self.curr_seconds_occupancy, neuron_extended_ids=self.frate_filter_fcn(self.all_time_filtered_spikes_df.spikes.neuron_probe_tuple_ids))
         # DO I need neuron_ids=self.frate_filter_fcn(self.included_neuron_IDs)?
         return Ratemap(self.curr_occupancy_weighted_tuning_maps_matrix[self._included_thresh_neurons_indx], spikes_maps=self.curr_spikes_maps_matrix[self._included_thresh_neurons_indx],
-                       xbin=self.xbin, ybin=self.ybin, neuron_ids=self.included_neuron_IDs, occupancy=self.curr_seconds_occupancy, neuron_extended_ids=self.frate_filter_fcn(self.all_time_filtered_spikes_df.spikes.neuron_probe_tuple_ids))
+                       xbin=self.xbin, ybin=self.ybin, zbin=self.zbin,
+                       neuron_ids=self.included_neuron_IDs, occupancy=self.curr_seconds_occupancy, neuron_extended_ids=self.frate_filter_fcn(self.all_time_filtered_spikes_df.spikes.neuron_probe_tuple_ids),
+                       )
 
         ## Passes self.included_neuron_IDs explicitly
 
 
     def __repr__(self):
-        return f'{self.__class__.__qualname__.rsplit(">.", 1)[-1]}(spikes_df={self.spikes_df!r}, position={self.position!r}, epochs={self.epochs!r}, config={self.config!r}, position_srate={self.position_srate!r}, setup_on_init={self.setup_on_init!r}, compute_on_init={self.compute_on_init!r}, _save_intermediate_spikes_maps={self._save_intermediate_spikes_maps!r}, _included_thresh_neurons_indx={self._included_thresh_neurons_indx!r}, _peak_frate_filter_function={self._peak_frate_filter_function!r}, ratemap={self.ratemap!r}, _filtered_pos_df={self._filtered_pos_df!r}, _filtered_spikes_df={self._filtered_spikes_df!r}, ndim={self.ndim!r}, xbin={self.xbin!r}, ybin={self.ybin!r}, bin_info={self.bin_info!r})'
+        return f'{self.__class__.__qualname__.rsplit(">.", 1)[-1]}(spikes_df={self.spikes_df!r}, position={self.position!r}, epochs={self.epochs!r}, config={self.config!r}, position_srate={self.position_srate!r}, setup_on_init={self.setup_on_init!r}, compute_on_init={self.compute_on_init!r}, _save_intermediate_spikes_maps={self._save_intermediate_spikes_maps!r}, _included_thresh_neurons_indx={self._included_thresh_neurons_indx!r}, _peak_frate_filter_function={self._peak_frate_filter_function!r}, ratemap={self.ratemap!r}, _filtered_pos_df={self._filtered_pos_df!r}, _filtered_spikes_df={self._filtered_spikes_df!r}, ndim={self.ndim!r}, xbin={self.xbin!r}, ybin={self.ybin!r}, zbin={self.zbin!r}, bin_info={self.bin_info!r})'
     
   
     # ==================================================================================================================== #
