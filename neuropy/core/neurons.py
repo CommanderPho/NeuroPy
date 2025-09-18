@@ -112,6 +112,13 @@ class Neurons(HDF_SerializationMixin, NeuronUnitSlicableObjectProtocol, StartSto
                     neuron_type_str = value
                     value = NeuronType.from_any_string_series(neuron_type_str) ## Works
                     print('\t done.')
+
+                elif isinstance(value[0], (int, np.integer)):
+                    # neuron_type is an integer-type, like as is produced by Rachel's data: 
+                    print('converting Rachel-style neuron_type integers to core.neurons.NeuronType objects...')
+                    value = NeuronType.from_qclu_series(value) ## Works
+                    print('\t done.')
+
                 else:
                     print('ERROR: neuron_type value was of unknown type!')
                     raise NotImplementedError(f"value[0]: {value[0]}, type(value[0]): {type(value[0])}")
