@@ -287,6 +287,12 @@ class PfND_TimeDependent(PfND):
                 if 'binned_y' not in self._filtered_spikes_df:
                     self._filtered_spikes_df['binned_y'] = pd.cut(self._filtered_spikes_df['y'].to_numpy(), bins=self.ybin, include_lowest=True, labels=self.ybin_labels)
     
+            if (self.ndim > 2):
+                self._filtered_spikes_df['z'] = np.interp(self._filtered_spikes_df[self.spikes_df.spikes.time_variable_name].to_numpy(), self.t, self.z)
+                if 'binned_z' not in self._filtered_spikes_df:
+                    self._filtered_spikes_df['binned_z'] = pd.cut(self._filtered_spikes_df['z'].to_numpy(), bins=self.zbin, include_lowest=True, labels=self.zbin_labels)
+    
+
             self._setup_time_varying()
             if self.compute_on_init:
                 # Ignore self.compute() for time varying

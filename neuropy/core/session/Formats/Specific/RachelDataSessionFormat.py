@@ -717,6 +717,7 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
                 basedir.joinpath(f'{filename}.position_1.npy'),
                 basedir.joinpath(f'{filename}.position_2.npy'),
             ]
+            position_npy_paths = [v for v in position_npy_paths if v.exists()]
 
         # pos_dict = {Path(f).stem.split('.')[-1]:np.load(f, allow_pickle=True).item() for f in position_npy_paths}
 
@@ -793,6 +794,7 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
             I did my best to piece together the relevant looking parts of Rachel's pre-processing scripts/notebooks (`test.py` and `ttl_check.ipynb`) but they don't appear sufficient to perform all the pre-processing. I think this was becuase Rachel did some of the conversion in MATLAB. These scripts will need to be converted to folded in to this function. 
 
         Fixes errors like:
+        
             neuropy.core.session.Formats.SessionSpecifications.RequiredFileError: Required File: /nfs/turbo/umms-kdiba/Data/Rachel/Petunia/Recordings/CA1/2024-12-09/petunia_241209_merged.position.npy does not exist.
             
         """
