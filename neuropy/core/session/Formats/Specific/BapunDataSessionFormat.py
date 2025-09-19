@@ -117,6 +117,8 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         bapun_epochs = BapunDataSessionFormatRegisteredClass._bapun_session_fixup_epochs_to_be_non_overlapping(bapun_epochs=bapun_epochs)
         
         """
+        bapun_epochs_df: pd.DataFrame = ensure_dataframe(bapun_epochs) #.to_dataframe()
+        
         is_bapun_Day4OpenField_sess: bool = False
         needs_update: bool = True
         if curr_sess_context is not None:
@@ -126,7 +128,6 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
 
 
-        bapun_epochs_df: pd.DataFrame = ensure_dataframe(bapun_epochs) #.to_dataframe()
         if (is_bapun_Day4OpenField_sess and needs_update):
             ## Applicable to Day4OpenField only: add the 'roam' row if it doesn't already exist
             # bapun_epochs_arr = bapun_epochs_df.to_numpy()
