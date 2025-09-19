@@ -1,6 +1,6 @@
 [project]
 name = "neuropy"
-version = "0.1.2"
+version = "0.2.0"
 description = "package is primarily developed for hippocampal recordings, but can also be used for general ephys data."
 authors = [
     { name = "Bapun Giri", email = "bapung@umich.edu" },
