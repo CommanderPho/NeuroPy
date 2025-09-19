@@ -12,7 +12,7 @@ from neuropy.core.session.Formats.SessionSpecifications import SessionFolderSpec
 from neuropy.core import DataWriter, NeuronType, Neurons, BinnedSpiketrain, Mua, ProbeGroup, Position, Epoch, Signal, Laps, FlattenedSpiketrains
 from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epochs_filters # used particularly to build Bapun-style filters
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta
-from utils.result_context import IdentifyingContext
+from neuropy.utils.result_context import IdentifyingContext
 
 class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     """
@@ -177,7 +177,9 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         if override_session_epochs is None:
             override_session_epochs = deepcopy(sess.epochs)
 
-        curr_sess_context = sess.get_session_context()
+        # curr_sess_context = sess.get_session_context()
+        curr_sess_context = sess.get_context()
+        
         # is_bapun_Day4OpenField_sess: bool = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatN', 'session_name': 'Day4OpenField'}) ## all must match
         updated_epochs: Epoch = deepcopy(sess.epochs)
         if (not hasattr(sess, 'epochs_bak')):
