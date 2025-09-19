@@ -12,6 +12,7 @@ from neuropy.core.session.Formats.SessionSpecifications import SessionFolderSpec
 from neuropy.core import DataWriter, NeuronType, Neurons, BinnedSpiketrain, Mua, ProbeGroup, Position, Epoch, Signal, Laps, FlattenedSpiketrains
 from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epochs_filters # used particularly to build Bapun-style filters
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta
+from utils.result_context import IdentifyingContext
 
 class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     """
@@ -91,7 +92,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
 
     @classmethod
-    def _bapun_session_fixup_epochs_to_be_non_overlapping(cls, bapun_epochs: Epoch, enable_global_epoch: bool=True) -> Epoch:
+    def _bapun_session_fixup_epochs_to_be_non_overlapping(cls, curr_sess_context: IdentifyingContext, bapun_epochs: Epoch, enable_global_epoch: bool=True) -> Epoch:
         """ fixes up the loaded epochs
         has two conflicting (overlapping) epochs:
         "maze"
@@ -116,24 +117,35 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         bapun_epochs = BapunDataSessionFormatRegisteredClass._bapun_session_fixup_epochs_to_be_non_overlapping(bapun_epochs=bapun_epochs)
         
         """
-        
-        bapun_epochs_df: pd.DataFrame = bapun_epochs.to_dataframe()
-        if (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list()):
+        is_bapun_Day4OpenField_sess: bool = False
+        needs_update: bool = True
+        if curr_sess_context is not None:
+            is_bapun_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'Day4OpenField'}) ## all must match, 'animal': 'RatN'
+            if is_bapun_Day4OpenField_sess:
+                assert (len(bapun_epochs_df) == 4), f"{len(bapun_epochs_df)}"
+                needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
+
+
+        bapun_epochs_df: pd.DataFrame = ensure_dataframe(bapun_epochs) #.to_dataframe()
+        if (is_bapun_Day4OpenField_sess and needs_update):
             ## Applicable to Day4OpenField only: add the 'roam' row if it doesn't already exist
-            bapun_epochs_arr = bapun_epochs_df.to_numpy()
-            new_roam_row = [bapun_epochs_arr[1, 0], (bapun_epochs_arr[2, 0]-1), 'roam', 0.0] # ['start', 'stop', 'label', 'duration']
-            
-            # bapun_epochs_arr[1, 1] = bapun_epochs_arr[2, 0] - 1 # overwrite the "maze" portion's end-time
-            fixed_bapun_epochs_arr = deepcopy(bapun_epochs_arr)
-            fixed_bapun_epochs_arr[1, :] = new_roam_row ## replace the entire 2nd row (the 'maze' row) with the new 'roam' row.
-            # build final epochs_df from fixed_bapun_epochs_arr
-            bapun_epochs_df: pd.DataFrame = pd.DataFrame(fixed_bapun_epochs_arr, columns=['start', 'stop', 'label', 'duration'])
+            # bapun_epochs_arr = bapun_epochs_df.to_numpy()
+            # new_roam_row = [bapun_epochs_arr[1, 0], (bapun_epochs_arr[2, 0]-1), 'roam', 0.0] # ['start', 'stop', 'label', 'duration']
+            # # bapun_epochs_arr[1, 1] = bapun_epochs_arr[2, 0] - 1 # overwrite the "maze" portion's end-time
+            # fixed_bapun_epochs_arr = deepcopy(bapun_epochs_arr)
+            # fixed_bapun_epochs_arr[1, :] = new_roam_row ## replace the entire 2nd row (the 'maze' row) with the new 'roam' row.
+            # # build final epochs_df from fixed_bapun_epochs_arr
+            # bapun_epochs_df: pd.DataFrame = pd.DataFrame(fixed_bapun_epochs_arr, columns=['start', 'stop', 'label', 'duration'])
+            # bapun_epochs_df['label'] = bapun_epochs_df['label'].str.replace('maze', 'roam', n=1) ## rename 'maze' to 'roam'
+            bapun_epochs_df['label'] = bapun_epochs_df['label'].map(lambda k: {'maze':'roam'}.get(k, k))  ## rename 'maze' to 'roam'
+            bapun_epochs_df.loc[(bapun_epochs_df['label'] == 'roam'), 'stop'] = (bapun_epochs_df[bapun_epochs_df['label'] == 'sprinkle']['start'].item() - 1e-6)  # make sure 'roam' row doesn't overlap the 'sprinkle' row
             bapun_epochs_df[['start', 'stop', 'duration']] = bapun_epochs_df[['start', 'stop', 'duration']].astype(float)
-            bapun_epochs_df['duration'] = bapun_epochs_df['stop'] - bapun_epochs_df['start']
+            bapun_epochs_df['duration'] = bapun_epochs_df['stop'] - bapun_epochs_df['start'] ## recompute duration
 
         if enable_global_epoch:
             # maze_epochs_df = deepcopy(curr_active_pipeline.sess.epochs).to_dataframe()
-            bapun_epochs_df = bapun_epochs_df.epochs.adding_global_epoch_row()
+            if 'maze_GLOBAL' not in bapun_epochs_df['label']:
+                bapun_epochs_df = bapun_epochs_df.epochs.adding_global_epoch_row(global_epoch_name='maze_GLOBAL')
 
         return Epoch(bapun_epochs_df, metadata=bapun_epochs.metadata)
 
@@ -165,10 +177,12 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         if override_session_epochs is None:
             override_session_epochs = deepcopy(sess.epochs)
 
+        curr_sess_context = sess.get_session_context()
+        # is_bapun_Day4OpenField_sess: bool = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatN', 'session_name': 'Day4OpenField'}) ## all must match
         updated_epochs: Epoch = deepcopy(sess.epochs)
         if (not hasattr(sess, 'epochs_bak')):
             print(f'fixing up session computation epochs...')
-            updated_epochs = cls._bapun_session_fixup_epochs_to_be_non_overlapping(bapun_epochs=override_session_epochs, enable_global_epoch=enable_global_epoch, **kwargs)
+            updated_epochs = cls._bapun_session_fixup_epochs_to_be_non_overlapping(curr_sess_context=curr_sess_context, bapun_epochs=override_session_epochs, enable_global_epoch=enable_global_epoch, **kwargs)
             sess.epochs_bak = deepcopy(sess.epochs) ## backup the bad ones
             sess.epochs = updated_epochs
             print(f'\tdone. new epochs: \n{updated_epochs}\n')

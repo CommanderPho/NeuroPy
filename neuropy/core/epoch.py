@@ -1243,7 +1243,7 @@ epochs_df
         return self.add_maze_id_if_needed(epochs_df=epochs_df, t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=replace_existing, labels_column_name=labels_column_name, start_time_col_name='start', end_time_col_name='stop')
     
 
-    def adding_global_epoch_row(self, global_epoch_name='maze', first_included_epoch_name=None, last_included_epoch_name=None) -> pd.DataFrame:
+    def adding_global_epoch_row(self, global_epoch_name='maze_GLOBAL', first_included_epoch_name=None, last_included_epoch_name=None) -> pd.DataFrame:
         """ builds the 'global' epoch row for the entire session that includes by default the times from all other epochs in epochs_df. 
         e.g. builds the 'maze' epoch from ['maze1', 'maze2'] epochs
         
@@ -1514,7 +1514,7 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
             return np.vstack((self.starts[slice_], self.stops[slice_])).T
 
 
-    def adding_global_epoch_row(self, global_epoch_name='maze', first_included_epoch_name=None, last_included_epoch_name=None) -> "Epoch":
+    def adding_global_epoch_row(self, global_epoch_name='maze_GLOBAL', first_included_epoch_name=None, last_included_epoch_name=None) -> "Epoch":
         """ builds the 'global' epoch row for the entire session that includes by default the times from all other epochs in epochs_df. 
         e.g. builds the 'maze' epoch from ['maze1', 'maze2'] epochs
         
