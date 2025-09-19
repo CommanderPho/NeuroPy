@@ -1,5 +1,6 @@
 [core]
-    remote = diba_shared_gdrive
+    remote = pho_shared_gdrive
     autostage = true
-['remote "diba_shared_gdrive"']
-    url = gdrive://1DyUM5aOhE5kIKzc7OOkVyBltYjUbJ7tX/dvcstore
+['remote "pho_shared_gdrive"']
+    url = gdrive://1A5KUQRjGYsvfvhbbvNERlAHXR0F069P7/dvcstore
+    gdrive_acknowledge_abuse = true

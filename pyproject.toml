@@ -39,6 +39,7 @@ dependencies = [
     "nptyping[complete]>=2.5.0,<3",
     "typing-extensions>=4.12.2",
     "umap-learn>=0.5.9.post2",
+    "dvc[all]>=3.63.0",
 ]
 
 [project.optional-dependencies]
