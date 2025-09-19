@@ -424,7 +424,7 @@ def _compute_time_point_event_arbitrary_provided_epoch_ids(spk_df, provided_epoc
 # ==================================================================================================================== #
 # General Spike Identities from Epochs                                                                                 #
 # ==================================================================================================================== #
-def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoch_label_column_name=None, no_interval_fill_value=np.nan, override_time_variable_name=None, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL, debug_print=False):
+def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoch_label_column_name=None, no_interval_fill_value=np.nan, override_time_variable_name=None, overlap_behavior=OverlappingIntervalsFallbackBehavior.FALLBACK_TO_SLOW_SEARCH, debug_print=False):
     """ Computes the appropriate IDs from provided_epochs_df for each spikes to be added as an identities column to spikes_df
     
     overlap_behavior: OverlappingIntervalsFallbackBehavior - If ASSERT_FAIL, an AssertionError will be thrown in the case that any of the intervals in provided_epochs_df overlap each other. Otherwise, if FALLBACK_TO_SLOW_SEARCH, a much slower search will be performed that will still work.
@@ -449,7 +449,7 @@ def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoc
     return spike_epoch_identity_arr
 
 
-def add_epochs_id_identity(spk_df, epochs_df, epoch_id_key_name='temp_epoch_id', epoch_label_column_name='label', override_time_variable_name=None, no_interval_fill_value=np.nan, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL):
+def add_epochs_id_identity(spk_df, epochs_df, epoch_id_key_name='temp_epoch_id', epoch_label_column_name='label', override_time_variable_name=None, no_interval_fill_value=np.nan, overlap_behavior=OverlappingIntervalsFallbackBehavior.FALLBACK_TO_SLOW_SEARCH):
     """ Adds the epoch IDs to each spike in spikes_df as a column named epoch_id_key_name
     
     NOTE: you can use this for non-spikes dataframes by providing `override_time_variable_name='t'`
