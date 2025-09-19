@@ -825,6 +825,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
         if (self.ndim > 1):
             pos_non_NA_column_labels = ['x','y']
+            #TODO 2025-09-19 06:08: - [ ] Needs 3D ('z') added?
         else:
             pos_non_NA_column_labels = ['x']
 
@@ -1990,7 +1991,7 @@ def perform_compute_placefields(active_session_spikes_df, active_pos, computatio
             active_pos.compute_linearized_position(method=linearization_method)
                     
 
-        active_epoch_placefields1D = PfND.from_config_values(spikes_df, deepcopy(active_pos.linear_pos_obj), epochs=included_epochs,
+        active_epoch_placefields1D = PfND.from_config_values(spikes_df, position=deepcopy(active_pos.linear_pos_obj), epochs=included_epochs,
                                           speed_thresh=computation_config.speed_thresh, frate_thresh=computation_config.frate_thresh,
                                           grid_bin=computation_config.grid_bin, grid_bin_bounds=computation_config.grid_bin_bounds, smooth=computation_config.smooth)
 
@@ -2002,9 +2003,13 @@ def perform_compute_placefields(active_session_spikes_df, active_pos, computatio
     if ((active_epoch_placefields2D is None) or should_force_recompute_placefields):
         progress_logger('Recomputing active_epoch_placefields2D...', end=' ')
         spikes_df = deepcopy(active_session_spikes_df).spikes.sliced_by_neuron_type('PYRAMIDAL') # Only use PYRAMIDAL neurons
-        active_epoch_placefields2D = PfND.from_config_values(spikes_df, deepcopy(active_pos), epochs=included_epochs,
-                                          speed_thresh=computation_config.speed_thresh, frate_thresh=computation_config.frate_thresh,
-                                          grid_bin=computation_config.grid_bin, grid_bin_bounds=computation_config.grid_bin_bounds, smooth=computation_config.smooth)
+        position_2D = deepcopy(active_pos)
+        position_2D.drop_dimensions_above(desired_ndim=2) ## drops excess dimensions in-place.
+        active_epoch_placefields2D = PfND.from_config_values(spikes_df,
+                                            position=position_2D,
+                                            epochs=included_epochs,
+                                            speed_thresh=computation_config.speed_thresh, frate_thresh=computation_config.frate_thresh,
+                                            grid_bin=computation_config.grid_bin, grid_bin_bounds=computation_config.grid_bin_bounds, smooth=computation_config.smooth)
 
         progress_logger('\t done.')
     else:
