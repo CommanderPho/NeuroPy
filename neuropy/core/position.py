@@ -715,8 +715,6 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
     @classmethod
     def init(cls, traces: np.ndarray, computed_traces: np.ndarray=None, t_start=0, sampling_rate=120, metadata=None, traces_rot=None):
         """ Comatibility initializer """
-
-            
         if traces.ndim == 1:
             traces = traces.reshape(1, -1) # required before setting ndim
             
@@ -875,7 +873,7 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
         
 
         
-    def drop_dimensions_above(self, desired_ndim:int):
+    def drop_dimensions_above(self, desired_ndim:int) -> None:
         """ modifies the internal dataframe to drop dimensions above a certain number. Always done in place, and returns None. """
         return self.df.position.drop_dimensions_above(desired_ndim, inplace=True)
 

@@ -1246,7 +1246,10 @@ def perform_compute_time_dependent_placefields(active_session_spikes_df, active_
     if ((active_epoch_placefields2D is None) or should_force_recompute_placefields):
         print('Recomputing active_epoch_time_dependent_placefields2D...', end=' ')
         spikes_df = deepcopy(active_session_spikes_df).spikes.sliced_by_neuron_type('PYRAMIDAL') # Only use PYRAMIDAL neurons
-        active_epoch_placefields2D = PfND_TimeDependent.from_config_values(spikes_df, deepcopy(active_pos), epochs=included_epochs,
+        active_pos = deepcopy(active_pos)
+        active_pos.drop_dimensions_above(desired_ndim=2) ## inplace, so it returns None
+        
+        active_epoch_placefields2D = PfND_TimeDependent.from_config_values(spikes_df, active_pos, epochs=included_epochs,
                                         speed_thresh=computation_config.speed_thresh, frate_thresh=computation_config.frate_thresh,
                                         grid_bin=computation_config.grid_bin, grid_bin_bounds=computation_config.grid_bin_bounds, smooth=computation_config.smooth)
 
