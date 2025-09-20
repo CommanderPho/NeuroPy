@@ -13,6 +13,8 @@ from neuropy.core import DataWriter, NeuronType, Neurons, BinnedSpiketrain, Mua,
 from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epochs_filters # used particularly to build Bapun-style filters
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta
 from neuropy.utils.result_context import IdentifyingContext
+from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
+
 
 class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     """
@@ -53,10 +55,32 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
     _session_default_relative_basedir = r'data/Bapun/Day5TwoNovel'
     _session_default_basedir = r'W:\data\Bapun\Day5TwoNovel' # WINDOWS
     # _session_default_basedir = r'/run/media/halechr/MoverNew/data/Bapun/Day5TwoNovel'
-    _session_basepath_to_context_parsing_keys = ['format_name','animal', 'session_name']
+    _session_basepath_to_context_parsing_keys = ['format_name', 'animal', 'session_name']
 
     _time_variable_name = 't_seconds' # It's 't_rel_seconds' for kdiba-format data for example or 't_seconds' for Bapun-format data
-   
+
+    
+    @classmethod
+    def _get_session_specific_parameters(cls, session_context: IdentifyingContext) -> HardcodedProcessingParameters:
+        """ session-specific type parameters 
+         
+        #TODO 2025-09-20 19:26: - [ ] Is this redudndant with preprocessing parameters?
+        """
+        return IdentifyingContext.matching({ #  Dict[IdentifyingContext, HardcodedProcessingParameters] 
+        IdentifyingContext(format_name= 'bapun', animal= 'RatN', session_name= 'Day4OpenField'): HardcodedProcessingParameters(decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
+                                                                                                                               global_session_name='maze_GLOBAL',
+                                                                                                                            ),
+        IdentifyingContext(format_name= 'bapun', animal= 'RatN', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+                                                                                                                              global_session_name='maze_GLOBAL',
+                                                                                                                            ),
+        ## Fallback defaults:
+        IdentifyingContext(format_name= 'bapun'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+            global_session_name='maze_GLOBAL',
+        ),									
+        }, criteria=session_context.get_subset(subset_includelist=session_context._get_session_context_keys()).to_dict())
+
+
+
     @classmethod
     def get_session_name(cls, basedir):
         """ returns the session_name for this basedir, which determines the files to load. """
