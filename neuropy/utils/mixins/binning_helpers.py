@@ -49,7 +49,7 @@ class DebugBinningInfo(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     from neuropy.utils.mixins.binning_helpers import DebugBinningInfo
     
     """
-    n_xbin_edges: serialized_attribute_field(is_computable=False)
+    n_xbin_edges: int = serialized_attribute_field(is_computable=False)
     n_ybin_edges: int = serialized_attribute_field(is_computable=False)
     ndim: int = serialized_attribute_field(is_computable=False)
     nFlatPositionBins: int = serialized_attribute_field(init=False, is_computable=True) ## computable
