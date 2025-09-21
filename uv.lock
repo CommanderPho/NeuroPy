@@ -3227,7 +3227,7 @@ wheels = [
 
 [[package]]
 name = "neuropy"
-version = "0.2.1"
+version = "0.2.2"
 source = { editable = "." }
 dependencies = [
     { name = "cupy-cuda12x" },
@@ -3311,7 +3311,7 @@ requires-dist = [
     { name = "sphinx-autodoc-typehints", specifier = ">=2.0.0,<3" },
     { name = "tqdm", marker = "extra == 'gui'", specifier = ">=4.64.1,<5" },
     { name = "typing-extensions", specifier = ">=4.12.2" },
-    { name = "umap-learn", extras = ["all"], specifier = ">=0.5.9.post2" },
+    { name = "umap-learn", specifier = ">=0.5.9.post2" },
     { name = "urllib3", specifier = "==1.26.18" },
     { name = "vitables", specifier = ">=3.0.2,<4" },
 ]
