@@ -71,7 +71,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['roam', 'sprinkle'],
             ),
-            IdentifyingContext(format_name= 'bapun', animal= 'RatN', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+            IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
             ),
