@@ -173,7 +173,10 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
 
     def extract_unique_neuron_identities(self):
         """ Tries to build information about the unique neuron identitiies from the (highly reundant) information in the spikes_df. """
-        selected_columns = ['aclu', 'shank', 'cluster', 'qclu', 'neuron_type']
+        selected_columns = ['aclu', 'shank', 'cluster', 'qclu', 'neuron_type']        
+        selected_columns = [col for col in selected_columns if col in self._obj.columns]
+        assert len(selected_columns) > 0
+        assert 'aclu' in selected_columns
         unique_rows_df = self._obj[selected_columns].drop_duplicates().reset_index(drop=True).sort_values(by='aclu') # Based on only these columns, remove all repeated rows. Since every spike from the same aclu must have the same values for all the rest of the values, there should only be one row for each aclu. 
         assert len(unique_rows_df) == self.n_neurons, f"if this were false that would suggest that there are multiple entries for aclus. n_neurons: {self.n_neurons}, {len(unique_rows_df) =}"
         return unique_rows_df
