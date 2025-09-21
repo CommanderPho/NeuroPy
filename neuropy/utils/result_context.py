@@ -163,7 +163,7 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             relevant_entries = [ctxt for ctxt, _ in context_iterable if ctxt.query(criteria)]
 
         elif hasattr(context_iterable, 'items'):
-            relevant_entries = {ctxt:v for ctxt,v in context_iterable.items() if ctxt.query(criteria)}
+            relevant_entries = {ctxt:v for ctxt, v in context_iterable.items() if ctxt.query(criteria)}
         else:
             raise ValueError
 

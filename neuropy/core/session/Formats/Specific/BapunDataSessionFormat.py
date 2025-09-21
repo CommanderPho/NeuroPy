@@ -66,19 +66,24 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
          
         #TODO 2025-09-20 19:26: - [ ] Is this redudndant with preprocessing parameters?
         """
-        return IdentifyingContext.matching({ #  Dict[IdentifyingContext, HardcodedProcessingParameters] 
-        IdentifyingContext(format_name= 'bapun', animal= 'RatN', session_name= 'Day4OpenField'): HardcodedProcessingParameters(decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
-                                                                                                                               global_session_name='maze_GLOBAL',
-                                                                                                                            ),
-        IdentifyingContext(format_name= 'bapun', animal= 'RatN', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
-                                                                                                                              global_session_name='maze_GLOBAL',
-                                                                                                                            ),
-        ## Fallback defaults:
-        IdentifyingContext(format_name= 'bapun'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
-            global_session_name='maze_GLOBAL',
-        ),									
-        }, criteria=session_context.get_subset(subset_includelist=session_context._get_session_context_keys()).to_dict())
+        the_dict: Dict[IdentifyingContext, HardcodedProcessingParameters]  = { #  
+            IdentifyingContext(format_name= 'bapun', animal= 'RatN', session_name= 'Day4OpenField'): HardcodedProcessingParameters(decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['roam', 'sprinkle'],
+            ),
+            IdentifyingContext(format_name= 'bapun', animal= 'RatN', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze1', 'maze2'],
+            ),
+            ## Fallback defaults:
+            IdentifyingContext(format_name= 'bapun'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze1', 'maze2'],
+            ),									
+        }
 
+        best_match = IdentifyingContext.matching(the_dict, criteria=session_context.get_subset(subset_includelist=cls._session_basepath_to_context_parsing_keys).to_dict())
+        return list(best_match.values())[0] ## return the first match
 
 
     @classmethod

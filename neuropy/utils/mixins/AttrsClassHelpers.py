@@ -720,6 +720,7 @@ class BaseAttrsParameterizedParameters(BaseConfig, param.Parameterized):
         content = ",\n\t".join(attr_reprs)
         return f"{type(self).__name__}({content}\n)"
     
+
     def values_only_repr(self, attr_separator_str: str=",\n", sub_attr_additive_seperator_str:str='\t'):
         """ renders only the field names and their values
         

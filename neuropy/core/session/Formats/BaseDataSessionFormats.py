@@ -92,6 +92,10 @@ class HardcodedProcessingParameters(HDF_SerializationMixin, AttrsBasedClassHelpe
     """
     decoder_building_session_names: List[str] = non_serialized_field(default=Factory(list)) # Not sure if it's safe to serialize lists natively
     global_session_name: str = serialized_attribute_field(default='maze_GLOBAL')
+    non_global_activity_session_names: List[str] = non_serialized_field(default=Factory(list))
+    
+
+
 
     # HDFMixin Conformances ______________________________________________________________________________________________ #
     def to_hdf(self, file_path, key: str, **kwargs):
@@ -296,8 +300,6 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
         # """
         # return HardcodedProcessingParameters()
 
-    # def session_specific_parameters(self) -> HardcodedProcessingParameters:
-    # 	return self._get_session_specific_parameters(session_context=self.)
 
     @classmethod
     def build_default_preprocessing_parameters(cls, **kwargs) -> ParametersContainer:
