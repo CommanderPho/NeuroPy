@@ -302,7 +302,7 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
 
 
     @classmethod
-    def add_maze_id_if_needed(cls, active_point_events_df: pd.DataFrame, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, event_time_col_name: str='t_rel_seconds') -> pd.DataFrame: # , labels_column_name:str='label'
+    def add_maze_id_if_needed(cls, active_point_events_df: pd.DataFrame, t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, active_maze_epochs_df: Optional[pd.DataFrame]=None, replace_existing:bool=True, event_time_col_name: str='t_rel_seconds') -> pd.DataFrame: # , labels_column_name:str='label'
         """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
 
         Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
@@ -320,24 +320,33 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
             laps_df
 
         """
+
+        
         # epochs_df = epochs_df.epochs.to_dataframe()
         # active_point_events_df[[labels_column_name]] = active_point_events_df[[labels_column_name]].astype('int')
         # active_point_events_df[[labels_column_name]] = active_point_events_df[[labels_column_name]].astype('int')
         is_missing_column: bool = ('maze_id' not in active_point_events_df.columns)
         if (is_missing_column or replace_existing):
             # Create the maze_id column:
-            # active_point_events_df['maze_id'] = np.full_like(active_point_events_df[labels_column_name].to_numpy(), -1) # all -1 to start
             active_point_events_df['maze_id'] = np.full_like(active_point_events_df.index.to_numpy().astype(int), -1) # all -1 to start
-            active_point_events_df.loc[(np.logical_and((active_point_events_df[event_time_col_name].to_numpy() >= t_start), (active_point_events_df[event_time_col_name].to_numpy() <= t_delta))), 'maze_id'] = 0 # first epoch
-            active_point_events_df.loc[(np.logical_and((active_point_events_df[event_time_col_name].to_numpy() >= t_delta), (active_point_events_df[event_time_col_name].to_numpy() <= t_end))), 'maze_id'] = 1 # second epoch, post delta
-            active_point_events_df['maze_id'] = active_point_events_df['maze_id'].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
+            
+            if active_maze_epochs_df is not None:
+                from neuropy.utils.efficient_interval_search import OverlappingIntervalsFallbackBehavior
+                from neuropy.utils.mixins.time_slicing import add_epochs_id_identity
+                return add_epochs_id_identity(active_point_events_df, epochs_df=active_maze_epochs_df, epoch_id_key_name=epoch_id_key_name, epoch_label_column_name=None, no_interval_fill_value=-1, override_time_variable_name=event_time_col_name, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL) # uses new add_epochs_id_identity method which is general                
+
+            else:
+                # active_point_events_df['maze_id'] = np.full_like(active_point_events_df[labels_column_name].to_numpy(), -1) # all -1 to start
+                active_point_events_df.loc[(np.logical_and((active_point_events_df[event_time_col_name].to_numpy() >= t_start), (active_point_events_df[event_time_col_name].to_numpy() <= t_delta))), 'maze_id'] = 0 # first epoch
+                active_point_events_df.loc[(np.logical_and((active_point_events_df[event_time_col_name].to_numpy() >= t_delta), (active_point_events_df[event_time_col_name].to_numpy() <= t_end))), 'maze_id'] = 1 # second epoch, post delta
+                active_point_events_df['maze_id'] = active_point_events_df['maze_id'].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
         else:
             # already exists and we shouldn't overwrite it:
             active_point_events_df[['maze_id']] = active_point_events_df[['maze_id']].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
         return active_point_events_df
             
 
-    def adding_maze_id_if_needed(self, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, override_time_variable_name=None) -> pd.DataFrame:
+    def adding_maze_id_if_needed(self, t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, active_maze_epochs_df: Optional[pd.DataFrame]=None, replace_existing:bool=True, override_time_variable_name=None) -> pd.DataFrame:
         """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
 
         Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
@@ -358,7 +367,7 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
         if override_time_variable_name is None:
             override_time_variable_name = self.time_variable_name # 't_rel_seconds'
         active_point_events_df: pd.DataFrame = self._obj.copy()
-        return self.add_maze_id_if_needed(active_point_events_df=active_point_events_df, t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=replace_existing, event_time_col_name=override_time_variable_name) # , labels_column_name=labels_column_name
+        return self.add_maze_id_if_needed(active_point_events_df=active_point_events_df, t_start=t_start, t_delta=t_delta, t_end=t_end, active_maze_epochs_df=active_maze_epochs_df, replace_existing=replace_existing, event_time_col_name=override_time_variable_name) # , labels_column_name=labels_column_name
     
     
     def adding_true_decoder_identifier(self, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, override_time_variable_name=None) -> pd.DataFrame:
