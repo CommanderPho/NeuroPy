@@ -245,7 +245,7 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
                                                         global_session=sess) ## Get the timestamps corresponding to the indicies
     else:
         ## use more advanced time-based estimation
-        lap_epochs_df = pos_df.position.detect_general_run_epochs(minimum_epoch_duration=1.0, minimum_run_speed=2.0, merging_adjacent_max_separation_sec=0.5)
+        lap_epochs_df = pos_df.position.detect_general_run_epochs(minimum_epoch_duration=1.0, minimum_run_speed=2.0, merging_adjacent_max_separation_sec=None) # merging_adjacent_max_separation_sec=0.5
         lap_epochs_df['lap_id'] = lap_epochs_df.index + 1
         assert 'start_position_index' in lap_epochs_df.columns
         custom_test_laps_df = lap_epochs_df.laps_accessor.filter_to_valid() ## drop invalid/zero index ones first

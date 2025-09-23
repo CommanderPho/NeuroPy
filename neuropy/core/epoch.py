@@ -978,6 +978,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
                 result_df.attrs = deepcopy(self._obj.attrs)
             return result_df
 
+        # raise NotImplementedError(f'This looses all other columss when merging!!')
         # Work on a validated, sorted copy
         df = self.get_valid_df().sort_values(by=["start"]).reset_index(drop=True)
 

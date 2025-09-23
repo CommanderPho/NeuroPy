@@ -1800,9 +1800,9 @@ class NeuroPyDataframeAccessor:
         if minimum_epoch_duration is not None:
             satisfied_epochs_df = satisfied_epochs_df.epochs.get_valid_df().epochs.get_epochs_longer_than(minimum_duration=minimum_epoch_duration)
         if merging_adjacent_max_separation_sec is not None:
-            satisfied_epochs_df = satisfied_epochs_df.epochs.merge_adjacent_epochs_within(max_separation=merging_adjacent_max_separation_sec)
+            satisfied_epochs_df = satisfied_epochs_df.epochs.merge_adjacent_epochs_within(max_separation=merging_adjacent_max_separation_sec) ## Loses other columns!
         satisfied_epochs_df = satisfied_epochs_df.epochs.rebuild_labels_column()
-
+        assert 'start_position_index' in satisfied_epochs_df
         return satisfied_epochs_df
 
 
