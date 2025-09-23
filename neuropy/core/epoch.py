@@ -1314,7 +1314,7 @@ epochs_df
 
     
     @classmethod
-    def add_maze_id_if_needed(cls, epochs_df: pd.DataFrame, t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, active_maze_epochs_df: Optional[pd.DataFrame]=None, replace_existing:bool=True, labels_column_name:str='label', start_time_col_name: str='start', end_time_col_name: str='stop') -> pd.DataFrame:
+    def add_maze_id_if_needed(cls, epochs_df: pd.DataFrame, t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, active_maze_epochs_df: Optional[pd.DataFrame]=None, replace_existing:bool=True, labels_column_name:str='label', start_time_col_name: str='start', end_time_col_name: str='stop', no_interval_fill_value: Union[str, int] = '') -> pd.DataFrame:
         """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
 
         Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
@@ -1339,17 +1339,22 @@ epochs_df
         is_missing_column: bool = ('maze_id' not in epochs_df.columns)
         if (is_missing_column or replace_existing):
             # Create the maze_id column:
-            epochs_df['maze_id'] = np.full_like(epochs_df[labels_column_name].to_numpy(), -1) # all -1 to start
             if active_maze_epochs_df is not None:
-                epochs_df = add_fully_overlapping_epochs_id_identity_to_epochs(query_child_epochs = epochs_df, potential_fully_enclosing_epochs_df = active_maze_epochs_df, epoch_id_key_name = 'maze_id', epoch_label_column_name=labels_column_name, start_time_col_name=start_time_col_name, end_time_col_name=end_time_col_name, no_interval_fill_value=-1)
+                epochs_df['maze_id'] = '' # all empty string to start
+                epochs_df = add_fully_overlapping_epochs_id_identity_to_epochs(query_child_epochs = epochs_df, potential_fully_enclosing_epochs_df = active_maze_epochs_df, epoch_id_key_name = 'maze_id', epoch_label_column_name=labels_column_name, start_time_col_name=start_time_col_name, end_time_col_name=end_time_col_name, no_interval_fill_value=no_interval_fill_value)
+                ## These will be string values
             else:
+                epochs_df['maze_id'] = np.full_like(epochs_df[labels_column_name].to_numpy(), -1) # all -1 to start
                 epochs_df.loc[(np.logical_and((epochs_df[start_time_col_name].to_numpy() >= t_start), (epochs_df[end_time_col_name].to_numpy() <= t_delta))), 'maze_id'] = 0 # first epoch
                 epochs_df.loc[(np.logical_and((epochs_df[start_time_col_name].to_numpy() >= t_delta), (epochs_df[end_time_col_name].to_numpy() <= t_end))), 'maze_id'] = 1 # second epoch, post delta
+                epochs_df['maze_id'] = epochs_df['maze_id'].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
                 
-            epochs_df['maze_id'] = epochs_df['maze_id'].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
         else:
             # already exists and we shouldn't overwrite it:
-            epochs_df[['maze_id']] = epochs_df[['maze_id']].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
+            if (active_maze_epochs_df is None) and (t_delta is not None):
+                ## only do this in the kdiba mode
+                epochs_df[['maze_id']] = epochs_df[['maze_id']].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
+
         return epochs_df
             
 
