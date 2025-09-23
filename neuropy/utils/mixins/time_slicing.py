@@ -1,5 +1,5 @@
 from __future__ import annotations # prevents having to specify types for typehinting as strings
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     ## typehinting only imports here
@@ -460,7 +460,7 @@ def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoc
 
 
 # @function_attributes(short_name=None, tags=['interval', 'epochs', 'interval-interval'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-09-23 13:59', related_items=[])
-def add_fully_overlapping_epochs_id_identity_to_epochs(query_child_epochs, potential_fully_enclosing_epochs_df: pd.DataFrame, epoch_id_key_name: str = 'maze_id', epoch_label_column_name='label', start_time_col_name: str='start', end_time_col_name: str='stop', no_interval_fill_value: Union[str, int] = '':
+def add_fully_overlapping_epochs_id_identity_to_epochs(query_child_epochs, potential_fully_enclosing_epochs_df: pd.DataFrame, epoch_id_key_name: str = 'maze_id', epoch_label_column_name='label', start_time_col_name: str='start', end_time_col_name: str='stop', no_interval_fill_value: Union[str, int] = ''):
     """ Adds the epoch IDs to each spike in spikes_df as a column named epoch_id_key_name
     
     Like `add_epochs_id_identity`, but for entire epochs ['start', 'stop'] and not just a point timeseries ['t']

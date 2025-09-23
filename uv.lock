@@ -2184,6 +2184,37 @@ wheels = [
 ]
 
 [[package]]
+name = "hmmlearn"
+version = "0.3.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scikit-learn", version = "1.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "scipy", version = "1.13.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.10.*'" },
+    { name = "scipy", version = "1.16.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bb/77/89cdfbfaa2beb51f8cc57f83f9b4f653ec3faa660ba2e2146cc84bfc8eb9/hmmlearn-0.3.3.tar.gz", hash = "sha256:1d3c5dc4c5257e0c238dc1fe5387700b8cb987eab808edb3e0c73829f1cc44ec", size = 78535, upload-time = "2024-10-31T09:04:20.99Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/47/d6/f51e31d26c779428b43fdf1af4e5b7be8c1019d660446fb5799c11f1262a/hmmlearn-0.3.3-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:06abdc7f1905c1c10132e62d4e9d6bdf88bf17d267cae68b6ad834b0c2efef0b", size = 195610, upload-time = "2024-10-31T09:03:22.594Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/14/d9cb5a58169bbc27426e63e75b46e179f2d61dcddd11dc18e206f48bc9c3/hmmlearn-0.3.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:ad910c05fb42f4261b5cebd683adc44e270cfb53330d21a5ce2bd907df9703fe", size = 130439, upload-time = "2024-10-31T09:03:24.668Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/12/aca6710d81442bb4ea3ef6e8fb96e9c6a72d9b431e9692c40bdd00fd10fc/hmmlearn-0.3.3-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:31390af12828999c11c6bb6417b91ee5d07f5ee7a91cb116d8ca763d1f4d9552", size = 162614, upload-time = "2024-10-31T09:03:26.368Z" },
+    { url = "https://files.pythonhosted.org/packages/68/bd/84b3a4334972cd61e0ad055a4082185ba17c4dd07a1a001b2fd6402849ee/hmmlearn-0.3.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e6a807f79b5ecaaf57e899d0b876f76ac029026c4d9b2b2ba8c277205905e0f3", size = 164640, upload-time = "2024-10-31T09:03:27.842Z" },
+    { url = "https://files.pythonhosted.org/packages/99/84/1a515f473a422098555fb0a79d2bd07840b2bae9cf497288b61acce14b75/hmmlearn-0.3.3-cp310-cp310-win_amd64.whl", hash = "sha256:1411f05a0241cea01791eb91eeecaad76c15a5f0b3de536d6e82a8424a2b0f86", size = 125853, upload-time = "2024-10-31T09:03:28.963Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/8b/ba03420f5e7a770338760675419f1ac4689e74dc991ea0cbae7159acb0d3/hmmlearn-0.3.3-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:0a174a1bf9db0971161c778b451ec8236a13c8fe9b0d1779e922179200f04de4", size = 198531, upload-time = "2024-10-31T09:03:30.316Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/1f/c9eb1e9d8860b75b7925b5aa0997881810b7efb5c88e8cc313f05999f2a7/hmmlearn-0.3.3-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:67af5823bc3b60b8cda7e9315f79b807aae9467fd7cb29aeafb789baa9b0f09e", size = 131978, upload-time = "2024-10-31T09:03:31.755Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/56/d541cd6a3dc0059d5f3a8e5389f5138f2914c2ee371e2607641793cb2640/hmmlearn-0.3.3-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:fea742fb093e722b8a75f21fe8648be135cdf62a497ae8d58bb2d798eadffe96", size = 163366, upload-time = "2024-10-31T09:03:33.476Z" },
+    { url = "https://files.pythonhosted.org/packages/76/7f/9fdd1f6077e2b33f4c4bb05638cfdfe7c2c7a103a8ddfd3439a7b9157cb3/hmmlearn-0.3.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:71a222a04d2b7c97299e9233342e2a446e218a740f2bcfa03eae88265d18424a", size = 165912, upload-time = "2024-10-31T09:03:34.807Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/5f/65b892737fed694b23a753b516cd851d21963abd33ea86123723f6279987/hmmlearn-0.3.3-cp311-cp311-win_amd64.whl", hash = "sha256:ad627014efb7ec8bb94746ff4b89ddb5c30444fae1a9f8c14a512f8e40449c46", size = 127050, upload-time = "2024-10-31T09:03:36.75Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/50/51a423eb735cfca35ef9b6b9f8155936f7843ac32f481ce9b79bf7e9cab5/hmmlearn-0.3.3-cp39-cp39-macosx_10_9_universal2.whl", hash = "sha256:132846bdaf77731987e5b49aeb290f2ff38db9562fb1100731a20cfcae0edfc4", size = 195794, upload-time = "2024-10-31T09:04:11.777Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/bc/1ee80f046b21e92e71678082f41d5de11d18b5b17bc0dddbb1769a30b025/hmmlearn-0.3.3-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:b1646234be8f8689c2af13529492322fe7681eb0de5ae2610d191035fe75ddf9", size = 130526, upload-time = "2024-10-31T09:04:14.122Z" },
+    { url = "https://files.pythonhosted.org/packages/0c/11/01defe63889bed9d5b60f6eeca41b7ce2eeab7fbea419a7249112d37eb0f/hmmlearn-0.3.3-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:97b81ce4da69a70f16a16e3ab0060d89b44b51b7e8b18907a8a2bde8ea53f67d", size = 162681, upload-time = "2024-10-31T09:04:16.862Z" },
+    { url = "https://files.pythonhosted.org/packages/53/33/77695d33b37eefb2fb6f288e704655a0f8dad8da84d4b2794c53a870ade6/hmmlearn-0.3.3-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b5747d9542e8621dd7aae35f191e2d18e99148a71e88ab6867b51ae5b2044d98", size = 164785, upload-time = "2024-10-31T09:04:18.3Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/31/18042a32389846a4f1ed86ff739f2ea27b8c3f0cf17a1b90e5bcb0ed1016/hmmlearn-0.3.3-cp39-cp39-win_amd64.whl", hash = "sha256:eebd93dca06b2ec6e7196a0b432118de3f4050bf7f75497d54d068d7e238c537", size = 126004, upload-time = "2024-10-31T09:04:19.852Z" },
+]
+
+[[package]]
 name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -3602,6 +3633,7 @@ dependencies = [
     { name = "flexitext" },
     { name = "h5py" },
     { name = "hdf5storage" },
+    { name = "hmmlearn" },
     { name = "indexed" },
     { name = "ipywidgets" },
     { name = "joblib" },
@@ -3663,6 +3695,7 @@ requires-dist = [
     { name = "flexitext", git = "https://github.com/CommanderPho/flexitext.git?rev=main" },
     { name = "h5py", specifier = ">=3.8.0,<4" },
     { name = "hdf5storage", specifier = ">=0.1.19,<0.2" },
+    { name = "hmmlearn", specifier = ">=0.3.3" },
     { name = "indexed", specifier = ">=1.3.0,<2" },
     { name = "ipywidgets", specifier = ">=8.0.4,<9" },
     { name = "joblib", specifier = ">=1.2.0,<2" },
