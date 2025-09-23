@@ -1767,6 +1767,36 @@ class NeuroPyDataframeAccessor:
         return df
 
 
+    def detect_epoch_satisfying_condition(self, is_condition_satisfied: NDArray[np.bool_],  minimum_epoch_duration: Optional[float] = None, merging_adjacent_max_separation_sec: Optional[float] = None, time_col_name: str = 't'):
+        """ 
+        Returns an Epochs objects describe time frames where the animal is above a certain speed
+        
+            speed_col_name: str ='speed'
+            minimum_run_speed: float = 10.0
+            
+            a_pos_df: pd.DataFrame = self._obj
+            movement_speed_variable = a_pos_df[speed_col_name].abs().values
+            above = (movement_speed_variable > minimum_run_speed)
+            is_condition_satisfied = (movement_speed_variable > minimum_run_speed)
+            a_pos_df.neuropy.detect_epoch_satisfying_condition(is_condition_satisfied = above)
+        """
+        from neuropy.core.epoch import Epoch, EpochsAccessor
+        
+        rising_edges = np.where(np.diff(is_condition_satisfied.astype(int)) == 1)[0] + 1
+        falling_edges = np.where(np.diff(is_condition_satisfied.astype(int)) == -1)[0] + 1
+
+        # (rising_edges, falling_edges)
+        satisfied_epochs_df: pd.DataFrame = pd.DataFrame(dict(zip(['start', 'stop'], [np.squeeze(self._obj[time_col_name].iloc[idxs].to_numpy()) for idxs in (rising_edges, falling_edges)])))
+        lap_epochs: Epoch = Epoch.init_from_start_stops_df(satisfied_epochs_df)
+        satisfied_epochs_df = lap_epochs.to_dataframe().epochs.get_valid_df()
+        if minimum_epoch_duration is not None:
+            satisfied_epochs_df = satisfied_epochs_df.epochs.get_valid_df().epochs.get_epochs_longer_than(minimum_duration=minimum_epoch_duration)
+        if merging_adjacent_max_separation_sec is not None:
+            satisfied_epochs_df = satisfied_epochs_df.epochs.merge_adjacent_epochs_within(max_separation=merging_adjacent_max_separation_sec)
+        satisfied_epochs_df = satisfied_epochs_df.epochs.rebuild_labels_column()
+
+        return satisfied_epochs_df
+
 
 
 
