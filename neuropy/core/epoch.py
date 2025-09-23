@@ -1314,7 +1314,7 @@ epochs_df
 
     
     @classmethod
-    def add_maze_id_if_needed(cls, epochs_df: pd.DataFrame, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, labels_column_name:str='label', start_time_col_name: str='start', end_time_col_name: str='stop') -> pd.DataFrame:
+    def add_maze_id_if_needed(cls, epochs_df: pd.DataFrame, t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, active_maze_epochs_df: Optional[pd.DataFrame]=None, replace_existing:bool=True, labels_column_name:str='label', start_time_col_name: str='start', end_time_col_name: str='stop') -> pd.DataFrame:
         """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
 
         Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
@@ -1332,14 +1332,20 @@ epochs_df
             laps_df
 
         """
+        from neuropy.utils.mixins.time_slicing import add_fully_overlapping_epochs_id_identity_to_epochs
+        
         # epochs_df = epochs_df.epochs.to_dataframe()
         epochs_df[[labels_column_name]] = epochs_df[[labels_column_name]].astype('int')
         is_missing_column: bool = ('maze_id' not in epochs_df.columns)
         if (is_missing_column or replace_existing):
             # Create the maze_id column:
             epochs_df['maze_id'] = np.full_like(epochs_df[labels_column_name].to_numpy(), -1) # all -1 to start
-            epochs_df.loc[(np.logical_and((epochs_df[start_time_col_name].to_numpy() >= t_start), (epochs_df[end_time_col_name].to_numpy() <= t_delta))), 'maze_id'] = 0 # first epoch
-            epochs_df.loc[(np.logical_and((epochs_df[start_time_col_name].to_numpy() >= t_delta), (epochs_df[end_time_col_name].to_numpy() <= t_end))), 'maze_id'] = 1 # second epoch, post delta
+            if active_maze_epochs_df is not None:
+                epochs_df = add_fully_overlapping_epochs_id_identity_to_epochs(query_child_epochs = epochs_df, potential_fully_enclosing_epochs_df = active_maze_epochs_df, epoch_id_key_name = 'maze_id', epoch_label_column_name=labels_column_name, start_time_col_name=start_time_col_name, end_time_col_name=end_time_col_name, no_interval_fill_value=-1)
+            else:
+                epochs_df.loc[(np.logical_and((epochs_df[start_time_col_name].to_numpy() >= t_start), (epochs_df[end_time_col_name].to_numpy() <= t_delta))), 'maze_id'] = 0 # first epoch
+                epochs_df.loc[(np.logical_and((epochs_df[start_time_col_name].to_numpy() >= t_delta), (epochs_df[end_time_col_name].to_numpy() <= t_end))), 'maze_id'] = 1 # second epoch, post delta
+                
             epochs_df['maze_id'] = epochs_df['maze_id'].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
         else:
             # already exists and we shouldn't overwrite it:
@@ -1347,7 +1353,7 @@ epochs_df
         return epochs_df
             
 
-    def adding_maze_id_if_needed(self, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, labels_column_name:str='label') -> pd.DataFrame:
+    def adding_maze_id_if_needed(self, t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, active_maze_epochs_df: Optional[pd.DataFrame]=None, replace_existing:bool=True, labels_column_name:str='label') -> pd.DataFrame:
         """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
 
         Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
@@ -1366,7 +1372,7 @@ epochs_df
 
         """
         epochs_df: pd.DataFrame = self._obj.epochs.get_valid_df()
-        return self.add_maze_id_if_needed(epochs_df=epochs_df, t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=replace_existing, labels_column_name=labels_column_name, start_time_col_name='start', end_time_col_name='stop')
+        return self.add_maze_id_if_needed(epochs_df=epochs_df, t_start=t_start, t_delta=t_delta, t_end=t_end, active_maze_epochs_df=active_maze_epochs_df, replace_existing=replace_existing, labels_column_name=labels_column_name, start_time_col_name='start', end_time_col_name='stop')
     
 
     def adding_global_epoch_row(self, global_epoch_name='maze_GLOBAL', first_included_epoch_name=None, last_included_epoch_name=None) -> pd.DataFrame:
