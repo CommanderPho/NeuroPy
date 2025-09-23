@@ -3,7 +3,6 @@ import math
 import pandas as pd
 from sklearn.decomposition import FastICA, PCA
 from scipy import stats
-from hmmlearn.hmm import GaussianHMM
 from .ccg import correlograms
 
 
@@ -296,6 +295,8 @@ def contiguous_regions(condition):
 
 def hmmfit1d(Data, n_comp=2, n_iter=50):
     # hmm states on 1d data and returns labels with highest mean = highest label
+    from hmmlearn.hmm import GaussianHMM
+
     flag = None
     if np.isnan(Data).any():
         nan_indices = np.where(np.isnan(Data) == 1)[0]
