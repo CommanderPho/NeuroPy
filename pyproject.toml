@@ -53,6 +53,9 @@ dev = [
     "ipdb>=0.13.11,<0.14",
     "dvc[gdrive]>=3.59.0,<4",
 ]
+documentation = [
+    "pdoc>=15.0.4",
+]
 experimental = [
     "movement>=0.0.18",
 ]
