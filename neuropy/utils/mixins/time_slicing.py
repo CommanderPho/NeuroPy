@@ -108,7 +108,7 @@ class TimeColumnAliasesProtocol:
 
 
     @classmethod
-    def renaming_synonym_columns_if_needed(cls, df: pd.DataFrame, required_columns_synonym_dict: Optional[dict]=None) -> pd.DataFrame:
+    def renaming_synonym_columns_if_needed(cls, df: pd.DataFrame, required_columns_synonym_dict: Optional[dict]=None, fail_on_missing_columns: bool=True) -> pd.DataFrame:
         """ if the required columns (as specified in _time_column_name_synonyms's keys are missing, search for synonyms and replace the synonym columns with the preferred column name.
 
         Usage:
@@ -129,7 +129,8 @@ class TimeColumnAliasesProtocol:
                         df = df.rename({a_synonym: preferred_column_name}, axis="columns") # rename the synonym column to preferred_column_name
                 ## must be in there by the time that you're done.
                 if preferred_column_name not in df.columns:
-                    raise AttributeError(f"Must have '{preferred_column_name}' column.")
+                    if fail_on_missing_columns:
+                        raise AttributeError(f"Must have '{preferred_column_name}' column.")
         return df # important! Must return the modified obj to be assigned (since its columns were altered by renaming
 
 
