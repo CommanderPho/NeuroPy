@@ -666,7 +666,8 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
     EPSILON_GAP_SIZE_SEC: float = 1e-9  # Amount to subtract from stop times
 
     def __init__(self, pandas_obj):
-        pandas_obj = self.renaming_synonym_columns_if_needed(pandas_obj, required_columns_synonym_dict=self._time_column_name_synonyms)       #@IgnoreException 
+        # pandas_obj = self.renaming_synonym_columns_if_needed(pandas_obj, required_columns_synonym_dict=self._time_column_name_synonyms, fail_on_missing_columns=False)  #@IgnoreException 
+        pandas_obj = self.renaming_synonym_columns_if_needed(pandas_obj, required_columns_synonym_dict={k:v for k, v in self._time_column_name_synonyms.items() if k in ['start', 'stop']}, fail_on_missing_columns=True)  #@IgnoreException         
         pandas_obj = self._validate(pandas_obj)
         self._obj = pandas_obj
         self._obj = self._obj.sort_values(by=["start"]) # sorts all values in ascending order
@@ -676,6 +677,8 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         # Optional: Add 'duration' column:
         self._obj["duration"] = self._obj["stop"] - self._obj["start"]
         # Optional: check for and remove overlaps
+        self._obj = self.renaming_synonym_columns_if_needed(self._obj, required_columns_synonym_dict=self._time_column_name_synonyms, fail_on_missing_columns=True)  #@IgnoreException 
+        
 
     @classmethod
     def _validate(cls, obj):
@@ -949,6 +952,96 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             return filtered_epochs
         else:
             return active_filter_epochs[active_filter_epochs['duration'] >= minimum_duration]
+
+    def merge_adjacent_epochs_within(self, max_separation: float, label_merge_mode: str = 'first', copy_metadata: bool = False, debug_print: bool = False) -> pd.DataFrame:
+        """Merge consecutive epochs whose separation is less than or equal to ``max_separation``.
+
+        Rules:
+        - Epochs are treated in start-time order.
+        - If the gap (next.start - current.stop) <= max_separation (+ small numeric tolerance), they are merged.
+        - Overlapping epochs (negative gap) also merge.
+        - ``label`` handling:
+            - 'first' (default): keep the first epoch's label in a merged run
+            - 'concat': concatenate unique labels with '+' in encounter order
+
+        Returns a new dataframe with columns ['start','stop','label','duration'].
+        Does not modify in place.
+        """
+        assert max_separation is not None and max_separation >= 0.0, f"max_separation must be >= 0.0, got {max_separation}"
+        assert label_merge_mode in ('first', 'concat'), f"label_merge_mode must be one of ('first','concat'), got {label_merge_mode}"
+
+        # Quick return for trivial sizes
+        if self.n_epochs <= 1:
+            result_df = self.get_valid_df()
+            if copy_metadata and hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
+                from copy import deepcopy
+                result_df.attrs = deepcopy(self._obj.attrs)
+            return result_df
+
+        # Work on a validated, sorted copy
+        df = self.get_valid_df().sort_values(by=["start"]).reset_index(drop=True)
+
+        merged_rows: List[Dict[str, Union[float, str]]] = []
+
+        curr_start = float(df.loc[0, 'start'])
+        curr_stop = float(df.loc[0, 'stop'])
+        curr_labels: List[str] = [str(df.loc[0, 'label'])]
+
+        tol = self.__class__.EPSILON_OVERLAP_COMPARE_TOL_SEC
+
+        for i in range(1, len(df)):
+            next_start = float(df.loc[i, 'start'])
+            next_stop = float(df.loc[i, 'stop'])
+            next_label = str(df.loc[i, 'label'])
+
+            gap = next_start - curr_stop
+            if gap <= (max_separation + tol):
+                # Merge into current run
+                if next_stop > curr_stop:
+                    curr_stop = next_stop
+                if label_merge_mode == 'concat':
+                    if (len(curr_labels) == 0) or (next_label != curr_labels[-1]):
+                        # keep encounter order, avoid immediate duplicates
+                        if next_label not in curr_labels:
+                            curr_labels.append(next_label)
+                # 'first' keeps original label
+            else:
+                # Finalize current run
+                if label_merge_mode == 'concat':
+                    out_label = '+'.join(curr_labels)
+                else:
+                    out_label = curr_labels[0]
+                merged_rows.append({'start': curr_start, 'stop': curr_stop, 'label': out_label})
+
+                # Start new run
+                curr_start = next_start
+                curr_stop = next_stop
+                curr_labels = [next_label]
+
+        # Finalize last run
+        if label_merge_mode == 'concat':
+            out_label = '+'.join(curr_labels)
+        else:
+            out_label = curr_labels[0]
+        merged_rows.append({'start': curr_start, 'stop': curr_stop, 'label': out_label})
+
+        result_df = pd.DataFrame(merged_rows, columns=['start', 'stop', 'label'])
+        # Ensure dtypes
+        result_df[['start', 'stop']] = result_df[['start', 'stop']].astype(float)
+        result_df['label'] = result_df['label'].astype('str')
+        result_df['duration'] = result_df['stop'] - result_df['start']
+
+        if debug_print:
+            before_num_rows = self.n_epochs
+            after_num_rows = np.shape(result_df)[0]
+            changed_num_rows = after_num_rows - before_num_rows
+            print(f'Merged adjacent epochs within {max_separation} s: {before_num_rows} -> {after_num_rows} ({changed_num_rows = })')
+
+        if copy_metadata and hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
+            from copy import deepcopy
+            result_df.attrs = deepcopy(self._obj.attrs)
+
+        return result_df
 
     # for TimeSlicableObjectProtocol:
     def time_slice(self, t_start, t_stop) -> pd.DataFrame:
@@ -1380,6 +1473,17 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
         self._df = epochs.epochs.get_valid_df() # gets already sorted appropriately and everything. epochs.epochs uses the DataFrame accesor
         self._check_epochs(self._df) # check anyway
         # self._check_epochs(epochs) # check anyway
+
+
+    @classmethod
+    def init_from_start_stops_df(cls, starts_stops_df: pd.DataFrame, **kwargs):
+        if 'label' not in starts_stops_df:
+            starts_stops_df['label'] = deepcopy(starts_stops_df.index.astype('str'))
+        if 'duration' not in starts_stops_df:
+            starts_stops_df['duration'] = starts_stops_df['stop'] - starts_stops_df['start']
+        return cls(epochs=starts_stops_df.epochs.get_valid_df(), **kwargs)
+        
+        
 
     @property
     def starts(self):
