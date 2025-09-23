@@ -756,6 +756,13 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
     def get_unique_labels(self):
         # return np.unique(self.labels) # this is sorted, which is mostly WRONG
         return self._obj.label.unique()
+    
+    def rebuild_labels_column(self, reset_df_index: bool=True):
+        """ resets the index (by default) and then rebuilds the labels. """
+        if reset_df_index:
+            self._obj = self._obj.reset_index(drop=True)
+        self._obj["label"] = self._obj.index.astype("str")
+        return self._obj
 
     def get_start_stop_tuples_list(self):
         """ returns a list of (start, stop) tuples. """
@@ -1018,7 +1025,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
 
 
     def get_in_between(self, copy_metadata:bool=False) -> pd.DataFrame:
-        """ gets the epochs that are in-between (non-overlapping) the current epochs.
+        """ Returns the periods between each pair of consecutive epochs
         
         Usage:
             inter_lap_epoch_df: pd.DataFrame = laps_df.epochs.get_in_between()
