@@ -211,11 +211,13 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
     """
 
     # backup the extant laps object to prepare for the new one:
-    if should_backup_extant_laps_obj:
+    has_prev_laps: bool = (sess.laps is not None)
+    if has_prev_laps and should_backup_extant_laps_obj:
         assert not hasattr(sess, 'laps_backup'), 'sess.laps_backup already exists, so we can''t backup the extant laps object.'
         sess.laps_backup = deepcopy(sess.laps)
 
-    if should_plot_laps_2d:
+
+    if has_prev_laps and should_plot_laps_2d:
         from pyphoplacecellanalysis.PhoPositionalData.plotting.laps import plot_laps_2d
         # plot originals:
         fig, out_axes_list = plot_laps_2d(sess, legacy_plotting_mode=True)
@@ -233,18 +235,38 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
     # Drop rows with missing data in columns: 't', 'velocity_x_smooth' and 2 other columns. This occurs from smoothing
     pos_df = pos_df.dropna(subset=['t', 'x', 'x_smooth', 'velocity_x_smooth', 'acceleration_x_smooth'])    
     pos_df.reset_index(drop=True, inplace=True) # Either way, reset the index
-    lap_change_indicies = _subfn_perform_estimate_lap_splits_1D(pos_df, hardcoded_track_midpoint_x=None, debug_print=debug_print) # allow smart midpoint determiniation
-    (desc_crossing_begining_idxs, desc_crossing_midpoint_idxs, desc_crossing_ending_idxs), (asc_crossing_begining_idxs, asc_crossing_midpoint_idxs, asc_crossing_ending_idxs), hardcoded_track_midpoint_x = lap_change_indicies    
-    custom_test_laps_obj = Laps.init_from_estimated_laps(pos_df['t'].to_numpy(), desc_crossing_begining_idxs=desc_crossing_begining_idxs, desc_crossing_ending_idxs=desc_crossing_ending_idxs, asc_crossing_begining_idxs=asc_crossing_begining_idxs, asc_crossing_ending_idxs=asc_crossing_ending_idxs, 
-                                                    global_session=sess) ## Get the timestamps corresponding to the indicies
+
+    is_kdiba_session: bool = (sess.get_context().format_name.lower() == 'kdiba')
+    
+    if is_kdiba_session:
+        lap_change_indicies = _subfn_perform_estimate_lap_splits_1D(pos_df, hardcoded_track_midpoint_x=None, debug_print=debug_print) # allow smart midpoint determiniation
+        (desc_crossing_begining_idxs, desc_crossing_midpoint_idxs, desc_crossing_ending_idxs), (asc_crossing_begining_idxs, asc_crossing_midpoint_idxs, asc_crossing_ending_idxs), hardcoded_track_midpoint_x = lap_change_indicies    
+        custom_test_laps_obj = Laps.init_from_estimated_laps(pos_df['t'].to_numpy(), desc_crossing_begining_idxs=desc_crossing_begining_idxs, desc_crossing_ending_idxs=desc_crossing_ending_idxs, asc_crossing_begining_idxs=asc_crossing_begining_idxs, asc_crossing_ending_idxs=asc_crossing_ending_idxs, 
+                                                        global_session=sess) ## Get the timestamps corresponding to the indicies
+    else:
+        ## use more advanced time-based estimation
+        lap_epochs_df = pos_df.position.detect_general_run_epochs(minimum_epoch_duration=1.0, minimum_run_speed=2.0, merging_adjacent_max_separation_sec=0.5)
+        lap_epochs_df['lap_id'] = lap_epochs_df.index + 1
+        assert 'start_position_index' in lap_epochs_df.columns
+        custom_test_laps_df = lap_epochs_df.laps_accessor.filter_to_valid() ## drop invalid/zero index ones first
+        custom_test_laps_df = custom_test_laps_df.laps_accessor.update_computed_columns(global_session=sess, replace_existing=True) # t_start=t_start, t_delta=t_delta, t_end=t_end
+        custom_test_laps_df = custom_test_laps_df.laps_accessor.filter_to_valid()
+        assert 'start_position_index' in custom_test_laps_df.columns
+        custom_test_laps_obj = Laps(laps=custom_test_laps_df)
+        custom_test_laps_obj._df['start_position_index'] = custom_test_laps_df['start_position_index']
+        custom_test_laps_obj._df['stop_position_index'] = custom_test_laps_df['stop_position_index']    
+        
+
     assert custom_test_laps_obj.n_laps > 0, f"estimation for {sess} produced no laps!"
 
     ## Determine the spikes included with each computed lap:
     spikes_df: pd.DataFrame = deepcopy(sess.spikes_df)
     if time_variable_name is None:
-        time_variable_name = 't_rel_seconds'
-    else:
+        # time_variable_name = 't_rel_seconds'
         time_variable_name = spikes_df.spikes.time_variable_name # get time_variable_name from the spikes_df object
+    # else:
+        # time_variable_name = spikes_df.spikes.time_variable_name # get time_variable_name from the spikes_df object
+    
     custom_test_laps_obj = _subfn_compute_laps_spike_indicies(custom_test_laps_obj, spikes_df, time_variable_name=time_variable_name, global_session=sess)
     sess.laps = deepcopy(custom_test_laps_obj) # replace the laps obj
 

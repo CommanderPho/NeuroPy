@@ -670,26 +670,22 @@ class PositionAccessor(PositionDimDataMixin, PositionComputedDataMixin, TimeSlic
             return out_pos_df
 
 
-    def detect_general_run_epochs(self, minimum_run_speed: float = 10.0, minimum_run_duration: float = 0.5, max_separation_sec: float = 2.0, speed_col_name: str ='speed', time_col_name: str = 't'):
+    def detect_general_run_epochs(self, minimum_run_speed: float = 10.0, minimum_epoch_duration: float = 0.5, merging_adjacent_max_separation_sec: float = 2.0, speed_col_name: str ='speed') -> pd.DataFrame:
         """ 
         Returns an Epochs objects describe time frames where the animal is above a certain speed
         
         """
+        from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+        
         a_pos_df: pd.DataFrame = self._obj
+        if speed_col_name not in a_pos_df:
+            ## compute linear speed
+            raise NotImplementedError(f'missing requested speed column: "{speed_col_name}". Present columns: {list(a_pos_df.columns)}')
+        
         movement_speed_variable = a_pos_df[speed_col_name].abs().values
-        above = (movement_speed_variable > minimum_run_speed)
-        rising_edges = np.where(np.diff(above.astype(int)) == 1)[0] + 1
-        falling_edges = np.where(np.diff(above.astype(int)) == -1)[0] + 1
-
-        # (rising_edges, falling_edges)
-
-        lap_epochs_df: pd.DataFrame = pd.DataFrame(dict(zip(['start', 'stop'], [np.squeeze(a_pos_df[time_col_name].iloc[idxs].to_numpy()) for idxs in (rising_edges, falling_edges)])))
-        lap_epochs: Epoch = Epoch.init_from_start_stops_df(lap_epochs_df)
-        lap_epochs_df = lap_epochs.to_dataframe().epochs.get_valid_df()
-        lap_epochs_df = lap_epochs_df.epochs.get_valid_df().epochs.get_epochs_longer_than(minimum_duration=minimum_run_duration)
-        lap_epochs_df = lap_epochs_df.epochs.merge_adjacent_epochs_within(max_separation=max_separation_sec)
-        lap_epochs_df = lap_epochs_df.epochs.rebuild_labels_column()
-
+        lap_epochs_df = a_pos_df.neuropy.detect_epoch_satisfying_condition(is_condition_satisfied = (movement_speed_variable > minimum_run_speed),
+                                                                           minimum_epoch_duration=minimum_epoch_duration, merging_adjacent_max_separation_sec=merging_adjacent_max_separation_sec,
+                                                                           time_col_name='t')
         return lap_epochs_df
 
 

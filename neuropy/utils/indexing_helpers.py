@@ -1787,8 +1787,16 @@ class NeuroPyDataframeAccessor:
 
         # (rising_edges, falling_edges)
         satisfied_epochs_df: pd.DataFrame = pd.DataFrame(dict(zip(['start', 'stop'], [np.squeeze(self._df[time_col_name].iloc[idxs].to_numpy()) for idxs in (rising_edges, falling_edges)])))
-        lap_epochs: Epoch = Epoch.init_from_start_stops_df(satisfied_epochs_df)
-        satisfied_epochs_df = lap_epochs.to_dataframe().epochs.get_valid_df()
+        assert len(rising_edges) == len(satisfied_epochs_df)
+        assert len(falling_edges) == len(satisfied_epochs_df)
+        
+        satisfied_epochs_df['start_position_index'] = rising_edges
+        satisfied_epochs_df['stop_position_index'] = falling_edges    
+        satisfied_epochs_df['label'] = satisfied_epochs_df.index.astype(str)
+        # satisfied_epochs_df = satisfied_epochs_df.epochs.rebuild_labels_column()
+        
+        # lap_epochs: Epoch = Epoch.init_from_start_stops_df(satisfied_epochs_df)
+        # satisfied_epochs_df = lap_epochs.to_dataframe().epochs.get_valid_df() ## why do we even do this?
         if minimum_epoch_duration is not None:
             satisfied_epochs_df = satisfied_epochs_df.epochs.get_valid_df().epochs.get_epochs_longer_than(minimum_duration=minimum_epoch_duration)
         if merging_adjacent_max_separation_sec is not None:
