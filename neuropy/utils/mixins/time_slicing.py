@@ -450,6 +450,43 @@ def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoc
     return spike_epoch_identity_arr
 
 
+# @function_attributes(short_name=None, tags=['interval', 'epochs', 'interval-interval'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-09-23 13:59', related_items=[])
+def add_fully_overlapping_epochs_id_identity_to_epochs(query_child_epochs, potential_fully_enclosing_epochs_df: pd.DataFrame, epoch_id_key_name: str = 'maze_id', epoch_label_column_name='label', start_time_col_name: str='start', end_time_col_name: str='stop', no_interval_fill_value: Union[str, int] = '':
+    """ Adds the epoch IDs to each spike in spikes_df as a column named epoch_id_key_name
+    
+    Like `add_epochs_id_identity`, but for entire epochs ['start', 'stop'] and not just a point timeseries ['t']
+    
+    Usage:
+        from neuropy.utils.mixins.time_slicing import add_fully_overlapping_epochs_id_identity_to_epochs
+
+        active_maze_epoch_names = deepcopy(hardcoded_params.non_global_activity_session_names)
+        active_maze_epochs_df: pd.DataFrame = curr_active_pipeline.sess.paradigm.to_dataframe() # ['label']
+        active_maze_epochs_df = active_maze_epochs_df[active_maze_epochs_df['label'].isin(active_maze_epoch_names)]
+        laps_df = add_fully_overlapping_epochs_id_identity_to_epochs(query_child_epochs = laps_df, potential_fully_enclosing_epochs_df = active_maze_epochs_df, epoch_id_key_name = 'maze_id')
+        laps_df
+        
+    """
+    if epoch_label_column_name is not None:
+        assert epoch_label_column_name in potential_fully_enclosing_epochs_df.columns, f"if epoch_label_column_name is specified (not None) than the column {epoch_label_column_name} must exist in the provided_epochs_df, but provided_epochs_df.columns: {list(potential_fully_enclosing_epochs_df.columns)}!"
+
+    ## Create the new column:
+    query_child_epochs[epoch_id_key_name] = no_interval_fill_value
+    
+    found_overlapping_split_idxs_dict = {}
+    for a_row in potential_fully_enclosing_epochs_df.itertuples():
+        is_epoch_in_parent = np.logical_and((a_row.start < query_child_epochs[start_time_col_name]), (query_child_epochs[end_time_col_name] < a_row.stop))
+        # is_epoch_in_parent: NDArray = find_epochs_overlapping_other_epochs(epochs_df=laps_df, epochs_df_required_to_overlap=deepcopy(active_maze_epochs_df[active_maze_epochs_df[epoch_label_column_name] == a_row.label]))
+        if epoch_label_column_name is None:
+            parent_epoch_id_label = a_row.index
+        else:
+            parent_epoch_id_label = a_row._asdict()[epoch_label_column_name]
+        found_overlapping_split_idxs_dict[parent_epoch_id_label] = query_child_epochs[is_epoch_in_parent]
+        query_child_epochs.loc[found_overlapping_split_idxs_dict[parent_epoch_id_label].index, epoch_id_key_name] = parent_epoch_id_label
+        
+    # maze_dfs
+    return query_child_epochs
+
+
 def add_epochs_id_identity(spk_df, epochs_df, epoch_id_key_name='temp_epoch_id', epoch_label_column_name='label', override_time_variable_name=None, no_interval_fill_value=np.nan, overlap_behavior=OverlappingIntervalsFallbackBehavior.FALLBACK_TO_SLOW_SEARCH):
     """ Adds the epoch IDs to each spike in spikes_df as a column named epoch_id_key_name
     
