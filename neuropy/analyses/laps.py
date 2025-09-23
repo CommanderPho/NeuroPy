@@ -2,6 +2,7 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 
+from neuropy.utils.mixins.time_slicing import TimeColumnAliasesProtocol
 from neuropy.core.laps import Laps, LapsAccessor
 
 from neuropy.utils.efficient_interval_search import get_non_overlapping_epochs # for _build_new_lap_and_intra_lap_intervals
@@ -187,6 +188,35 @@ def _subfn_perform_estimate_lap_splits_1D(pos_df: pd.DataFrame, hardcoded_track_
     return (desc_crossing_begining_idxs, desc_crossing_midpoint_idxs, desc_crossing_ending_idxs), (asc_crossing_begining_idxs, asc_crossing_midpoint_idxs, asc_crossing_ending_idxs), hardcoded_track_midpoint_x
 
 
+
+def _subfn_perform_compute_laps_pos_indicies(laps_df: pd.DataFrame, pos_df: pd.DataFrame, time_variable_name='t'):
+    """ Adds the 'start_position_index' and 'end_position_index' columns to the laps_df
+    laps_df has two columns added: 'start_position_index' and 'end_position_index'
+    spikes_df is not modified
+
+    Known Usages: Called only by `_subfn_compute_laps_spike_indicies(...)`
+    """
+    n_laps = len(laps_df['start'])
+    start_spike_index = np.zeros_like(laps_df['start'])
+    end_spike_index = np.zeros_like(laps_df['start'])
+    for i in np.arange(n_laps):
+        included_df = pos_df[((pos_df[time_variable_name] >= laps_df.loc[i,'start']) & (pos_df[time_variable_name] <= laps_df.loc[i,'stop']))]
+        included_indicies = included_df.index
+        if len(included_indicies) > 0:
+            start_spike_index[i] = included_indicies[0]
+            end_spike_index[i] = included_indicies[-1]
+        else:
+            # there were no spikes at all that fell within this lap. Is it a real lap?
+            start_spike_index[i] = 0 # or np.nan?
+            end_spike_index[i] = 0
+
+    # Add the start and end spike indicies to the laps df:
+    laps_df['start_position_index'] = start_spike_index.astype(int)
+    laps_df['end_position_index'] = end_spike_index.astype(int)
+    return laps_df
+
+
+
 def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, should_plot_laps_2d=False, time_variable_name=None, debug_plot=False, debug_print=False):
     """ 2021-12-21 - Pho's lap estimation from the position data (only)
     Replaces the sess.laps which is computed or loaded from the spikesII.mat spikes data (which isn't very good)
@@ -245,17 +275,25 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
                                                         global_session=sess) ## Get the timestamps corresponding to the indicies
     else:
         ## use more advanced time-based estimation
-        lap_epochs_df = pos_df.position.detect_general_run_epochs(minimum_epoch_duration=1.0, minimum_run_speed=2.0, merging_adjacent_max_separation_sec=None) # merging_adjacent_max_separation_sec=0.5
+        lap_epochs_df = pos_df.position.detect_general_run_epochs(minimum_epoch_duration=1.0, minimum_run_speed=1.0, merging_adjacent_max_separation_sec = None) # merging_adjacent_max_separation_sec=0.5
+        lap_epochs_df = lap_epochs_df.epochs.get_non_overlapping_df()
+        lap_epochs_df = _subfn_perform_compute_laps_pos_indicies(lap_epochs_df, pos_df=pos_df) ## adds back in the ['start_position_index', 'stop_position_index'] columns
+        lap_epochs_df = TimeColumnAliasesProtocol.renaming_synonym_columns_if_needed(lap_epochs_df, required_columns_synonym_dict={"start":{'begin','start_t'}, "stop":['end','stop_t'], 'stop_position_index': ['end_position_index']})
+        lap_epochs_df['end_position_index'] = lap_epochs_df['stop_position_index'] ## add both
+        lap_epochs_df['lap_dir'] = 0
         lap_epochs_df['lap_id'] = lap_epochs_df.index + 1
         assert 'start_position_index' in lap_epochs_df.columns
+        assert 'stop_position_index' in lap_epochs_df.columns
         custom_test_laps_df = lap_epochs_df.laps_accessor.filter_to_valid() ## drop invalid/zero index ones first
         custom_test_laps_df = custom_test_laps_df.laps_accessor.update_computed_columns(global_session=sess, replace_existing=True) # t_start=t_start, t_delta=t_delta, t_end=t_end
         custom_test_laps_df = custom_test_laps_df.laps_accessor.filter_to_valid()
         assert 'start_position_index' in custom_test_laps_df.columns
         custom_test_laps_obj = Laps(laps=custom_test_laps_df)
         custom_test_laps_obj._df['start_position_index'] = custom_test_laps_df['start_position_index']
-        custom_test_laps_obj._df['stop_position_index'] = custom_test_laps_df['stop_position_index']    
-        
+        assert 'stop_position_index' in custom_test_laps_df.columns
+        custom_test_laps_obj._df['stop_position_index'] = custom_test_laps_df['stop_position_index']
+        custom_test_laps_obj._df['end_position_index'] = custom_test_laps_df['stop_position_index']
+
 
     assert custom_test_laps_obj.n_laps > 0, f"estimation for {sess} produced no laps!"
 

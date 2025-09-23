@@ -937,7 +937,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         return result_df
 
 
-    def get_epochs_longer_than(self, minimum_duration, debug_print=False) -> pd.DataFrame:
+    def get_epochs_longer_than(self, minimum_duration: float, debug_print=False) -> pd.DataFrame:
         """ returns a copy of the dataframe contining only epochs longer than the specified minimum_duration. """
         active_filter_epochs = self.get_valid_df()
         if debug_print:
@@ -953,7 +953,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         else:
             return active_filter_epochs[active_filter_epochs['duration'] >= minimum_duration]
 
-    def merge_adjacent_epochs_within(self, max_separation: float, label_merge_mode: str = 'first', copy_metadata: bool = False, debug_print: bool = False) -> pd.DataFrame:
+    def merge_adjacent_epochs_within(self, max_merge_duration: float) -> pd.DataFrame:
         """Merge consecutive epochs whose separation is less than or equal to ``max_separation``.
 
         Rules:
@@ -967,82 +967,107 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         Returns a new dataframe with columns ['start','stop','label','duration'].
         Does not modify in place.
         """
-        assert max_separation is not None and max_separation >= 0.0, f"max_separation must be >= 0.0, got {max_separation}"
-        assert label_merge_mode in ('first', 'concat'), f"label_merge_mode must be one of ('first','concat'), got {label_merge_mode}"
+        assert max_merge_duration is not None and max_merge_duration >= 0.0, f"max_separation must be >= 0.0, got {max_merge_duration}"
 
         # Quick return for trivial sizes
         if self.n_epochs <= 1:
             result_df = self.get_valid_df()
-            if copy_metadata and hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
-                from copy import deepcopy
+            if hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
                 result_df.attrs = deepcopy(self._obj.attrs)
             return result_df
 
-        # raise NotImplementedError(f'This looses all other columss when merging!!')
-        # Work on a validated, sorted copy
-        df = self.get_valid_df().sort_values(by=["start"]).reset_index(drop=True)
 
-        merged_rows: List[Dict[str, Union[float, str]]] = []
+        result_df = self.get_valid_df()
 
-        curr_start = float(df.loc[0, 'start'])
-        curr_stop = float(df.loc[0, 'stop'])
-        curr_labels: List[str] = [str(df.loc[0, 'label'])]
-
-        tol = self.__class__.EPSILON_OVERLAP_COMPARE_TOL_SEC
-
-        for i in range(1, len(df)):
-            next_start = float(df.loc[i, 'start'])
-            next_stop = float(df.loc[i, 'stop'])
-            next_label = str(df.loc[i, 'label'])
-
-            gap = next_start - curr_stop
-            if gap <= (max_separation + tol):
-                # Merge into current run
-                if next_stop > curr_stop:
-                    curr_stop = next_stop
-                if label_merge_mode == 'concat':
-                    if (len(curr_labels) == 0) or (next_label != curr_labels[-1]):
-                        # keep encounter order, avoid immediate duplicates
-                        if next_label not in curr_labels:
-                            curr_labels.append(next_label)
-                # 'first' keeps original label
-            else:
-                # Finalize current run
-                if label_merge_mode == 'concat':
-                    out_label = '+'.join(curr_labels)
-                else:
-                    out_label = curr_labels[0]
-                merged_rows.append({'start': curr_start, 'stop': curr_stop, 'label': out_label})
-
-                # Start new run
-                curr_start = next_start
-                curr_stop = next_stop
-                curr_labels = [next_label]
-
-        # Finalize last run
-        if label_merge_mode == 'concat':
-            out_label = '+'.join(curr_labels)
-        else:
-            out_label = curr_labels[0]
-        merged_rows.append({'start': curr_start, 'stop': curr_stop, 'label': out_label})
-
-        result_df = pd.DataFrame(merged_rows, columns=['start', 'stop', 'label'])
-        # Ensure dtypes
-        result_df[['start', 'stop']] = result_df[['start', 'stop']].astype(float)
-        result_df['label'] = result_df['label'].astype('str')
-        result_df['duration'] = result_df['stop'] - result_df['start']
-
-        if debug_print:
-            before_num_rows = self.n_epochs
-            after_num_rows = np.shape(result_df)[0]
-            changed_num_rows = after_num_rows - before_num_rows
-            print(f'Merged adjacent epochs within {max_separation} s: {before_num_rows} -> {after_num_rows} ({changed_num_rows = })')
-
-        if copy_metadata and hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
-            from copy import deepcopy
+        intra_high_speed_periods: pd.DataFrame = result_df.epochs.get_in_between()
+        intra_high_speed_periods = intra_high_speed_periods[intra_high_speed_periods['duration'] <= max_merge_duration] ## only get the ones shorter than the max merge distance
+        original_lap_epochs_df = deepcopy(result_df).set_index('label')
+        new_epochs = []
+        for a_row in intra_high_speed_periods.itertuples():
+            # print(a_row)
+            a_row.label
+            a_row.precceding_epoch_label
+            # a_row.following_epoch_label
+            # print(original_lap_epochs_df.loc[a_row.precceding_epoch_label])
+            new_epochs.append((original_lap_epochs_df.loc[a_row.precceding_epoch_label]['start'], original_lap_epochs_df.loc[a_row.following_epoch_label]['stop']))
+            # a_row[.'preceeding_epoch_label']
+            # [a_row.following_epoch_label]
+            
+        new_epochs = pd.DataFrame(new_epochs, columns=['start', 'stop'])
+        new_epochs['duration'] = new_epochs['stop'] - new_epochs['start']
+        new_epochs['label'] = new_epochs.index.astype('str')
+        
+        if hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
             result_df.attrs = deepcopy(self._obj.attrs)
 
-        return result_df
+        return new_epochs
+
+
+        # # raise NotImplementedError(f'This looses all other columss when merging!!')
+        # # Work on a validated, sorted copy
+        # df = self.get_valid_df().sort_values(by=["start"]).reset_index(drop=True)
+
+        # merged_rows: List[Dict[str, Union[float, str]]] = []
+
+        # curr_start = float(df.loc[0, 'start'])
+        # curr_stop = float(df.loc[0, 'stop'])
+        # curr_labels: List[str] = [str(df.loc[0, 'label'])]
+
+        # tol = self.__class__.EPSILON_OVERLAP_COMPARE_TOL_SEC
+
+        # for i in range(1, len(df)):
+        #     next_start = float(df.loc[i, 'start'])
+        #     next_stop = float(df.loc[i, 'stop'])
+        #     next_label = str(df.loc[i, 'label'])
+
+        #     gap = next_start - curr_stop
+        #     if gap <= (max_separation + tol):
+        #         # Merge into current run
+        #         if next_stop > curr_stop:
+        #             curr_stop = next_stop
+        #         if label_merge_mode == 'concat':
+        #             if (len(curr_labels) == 0) or (next_label != curr_labels[-1]):
+        #                 # keep encounter order, avoid immediate duplicates
+        #                 if next_label not in curr_labels:
+        #                     curr_labels.append(next_label)
+        #         # 'first' keeps original label
+        #     else:
+        #         # Finalize current run
+        #         if label_merge_mode == 'concat':
+        #             out_label = '+'.join(curr_labels)
+        #         else:
+        #             out_label = curr_labels[0]
+        #         merged_rows.append({'start': curr_start, 'stop': curr_stop, 'label': out_label})
+
+        #         # Start new run
+        #         curr_start = next_start
+        #         curr_stop = next_stop
+        #         curr_labels = [next_label]
+
+        # # Finalize last run
+        # if label_merge_mode == 'concat':
+        #     out_label = '+'.join(curr_labels)
+        # else:
+        #     out_label = curr_labels[0]
+        # merged_rows.append({'start': curr_start, 'stop': curr_stop, 'label': out_label})
+
+        # result_df = pd.DataFrame(merged_rows, columns=['start', 'stop', 'label'])
+        # # Ensure dtypes
+        # result_df[['start', 'stop']] = result_df[['start', 'stop']].astype(float)
+        # result_df['label'] = result_df['label'].astype('str')
+        # result_df['duration'] = result_df['stop'] - result_df['start']
+
+        # if debug_print:
+        #     before_num_rows = self.n_epochs
+        #     after_num_rows = np.shape(result_df)[0]
+        #     changed_num_rows = after_num_rows - before_num_rows
+        #     print(f'Merged adjacent epochs within {max_separation} s: {before_num_rows} -> {after_num_rows} ({changed_num_rows = })')
+
+        # if copy_metadata and hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
+        #     from copy import deepcopy
+        #     result_df.attrs = deepcopy(self._obj.attrs)
+
+        # return result_df
 
     # for TimeSlicableObjectProtocol:
     def time_slice(self, t_start, t_stop) -> pd.DataFrame:
