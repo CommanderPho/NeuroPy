@@ -1,6 +1,6 @@
 [project]
 name = "neuropy"
-version = "0.2.3"
+version = "0.2.4"
 description = "package is primarily developed for hippocampal recordings, but can also be used for general ephys data."
 authors = [
     { name = "Bapun Giri", email = "bapung@umich.edu" },
@@ -18,7 +18,6 @@ dependencies = [
     "scipy~=1.6",
     "pandas==1.5.3",
     "joblib>=1.2.0,<2",
-    "hmmlearn>=0.2.8,<0.3",
     "scikit-learn>=1.2.1,<2",
     "scikit-posthocs>=0.7.0,<0.8",
     "ipywidgets>=8.0.4,<9",
@@ -41,11 +40,12 @@ dependencies = [
     "typing-extensions>=4.12.2",
     "umap-learn>=0.5.9.post2",
     "dvc[all]>=3.63.0",
+    "numba>=0.56.4,<0.57",
+    "hmmlearn>=0.3.3",
 ]
 
 [project.optional-dependencies]
 gui = ["tqdm>=4.64.1,<5"]
-acceleration = ["numba>=0.56.4,<0.57"]
 data_version_control = []
 
 [dependency-groups]
@@ -53,12 +53,6 @@ dev = [
     "pip~=24.0",
     "ipdb>=0.13.11,<0.14",
     "dvc[gdrive]>=3.59.0,<4",
-]
-documentation = [
-    "pdoc>=15.0.4",
-]
-experimental = [
-    "movement>=0.0.18",
 ]
 
 [tool.uv]
