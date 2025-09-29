@@ -289,7 +289,7 @@ class LapsAccessor(EpochsAccessor):
         
         Usage:
         
-            lap_only_linear_pos_df, lap_only_pos_df, (lap_dir_2D_dict, lap_dir_1D_dict) = non_kdiba_laps_determine_directions(sess=curr_active_pipeline.sess)
+            lap_only_linear_pos_df, lap_only_pos_df, (lap_dir_2D_dict, lap_dir_1D_dict) = LapsAccessor.non_kdiba_laps_determine_directions(sess=curr_active_pipeline.sess)
             
         """
         def no_op(v):
