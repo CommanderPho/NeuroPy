@@ -10,6 +10,21 @@ import numpy as np
 # ------------------------------------------------------------------------------
 # Cross-correlograms
 # ------------------------------------------------------------------------------
+
+try:
+    np.float
+    np.bool
+    np.int
+except (AttributeError) as e:
+    # attributeerror: module 'numpy' has no attribute 'float'.`np.float` was a deprecated alias for the builtin `float`. To avoid this error in existing code, use `float` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.float64` here.The aliases was originally deprecated in NumPy 1.20; for more details and guidance see the original release note at:    https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    np.float = float
+    np.int = int
+    np.bool = bool
+    pass
+except Exception as e:
+    raise
+
+
 _ACCEPTED_ARRAY_DTYPES = (
     np.float,
     np.float32,
