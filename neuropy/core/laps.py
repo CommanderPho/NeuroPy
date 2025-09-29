@@ -282,6 +282,157 @@ class LapsAccessor(EpochsAccessor):
         return laps_df
 
 
+    @classmethod
+    def non_kdiba_laps_determine_directions(cls, sess, lap_dir_neg_one_to_one: bool=False):
+        """ 
+        adds ['lap_dir_2D', 'lap_dir_1D', 'lap_dir']
+        
+        Usage:
+        
+            lap_only_linear_pos_df, lap_only_pos_df, (lap_dir_2D_dict, lap_dir_1D_dict) = non_kdiba_laps_determine_directions(sess=curr_active_pipeline.sess)
+            
+        """
+        def no_op(v):
+            return v
+        
+        def to_zero_or_one(v):
+            if v >= 1.0:
+                return 1
+            elif (v == 0.0) or (np.isclose(v, 0)):
+                return np.nan
+            else:
+                return 0
+            
+        if lap_dir_neg_one_to_one:
+            active_fn = no_op
+        else:
+            # add_const = lambda v: 1 if (v > 0) else 0
+            # add_const = {-1: 0, 0: np.nan, 1: 1}
+            active_fn = to_zero_or_one
+            
+            
+        laps = sess.laps
+        laps_df: pd.DataFrame = laps.to_dataframe()
+        
+        pos = sess.position
+        linear_pos = pos.linear_pos_obj
+
+        linear_pos_df = linear_pos.to_dataframe()
+        pos_df = pos.to_dataframe()
+        extra_col_names = ['lap', 'lap_dir', 'lin_pos_smooth']
+        linear_pos_df[extra_col_names] = deepcopy(pos_df[extra_col_names])
+
+        lap_only_pos_df = pos_df[np.logical_not(pos_df['lap'].isna())].dropna(subset=['x_smooth'])
+        lap_only_pos_df['lap'] = lap_only_pos_df['lap'].astype(int)
+
+        lap_only_linear_pos_df = linear_pos_df[np.logical_not(linear_pos_df['lap'].isna())].dropna(subset=['lin_pos_smooth'])
+        lap_only_linear_pos_df['lap'] = lap_only_linear_pos_df['lap'].astype(int)
+
+        # pos_df = pos.compute_smoothed_position_info(non_smoothed_column_labels=['lin_pos']).drop
+        
+        ## process: lap_only_linear_pos_df
+        lin_pos_col_name: str = 'x_smooth'
+        lin_pos_velocity_col_name: str = 'velocity_x_smooth'
+        lap_only_linear_pos_agg_df = lap_only_linear_pos_df.groupby(['lap']).agg(lin_pos_mean=(lin_pos_col_name, 'mean'), lin_pos_min=(lin_pos_col_name, 'min'), lin_pos_max=(lin_pos_col_name, 'max'), lin_pos_velocity_mean=(lin_pos_velocity_col_name, 'mean'), lin_pos_velocity_sum=(lin_pos_velocity_col_name, 'sum')).reset_index().set_index('lap')
+
+        # lap_only_linear_pos_df['lap_dir'] = np.sign(lap_only_linear_pos_agg_df['lin_pos_velocity_mean']).astype(float)
+        lap_dir_1D_dict = np.sign(lap_only_linear_pos_agg_df['lin_pos_velocity_mean']).astype(int).to_dict()
+        lap_only_linear_pos_df['lap_dir'] = lap_only_linear_pos_df['lap'].map(lambda a_lap: active_fn(lap_dir_1D_dict.get(a_lap, 0)))
+        lap_only_linear_pos_df = lap_only_linear_pos_df.convert_dtypes({'lap_dir': int})
+        
+        ## process: lap_only_pos_df
+        # Performed 4 aggregations grouped on column: 'lap'
+        lap_only_pos_agg_df = lap_only_pos_df.groupby(['lap']).agg(approx_head_dir_degrees_mean=('approx_head_dir_degrees', 'mean'), head_dir_angle_binned_mean=('head_dir_angle_binned', 'mean'), velocity_x_smooth_mean=('velocity_x_smooth', 'mean'), velocity_y_smooth_mean=('velocity_y_smooth', 'mean')).reset_index().set_index('lap')
+        lap_dir_2D_dict = np.sign(lap_only_pos_agg_df['velocity_x_smooth_mean']).astype(int).to_dict()
+        # lap_only_pos_df['lap_dir'] = lap_only_pos_df['lap'].map(lambda a_lap: lap_dir_2D_dict.get(int(a_lap), np.nan))
+        
+        lap_only_pos_df['lap_dir'] = lap_only_pos_df['lap'].map(lambda a_lap: active_fn(lap_dir_2D_dict.get(a_lap, 0)))
+        lap_only_pos_df = lap_only_pos_df.convert_dtypes({'lap_dir': int})
+
+        # sess.position.df['lap_dir'] = sess.position.df['lap'].map(lambda a_lap: lap_dir_2D_dict.get(int(a_lap), np.nan))
+        sess.position.df['lap_dir_2D'] = sess.position.df['lap'].map(lambda a_lap: active_fn(lap_dir_2D_dict.get(a_lap, 0)))
+        sess.position.df['lap_dir_1D'] = sess.position.df['lap'].map(lambda a_lap: active_fn(lap_dir_1D_dict.get(a_lap, 0)))
+        sess.position.df['lap_dir'] = sess.position.df['lap_dir_1D'].copy()
+        # sess.position.df = sess.position.df.convert_dtypes({'lap_dir_1D': int, 'lap_dir_2D': int, 'lap_dir': int})
+        lap_dir_1D_dict = {k:active_fn(v) for k, v in lap_dir_1D_dict.items()}
+        lap_dir_2D_dict = {k:active_fn(v) for k, v in lap_dir_2D_dict.items()}
+        
+
+        ## Update the laps_df: ['lap_dir', 'is_LR_dir'] columns:
+        bak_lap_dir_col_dict = {'lap_dir': '_bak_lap_dir', 'is_LR_dir': '_bak_is_LR_dir'}
+        for a_col, a_bak_Col in bak_lap_dir_col_dict.items():
+            # laps_df['_bak_lap_dir'] = deepcopy(laps_df['lap_dir'])
+            if a_bak_Col not in laps_df.columns:
+                laps_df[a_bak_Col] = deepcopy(laps_df[a_col])
+
+        laps_df['lap_dir'] = laps_df['lap'].astype(int).map(lambda a_lap: lap_dir_1D_dict.get(a_lap, 0))
+        laps_df['is_LR_dir'] = deepcopy(laps_df['lap_dir']).astype(bool)
+        
+        ## Update the laps object in-place:
+        sess.laps._df['lap_dir'] = sess.laps._df['lap'].astype(int).map(lambda a_lap: lap_dir_1D_dict.get(a_lap, 0))
+        sess.laps._df['is_LR_dir'] = deepcopy(sess.laps._df['lap_dir']).astype(bool)
+
+        return (lap_only_linear_pos_df, lap_only_pos_df), (lap_dir_2D_dict, lap_dir_1D_dict)
+
+
+    # @classmethod
+    # def _perform_compute_lap_dir_from_mean_lin_velocity(cls, laps_df: pd.DataFrame, global_session: Union[Position, DataSession], replace_existing:bool=True) -> pd.DataFrame:
+    #     """ 2025-07-16 - uses the smoothed velocity to determine the proper lap direction
+
+    #     Adds/Updates Columns in laps_df: ['is_LR_dir', 'lap_dir']
+        
+    #     for LR_dir, values become more positive with time
+
+    #     """
+    #     if (not replace_existing):
+    #         if ('is_LR_dir' in laps_df.columns) and ('lap_dir' in laps_df.columns):
+    #             print(f'WARN: (replace_existing == False) and ["is_LR_dir", "lap_dir"] already exist in laps_df. Skipping recomputation.')
+    #             return laps_df
+
+        
+    #     from neuropy.core.position import Position
+        
+    #     n_laps: int = np.shape(laps_df)[0]
+    #     if isinstance(global_session, Position):
+    #         global_pos_obj = global_session # passed variable is already a Position object
+    #     else:
+    #         # passed variable is hopefully a DataSession: Extract the position from the passed in session.
+    #         global_pos_obj = global_session.position
+            
+    #     global_pos_obj.compute_higher_order_derivatives()
+    #     global_pos_obj.compute_smoothed_position_info()
+        
+    #     pos_df: pd.DataFrame = global_pos_obj.to_dataframe()
+
+    #     ## adds the 'lap' and 'lap_dir' columns -- always do this so they correctly correspond to any updated laps
+    #     pos_df = pos_df.position.adding_lap_info(laps_df=laps_df, inplace=False)
+
+    #     # Filter rows based on column: 'lap'
+    #     pos_df = pos_df[pos_df['lap'].notna()]
+        
+    #     ## 2025-07-16 05:45 - Compute instead based on total displacement -- lap_start, lap_end
+    #     lap_displacement_df: pd.DataFrame = pos_df.groupby(['lap']).agg(lin_pos_first=('lin_pos', 'first'), lin_pos_last=('lin_pos', 'last')).reset_index() ## find net displacement
+    #     lap_displacement_df['displacement'] = lap_displacement_df['lin_pos_last'] - lap_displacement_df['lin_pos_first']
+    #     lap_displacement_df['is_LR_dir'] = (lap_displacement_df['displacement'] > 0.0) # increasing values => LR_dir
+    #     lap_displacement_df['lap_dir'] = np.logical_not(lap_displacement_df['is_LR_dir']).astype(int) # 1 for RL, 0 for LR
+    #     # lap_displacement_df = lap_displacement_df.set_index('lap')
+
+    #     # Drop existing columns in 'laps_df' that will be replaced by the `lap_displacement_df` versions. 
+    #     # If we don't do this we end up with duplicate columns like: ['lap_x', 'is_LR_dir_x', 'lap_dir_y', 'lap_dir_x', 'lap_y', 'is_LR_dir_y', 'lap_dir_y', 'lap', 'is_LR_dir', 'lap_dir'
+    #     columns_to_drop = ['lap', 'is_LR_dir', 'lap_dir']
+    #     existing_columns = [col for col in columns_to_drop if col in laps_df.columns]
+    #     if existing_columns:
+    #         laps_df = laps_df.drop(columns=existing_columns)
+
+    #     ## Add in corrected columns to laps_df:
+    #     laps_df = laps_df.merge(lap_displacement_df[['lap', 'is_LR_dir', 'lap_dir']], left_on='lap_id', right_on='lap', how='left')
+        
+    #     ## Update the pos_df now with the new info
+    #     global_pos_obj.adding_lap_info(laps_df=laps_df)
+
+    #     return laps_df
+    
+
     # ==================================================================================================================== #
     # Class methods moved from Laps class                                                                                 #
     # ==================================================================================================================== #

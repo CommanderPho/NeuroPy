@@ -290,7 +290,12 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             self.compute_linearized_position(method=linearization_method)
             assert self.has_linear_pos, "Doesn't have linear position even after `self.compute_linearized_position()` was called!"
             
-        lin_pos_df = deepcopy(self.df[[self.time_variable_name, 'lin_pos']])
+        extra_col_names = ['lap', 'lap_dir']
+        active_extra_col_names = [v for v in extra_col_names if v in self.df.columns]
+        
+        # linear_pos_df[extra_col_names] = deepcopy(pos_df[extra_col_names])
+
+        lin_pos_df = deepcopy(self.df[[self.time_variable_name, 'lin_pos', *active_extra_col_names]])
         # lin_pos_df.rename({'lin_pos':'x'}, axis='columns', errors='raise', inplace=True)
         lin_pos_df['x'] = lin_pos_df['lin_pos'].copy() # duplicate the lin_pos column to the 'x' column
         out_obj = Position(lin_pos_df, metadata=None) ## build position object out of the dataframe
