@@ -316,16 +316,21 @@ class LapsAccessor(EpochsAccessor):
         
         pos = sess.position
         linear_pos = pos.linear_pos_obj
-
+        
         linear_pos_df = linear_pos.to_dataframe()
         pos_df = pos.to_dataframe()
         extra_col_names = ['lap', 'lap_dir', 'lin_pos_smooth']
-        linear_pos_df[extra_col_names] = deepcopy(pos_df[extra_col_names])
+        extra_col_names = [v for v in extra_col_names if v in pos_df.columns]
+        if len(extra_col_names) > 0:
+            linear_pos_df[extra_col_names] = deepcopy(pos_df[extra_col_names])
 
         lap_only_pos_df = pos_df[np.logical_not(pos_df['lap'].isna())].dropna(subset=['x_smooth'])
         lap_only_pos_df['lap'] = lap_only_pos_df['lap'].astype(int)
 
-        lap_only_linear_pos_df = linear_pos_df[np.logical_not(linear_pos_df['lap'].isna())].dropna(subset=['lin_pos_smooth'])
+
+        lap_only_linear_pos_df = linear_pos_df[np.logical_not(linear_pos_df['lap'].isna())]
+        if len(extra_col_names) > 0:
+            lap_only_linear_pos_df = lap_only_linear_pos_df.dropna(subset=extra_col_names)
         lap_only_linear_pos_df['lap'] = lap_only_linear_pos_df['lap'].astype(int)
 
         # pos_df = pos.compute_smoothed_position_info(non_smoothed_column_labels=['lin_pos']).drop
@@ -372,7 +377,8 @@ class LapsAccessor(EpochsAccessor):
         sess.laps._df['lap_dir'] = sess.laps._df['lap'].astype(int).map(lambda a_lap: lap_dir_1D_dict.get(a_lap, 0))
         sess.laps._df['is_LR_dir'] = deepcopy(sess.laps._df['lap_dir']).astype(bool)
 
-        return (lap_only_linear_pos_df, lap_only_pos_df), (lap_dir_2D_dict, lap_dir_1D_dict)
+
+        return lap_only_linear_pos_df, lap_only_pos_df, (lap_dir_2D_dict, lap_dir_1D_dict)
 
 
     # @classmethod
