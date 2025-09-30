@@ -365,7 +365,7 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
             new_pbe_epochs = sess.compute_pbe_epochs(sess, active_parameters=kamrans_new_parameters)
 
         """
-        from neuropy.analyses import detect_pbe_epochs
+        from neuropy.analyses.spkepochs import detect_pbe_epochs
         print('computing PBE epochs for session...\n')
         if active_parameters is None:
             raise NotImplementedError
