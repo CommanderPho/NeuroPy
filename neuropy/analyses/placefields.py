@@ -1245,7 +1245,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
                 short_pf1D, did_update_bins = short_pf1D.conform_to_position_bins(long_pf1D)
         """
         did_update_bins = False
-        if force_recompute or (len(self.xbin) < len(target_pf.xbin)) or ((self.ndim > 1) and (len(self.ybin) < len(target_pf.ybin))):
+        if force_recompute or (len(self.xbin) < len(target_pf.xbin)) or ((self.ndim > 1) and (len(self.ybin) < len(target_pf.ybin))) or (np.any(target_pf.xbin != self.xbin)) or ((self.ybin is not None) and np.any(target_pf.ybin != self.ybin)):
             print(f'self will be re-binned to match target_pf...')
             # bak_self = deepcopy(self) # Backup the original first
             xbin, ybin, bin_info, grid_bin = target_pf.xbin, target_pf.ybin, target_pf.bin_info, target_pf.config.grid_bin
