@@ -93,9 +93,8 @@ class HardcodedProcessingParameters(HDF_SerializationMixin, AttrsBasedClassHelpe
     decoder_building_session_names: List[str] = non_serialized_field(default=Factory(list)) # Not sure if it's safe to serialize lists natively
     global_session_name: str = serialized_attribute_field(default='maze_GLOBAL')
     non_global_activity_session_names: List[str] = non_serialized_field(default=Factory(list))
+    grid_bin_bounds: Optional[List] = non_serialized_field(default=Factory(list))
     
-
-
 
     # HDFMixin Conformances ______________________________________________________________________________________________ #
     def to_hdf(self, file_path, key: str, **kwargs):
@@ -110,13 +109,21 @@ class DataSessionFormatRegistryHolder(type): # inheriting from type? Is this rig
     """ a metaclass that automatically registers its conformers as a known loadable data session format.
         
     Usage:
-        from neuropy.core.session.Formats.BaseDataSessionFormats import DataSessionFormatRegistryHolder
+
+        from neuropy.core.session.Formats.BaseDataSessionFormats import DataSessionFormatRegistryHolder, DataSessionFormatBaseRegisteredClass
         from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass
         from neuropy.core.session.Formats.Specific.KDibaOldDataSessionFormat import KDibaOldDataSessionFormatRegisteredClass
         from neuropy.core.session.Formats.Specific.RachelDataSessionFormat import RachelDataSessionFormat
         from neuropy.core.session.Formats.Specific.HiroDataSessionFormat import HiroDataSessionFormatRegisteredClass
 
-        DataSessionFormatRegistryHolder.get_registry()
+        known_data_session_type_properties_dict = DataSessionFormatRegistryHolder.get_registry_known_data_session_type_dict()
+        active_data_session_types_registered_classes_dict = DataSessionFormatRegistryHolder.get_registry_data_session_type_class_name_dict()
+
+        active_data_mode_name: str = self.format_name
+        active_data_mode_registered_class = active_data_session_types_registered_classes_dict[active_data_mode_name]
+        active_data_mode_type_properties = known_data_session_type_properties_dict[active_data_mode_name]
+
+        
         
     """
     REGISTRY: Dict[str, "DataSessionFormatRegistryHolder"] = {}

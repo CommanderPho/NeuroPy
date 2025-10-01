@@ -23,6 +23,8 @@ from neuropy.utils.result_context import IdentifyingContext
 ## Pho's Custom Libraries:
 from pyphocorehelpers.Filesystem.path_helpers import find_first_extant_path
 from pyphocorehelpers.Filesystem.open_in_system_file_manager import reveal_in_system_file_manager
+from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
+
 
 def find_data_files(project_path, glob_str: str = f"**/*.npy", exclude_dirs=[]):
     """ Find all files matching the glob in the project directory and its subdirectories
@@ -111,6 +113,32 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
 
 
     _time_variable_name = 't_seconds' # It's 't_rel_seconds' for kdiba-format data for example or 't_seconds' for Bapun-format data
+
+    @classmethod
+    def _get_session_specific_parameters(cls, session_context: IdentifyingContext) -> HardcodedProcessingParameters:
+        """ session-specific type parameters 
+         
+        #TODO 2025-09-20 19:26: - [ ] Is this redudndant with preprocessing parameters?
+        """
+        the_dict: Dict[IdentifyingContext, HardcodedProcessingParameters]  = { #  
+            IdentifyingContext(format_name= 'rachel', animal= 'Cho', region= 'CA1', session_name= '2024-11-17'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze1', 'maze2'],
+            ),
+            IdentifyingContext(format_name= 'rachel', animal= 'Cho', region= 'CA1', session_name= '2024-11-18'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze1', 'maze2'],
+            ),
+            ## Fallback defaults:
+            IdentifyingContext(format_name= 'rachel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze1', 'maze2'],
+            ),									
+        }
+
+        best_match = IdentifyingContext.matching(the_dict, criteria=session_context.get_subset(subset_includelist=cls._session_basepath_to_context_parsing_keys).to_dict())
+        return list(best_match.values())[0] ## return the first match
+
 
    
     @classmethod
@@ -478,7 +506,17 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
     
     ## Initial Function required to wrangle the data from the raw output to a format like Bapun's .npy format:
     @classmethod
-    def initialize_data_directory(cls, filepath=Path('/home/halechr/FastData/Rachel/20230614_Rachel'), filename: str = '20230614_Rachel'):
+    def initialize_data_directory(cls, filepath=Path('/home/halechr/FastData/Rachel/20230614_Rachel'), filename: str = '20230614_Rachel', **kwargs):
+        """ TODO: this function is supposed to combine all the steps needed to process a freshly output recording directory to generate the required *.npy files that are used to build the session. 
+        
+            I did my best to piece together the relevant looking parts of Rachel's pre-processing scripts/notebooks (`test.py` and `ttl_check.ipynb`) but they don't appear sufficient to perform all the pre-processing. I think this was becuase Rachel did some of the conversion in MATLAB. These scripts will need to be converted to folded in to this function. 
+            
+        """
+        return cls.initialize_data_directory_circular_maze(filepath=filepath, filename=filename, **kwargs)        
+
+
+    @classmethod
+    def _OLD_initialize_data_directory(cls, filepath=Path('/home/halechr/FastData/Rachel/20230614_Rachel'), filename: str = '20230614_Rachel'):
         """ TODO: this function is supposed to combine all the steps needed to process a freshly output recording directory to generate the required *.npy files that are used to build the session. 
         
             I did my best to piece together the relevant looking parts of Rachel's pre-processing scripts/notebooks (`test.py` and `ttl_check.ipynb`) but they don't appear sufficient to perform all the pre-processing. I think this was becuase Rachel did some of the conversion in MATLAB. These scripts will need to be converted to folded in to this function. 

@@ -66,19 +66,25 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
          
         #TODO 2025-09-20 19:26: - [ ] Is this redudndant with preprocessing parameters?
         """
+        
+        bapun_open_field_grid_bin_bounds = (((-120.0, 120.0), (-120.0, 120.0)))
+        
         the_dict: Dict[IdentifyingContext, HardcodedProcessingParameters]  = { #  
             IdentifyingContext(format_name= 'bapun', animal= 'RatN', session_name= 'Day4OpenField'): HardcodedProcessingParameters(decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['roam', 'sprinkle'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
             ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
             ),
             ## Fallback defaults:
             IdentifyingContext(format_name= 'bapun'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
             ),									
         }
 
