@@ -120,14 +120,19 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
          
         #TODO 2025-09-20 19:26: - [ ] Is this redudndant with preprocessing parameters?
         """
+        # grid_bin_bounds = ((-107.99492566706424, 19.85259224492544), (-109.38643591109636, 19.099596222220352)),
+        grid_bin_bounds = (((-110.0, 20.0), (-110.0, 20.0)))
+        
         the_dict: Dict[IdentifyingContext, HardcodedProcessingParameters]  = { #  
             IdentifyingContext(format_name= 'rachel', animal= 'Cho', region= 'CA1', session_name= '2024-11-17'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
+                grid_bin_bounds=grid_bin_bounds,
             ),
             IdentifyingContext(format_name= 'rachel', animal= 'Cho', region= 'CA1', session_name= '2024-11-18'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
+                grid_bin_bounds=grid_bin_bounds,
             ),
             ## Fallback defaults:
             IdentifyingContext(format_name= 'rachel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
