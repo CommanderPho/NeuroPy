@@ -1779,8 +1779,8 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         remaining_decoder_list = directional_1D_decoder_list[1:]
 
         for rhs in remaining_decoder_list:
-            assert np.all(lhs.xbin == rhs.xbin)
-            assert np.all(lhs.ybin == rhs.ybin)
+            assert np.all(lhs.xbin == rhs.xbin), f"lhs.xbin != rhs.xbin:\n\tlhs.xbin: {lhs.xbin}\n\trhs.xbin: {rhs.xbin}\n"
+            assert np.all(lhs.ybin == rhs.ybin), f"lhs.ybin != rhs.ybin:\n\tlhs.ybin: {lhs.ybin}\n\trhs.ybin: {rhs.ybin}\n"
         xbin = lhs.xbin
         ybin = lhs.ybin
         for rhs in remaining_decoder_list:
