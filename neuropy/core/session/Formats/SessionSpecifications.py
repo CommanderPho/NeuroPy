@@ -217,6 +217,23 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
 
         return out_dict
     
+
+    def get_format_data_session_type_class_info(self):
+        """ Tries to get the appropriate class using its self.format_name
+
+            active_data_mode_registered_class, active_data_mode_type_properties = curr_active_pipeline.sess.config.get_format_data_session_type_class_info()
+        """
+        from neuropy.core.session.Formats.BaseDataSessionFormats import DataSessionFormatRegistryHolder, DataSessionFormatBaseRegisteredClass
+        active_data_mode_name: str = self.format_name
+        active_data_mode_registered_class = DataSessionFormatRegistryHolder.get_registry_data_session_type_class_name_dict()[active_data_mode_name]
+        active_data_mode_type_properties = DataSessionFormatRegistryHolder.get_registry_known_data_session_type_dict()[active_data_mode_name]
+        return active_data_mode_registered_class, active_data_mode_type_properties
+
+
+
+
+
+
     # Context and Description ____________________________________________________________________________________________ #
     def get_context(self):
         """ returns an IdentifyingContext for the session """
