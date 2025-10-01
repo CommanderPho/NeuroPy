@@ -1785,6 +1785,24 @@ class NeuroPyDataframeAccessor:
         rising_edges = np.where(np.diff(is_condition_satisfied.astype(int)) == 1)[0] + 1
         falling_edges = np.where(np.diff(is_condition_satisfied.astype(int)) == -1)[0] + 1
 
+        #TODO 2025-10-01 12:50: - [ ] Robustly handle differing numbers of rising/falling edges, thinking carefully about the possible conditions under which this can emerge and what to do about them.
+        if len(rising_edges) != len(falling_edges):
+            ## determine correct alignments
+            if (rising_edges[0] > falling_edges[0]):
+                ## drop first falling_edge
+                if len(falling_edges) == (len(rising_edges) + 1):
+                    ## remove the extra falling edge
+                    falling_edges = falling_edges[1:]
+                    print(f'dropped 1 falling_edges')
+                else:
+                    print(f'ERROR: rising_edges: {rising_edges}\nfalling_edges: {falling_edges}')
+                    raise ValueError(f'ERROR: rising_edges: {rising_edges}\nfalling_edges: {falling_edges}')
+            else:
+                raise NotImplementedError(f'ERROR: rising_edges: {rising_edges}\nfalling_edges: {falling_edges}')
+
+            # rising_edges[0], falling_edges[0]
+
+        assert len(rising_edges) == len(falling_edges), f"even after correction, len(rising_edges) != len(falling_edges)\n\tlen(rising_edges): {len(rising_edges)}, len(falling_edges): {len(falling_edges)}"
         # (rising_edges, falling_edges)
         satisfied_epochs_df: pd.DataFrame = pd.DataFrame(dict(zip(['start', 'stop'], [np.squeeze(self._df[time_col_name].iloc[idxs].to_numpy()) for idxs in (rising_edges, falling_edges)])))
         assert len(rising_edges) == len(satisfied_epochs_df)
