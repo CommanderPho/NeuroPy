@@ -721,6 +721,7 @@ def _subfn_build_or_add_traces_df(df: Optional[pd.DataFrame], traces: NDArray, c
 
 """ --- """
 class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, ConcatenationInitializable, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrameRepresentable, DataWriter):
+    
     def __init__(self, pos_df: pd.DataFrame, metadata=None) -> None:
         """[summary]
         Args:

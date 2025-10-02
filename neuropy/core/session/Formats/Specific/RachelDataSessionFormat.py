@@ -765,7 +765,26 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
 
         # pos_dict = {Path(f).stem.split('.')[-1]:np.load(f, allow_pickle=True).item() for f in position_npy_paths}
 
-        pos_dict: Dict[str, Position] = {Path(f).stem.split('.')[-1]:Position.init(**np.load(f, allow_pickle=True).item()) for f in position_npy_paths}
+        pos_dict: Dict[str, Position] = {}
+        
+        for f in position_npy_paths:
+            key = Path(f).stem.split('.')[-1]
+            try:
+                a_pos = Position.init(**np.load(f, allow_pickle=True).item())
+                pos_dict[key] = a_pos
+            except TypeError as e:
+                # TypeError: init() got an unexpected keyword argument 'df'
+                a_pos = Position(pos_df=np.load(f, allow_pickle=True).item()['df']) ## newer way? something wrong with how I saved it?
+                pos_dict[key] = a_pos
+            except Exception as e:
+                print(f'FAILED for path f: "{f}" with error {e}')
+                raise
+            
+        # {Path(f).stem.split('.')[-1]:Position.init(**np.load(f, allow_pickle=True).item()) for f in position_npy_paths}
+        ## END for f in position_npy_p...
+        
+        # from_dataframe
+
         # pos_dict
         # pos_list: List[Position] = list(pos_dict.values())
         # merged_pos: Position = Position.concat(pos_list)
@@ -815,7 +834,7 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
             dict(label='maze2', start=pos_dict['position_track_2'].t_start, stop=pos_dict['position_track_2'].t_stop),
         ]).epochs.get_valid_df()
 
-        epochs_df
+        
 
         paradigm_epochs: Epoch = Epoch(epochs=epochs_df)
 
@@ -872,7 +891,26 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
 
         ## Position File
         ## INPUTS: basedir, 
-        pos_file_path, (merged_pos, pos_dict) = cls.perform_initialize_combined_pos_file(filepath=filepath, filename=filename)
+        position_npy_paths = []
+        
+        if basedir.joinpath(f'{filename}.position.npy').exists():
+            ## use that
+            position_npy_paths = [basedir.joinpath(f'{filename}.position.npy')]
+        else:
+            position_npy_paths = [
+                # basedir.joinpath('petunia_241209_merged.position_linear_1.npy'),
+                basedir.joinpath(f'{filename}.position_track_1.npy'),
+                basedir.joinpath(f'{filename}.position_track_2.npy'),
+                # basedir.joinpath('petunia_241209_merged.position_linear_2.npy'),
+                basedir.joinpath(f'{filename}.position_1.npy'),
+                basedir.joinpath(f'{filename}.position_2.npy'),
+            ]        
+            
+        position_npy_paths = [v for v in position_npy_paths if v.exists()]
+        assert len(position_npy_paths) > 0
+
+
+        pos_file_path, (merged_pos, pos_dict) = cls.perform_initialize_combined_pos_file(filepath=filepath, filename=filename, override_position_npy_paths=position_npy_paths)
         
         paradigm_file_path, paradigm_epochs = cls.perform_initialize_combined_sess_paradigm_epochs_file(pos_dict=pos_dict, filepath=filepath, filename=filename)
 

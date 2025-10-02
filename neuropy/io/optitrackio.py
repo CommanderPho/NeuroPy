@@ -110,6 +110,10 @@ def posfromCSV(fileName):
     y0 = np.asarray(posdata.iloc[:, 2])
     z0 = np.asarray(posdata.iloc[:, 3])
 
+    pos_df: pd.DataFrame = pd.DataFrame(dict(t=t, x0=x0, y0=y0, z0=z0))
+    pos_df.dropna(axis='index', how='any', subset=['t'], inplace=True) ## drop any entries with NaN timestamps, that is irrecoverable
+    t, x0, y0, z0 = pos_df['t'].to_numpy(), pos_df['x0'].to_numpy(), pos_df['y0'].to_numpy(), pos_df['z0'].to_numpy() ## extract cols back to vars
+
     # if end frames are nan drop those
     # last_nan_region = contiguous_regions(np.isnan(x0))[-1]
     # todo: potential bug here where csv file has missing timestamps at end that go to NaN and then don't get accounted for.
@@ -129,6 +133,11 @@ def posfromCSV(fileName):
             "position data needs to be exported in either centimeters or meters"
         )
 
+    ## drop NaNs one more time
+    pos_df: pd.DataFrame = pd.DataFrame(dict(t=t, x=x, y=y, z=z))
+    pos_df.dropna(axis='index', how='any', subset=['t', 'x', 'y'], inplace=True) ## drop any entries with NaN timestamps, that is irrecoverable
+    t, x, y, z = pos_df['t'].to_numpy(), pos_df['x'].to_numpy(), pos_df['y'].to_numpy(), pos_df['z'].to_numpy() ## extract cols back to vars
+
     return x, y, z, t
 
 
@@ -140,9 +149,15 @@ def interp_missing_pos(x, y, z, t):
     for ids in idnan:
         missing_ids = range(ids[0], ids[-1])
         bracket_ids = ids + [-1, 0]
-        xgood[missing_ids] = np.interp(t[missing_ids], t[bracket_ids], x[bracket_ids])
-        ygood[missing_ids] = np.interp(t[missing_ids], t[bracket_ids], y[bracket_ids])
-        zgood[missing_ids] = np.interp(t[missing_ids], t[bracket_ids], z[bracket_ids])
+        try:
+            xgood[missing_ids] = np.interp(t[missing_ids], t[bracket_ids], x[bracket_ids])
+            ygood[missing_ids] = np.interp(t[missing_ids], t[bracket_ids], y[bracket_ids])
+            zgood[missing_ids] = np.interp(t[missing_ids], t[bracket_ids], z[bracket_ids])
+        except IndexError as e:
+            # Allows skiping a few malformed points instead of aborting entirely
+            print(f'WARN: skipping malformed interpolation ids: {ids} instead of aborting entirely.\n\tOccured with error {e}.')
+        except Exception as e:
+            raise
 
     return xgood, ygood, zgood
 
@@ -331,11 +346,12 @@ def get_sync_info(_sync_file):
 
 
 class OptitrackIO:
-    def __init__(self, dirname, scale_factor=1.0) -> None:
+    def __init__(self, dirname, scale_factor=1.0, override_included_csv_files=None) -> None:
         self.dirname = dirname
         self.scale_factor = scale_factor
         self.datetime = None
         self.time = None
+        self.override_included_csv_files = override_included_csv_files
         self._parse_folder()
 
     def _parse_folder(self):
@@ -350,10 +366,17 @@ class OptitrackIO:
             scale the extracted coordinates, by default 1.0
         """
 
-        sampling_rate = getSampleRate(sorted((self.dirname).glob("*.csv"))[0])
+        if self.override_included_csv_files is None:
+            found_files = sorted((self.dirname).glob("*.csv"))
+        else:
+            found_files = sorted(self.override_included_csv_files)
+            
+        assert len(found_files) > 0, f"found no files!"
+        
+        sampling_rate = getSampleRate(found_files[0])
 
         # ------- collecting timepoints related to position tracking ------
-        posfiles = np.asarray(sorted(self.dirname.glob("*.csv")))
+        posfiles = np.asarray(found_files)
         posfilestimes = np.asarray(
             [
                 datetime.strptime(file.stem, "Take %Y-%m-%d %I.%M.%S %p")
@@ -553,3 +576,12 @@ class OptitrackIO:
         self.tracking_srate = tracking_sRate
 
         self.save()
+
+
+    def to_dataframe(self) -> pd.DataFrame:
+        pos_df = pd.DataFrame({'t': self.datetime_array, 'x': self.x, 'y': self.y, 'z': self.z, })
+        pos_df['dt'] = pos_df['t'].copy() ## convert datetime times to 'dt' column
+        pos_df['t'] = (pos_df['t'] - np.nanmin(pos_df['dt'])).dt.total_seconds() ## minimum (first) time to 't' (seconds) column
+        pos_df.attrs.update({'srate': self.sampling_rate, 'scale_factor': self.scale_factor})
+        return pos_df
+    
