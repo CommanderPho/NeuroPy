@@ -1368,7 +1368,12 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         # Excluded from serialization: ['_included_thresh_neurons_indx', '_peak_frate_filter_function']
         # filter_fn = filters.exclude(fields(PfND)._included_thresh_neurons_indx, int)
         filter_fn = lambda attr, value: attr.name not in ["_included_thresh_neurons_indx", "_peak_frate_filter_function"]
+        
+        ## Fill default values from field definition's default values when the property is missing/unassigned from the instance
+        self.adding_default_values_for_missing_fields()
+        
         return asdict(self, filter=filter_fn) # serialize using attrs.asdict but exclude the listed properties
+
 
     ## For serialization/pickling:
     def __getstate__(self):

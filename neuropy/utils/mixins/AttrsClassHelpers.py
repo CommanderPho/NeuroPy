@@ -209,6 +209,8 @@ class AttrsBasedClassHelperMixin:
     
 
     def to_dict(self) -> Dict:
+        # self.adding_default_values_for_missing_fields()
+        
         return asdict(self)
     
 
@@ -237,6 +239,29 @@ class AttrsBasedClassHelperMixin:
         if desired_keys_subset is None:
             desired_keys_subset = indices_fields_n_epochs
         return [a_field for a_field in indices_fields_n_epochs if a_field in desired_keys_subset]
+
+
+    def adding_default_values_for_missing_fields(self, excluded_keys: Optional[List]=None, debug_print: bool=False):
+        """ Fill default values from field definition's default values when the property is missing/unassigned from the instance
+        
+        self.adding_default_values_for_missing_fields()
+        
+        """
+        if excluded_keys is None:
+            excluded_keys = [] ## empty list
+            
+        # Get the attributes of the User class
+        obj_field_attributes = fields(type(self))
+        
+        for an_attr in obj_field_attributes:
+            if (not hasattr(self, an_attr.name)) and (an_attr.name not in excluded_keys):
+                if debug_print:
+                    print(f'instance is missing attribute: "{an_attr}", default: {an_attr.default}')
+                setattr(self, an_attr.name, an_attr.default) ## assign the default value of the missing attribute to the instance's attribute field.
+
+        return self
+
+
 
 
 
