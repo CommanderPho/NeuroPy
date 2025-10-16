@@ -886,6 +886,53 @@ def update_nested_dict(data, updates):
         set_value_by_keypath(data, keypath, value)
         
             
+def transpose_nested_dict(a_dict: Dict[Any, Dict]) -> Dict[Any, Dict]:
+    """ For a nested dict, inverts the two outermost keys
+
+    Usage:
+        from neuropy.utils.indexing_helpers import transpose_nested_dict
+    
+    Example:
+        from neuropy.utils.indexing_helpers import transpose_nested_dict
+        test_dict = {'a': {'v0': 1337, 'v1': 1338},
+                    'b': {'v0': 1437, 'v1': 1438},
+                    'c': {'v0': 1537, 'v1': 1538}}
+
+        final_flipped_dict = transpose_nested_dict(test_dict)
+        final_flipped_dict
+            {'v0': {'a': 1337, 'b': 1437, 'c': 1537},
+            'v1': {'a': 1338, 'b': 1438, 'c': 1538}}
+ 
+    Advanced Example:
+        from neuropy.utils.indexing_helpers import transpose_nested_dict
+    
+        hist_animal_split_samples_df_dict: Dict[SeriesLetter, Dict[AnimalName, pd.DataFrame]] = {a_letter:a_df.pho.partition_df_dict('animal') for a_letter, a_df in hist_samples_df_dict.items()}
+        hist_animal_split_samples_df_dict
+
+        final_flipped_dict = transpose_nested_dict(hist_animal_split_samples_df_dict)
+        ## OUTPUT has the outer-two indicies swapped:
+        final_flipped_dict: Dict[AnimalName, Dict[SeriesLetter, pd.DataFrame]]
+        final_flipped_dict
+    
+    
+    """
+    inner_dict_keys = []
+    final_flipped_dict = {}
+    for outer_key, inner_dict in a_dict.items():
+        for inner_key, inner_value in inner_dict.items():
+            if inner_key not in inner_dict_keys:
+                inner_dict_keys.append(inner_key)
+                final_flipped_dict[inner_key] = {} ## create the inner-dict entry
+            ## either way, append the out-dict entry
+            if outer_key in final_flipped_dict[inner_key]:
+                raise ValueError(f'Error: final_flipped_dict[inner_key={inner_key}][outer_key={outer_key}] already exists!')
+            final_flipped_dict[inner_key][outer_key] = inner_value
+        # END for inner_ke..
+    ## END for outer_ke...
+    
+    return final_flipped_dict
+
+
 
 # ==================================================================================================================== #
 #region PandasDataFrameHelpers                                                                                               #
