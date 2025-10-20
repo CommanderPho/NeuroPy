@@ -917,9 +917,10 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'), # 2025-08-22 - Decided to discard because the positions are shifted between 'x' and 'lin_pos', and that manifests on the pf peaks.
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'),
             # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'), # 2025-08-22 - Decided that this session is bad. The context decoder returns short for nearly all non-lap period pre-delta, and additionally there aren't many replays.
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), # 2025-10-20 - Fixed position tracking issues in MATLAB. 2024-10-04 - very bad position tracking data (jumping around everywhere at high frequency)
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'), # 2025-10-20 - Fixed position tracking issues in MATLAB. 2024-10-01 - bad laps, Bad Laps "3"/"4" - don't see lap 1/2
             # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?! Has horrible noise.
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
-            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), # 2024-10-04 - very bad position tracking data (jumping around everywhere at high frequency)
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
         ]
         return [v for v in good_sessions if (v not in bad_sessions)]
 
@@ -968,13 +969,14 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-25_17-33-28'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-27_18-21-57'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_17-6-14'),
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'), # 2024-10-01 - bad laps, Bad Laps "3"/"4" - don't see lap 1/2
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?!
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), # 2024-10-04 - very bad position tracking data (jumping around everywhere at high frequency)
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'), # 2025-10-20 - Fixed position tracking issues in MATLAB. 2024-10-01 - bad laps, Bad Laps "3"/"4" - don't see lap 1/2
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), # 2025-10-20 - Fixed position tracking issues in MATLAB. 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?!
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-03_11-0-53'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_12-35-59'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-2-0'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-55-7'),
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-03_11-0-53'),
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), # 2024-10-04 - very bad position tracking data (jumping around everywhere at high frequency)
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='redundant'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='showclus'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='sleep'),
