@@ -216,11 +216,15 @@ def _subfn_perform_compute_laps_pos_indicies(laps_df: pd.DataFrame, pos_df: pd.D
     return laps_df
 
 
-
-def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, should_plot_laps_2d=False, time_variable_name=None, debug_plot=False, debug_print=False):
+def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, should_plot_laps_2d=False, time_variable_name=None,
+                          minimum_epoch_duration=1.0, minimum_run_speed=1.0, merging_adjacent_max_separation_sec = None, use_full_2D_lap_estimation: bool = False,
+                          debug_plot=False, debug_print=False):
     """ 2021-12-21 - Pho's lap estimation from the position data (only)
     Replaces the sess.laps which is computed or loaded from the spikesII.mat spikes data (which isn't very good)
 
+    Heavy lifting for non-Kdiba sessions seems to be done by `pos_df.position.detect_general_run_epochs(...)`
+    
+    
     CAVIAT: Only works for the linear track (not more complex environments/mazes)
     USES: Used in KDibaOldDataSessionFormat as a post-processing step to replace the laps computed from the spikesII.mat data
 
@@ -254,16 +258,28 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
         out_axes_list[0].set_title('Old SpikeII computed Laps')
         
 
-    # position_obj = sess.position
-    position_obj = sess.position.linear_pos_obj
+    # Get the appropriate 1D or 2D variables:
+    if use_full_2D_lap_estimation:
+        speed_col_name ='speed_xy'
+        position_obj = sess.position
+        required_non_nan_subset = ['t', 'x', 'x_smooth', 'velocity_x_smooth', 'acceleration_x_smooth', 'y', 'y_smooth', 'velocity_y_smooth', 'acceleration_y_smooth']
+    else:
+        ## can be approximated as 1D maze
+        speed_col_name ='speed'    
+        position_obj = sess.position.linear_pos_obj
+        required_non_nan_subset = ['t', 'x', 'x_smooth', 'velocity_x_smooth', 'acceleration_x_smooth']
+        
+
     position_obj.compute_higher_order_derivatives()
-    pos_df = position_obj.compute_smoothed_position_info(N=N) ## Smooth the velocity curve to apply meaningful logic to it
-    pos_df: pd.DataFrame = position_obj.to_dataframe()
+    pos_df: pd.DataFrame = position_obj.compute_smoothed_position_info(N=N) ## Smooth the velocity curve to apply meaningful logic to it
+    pos_df = position_obj.compute_speed_info() # speed_xy
+    # pos_df = pos_df.position.compute_speed_info() # speed_xy
+    pos_df = position_obj.to_dataframe()
     # If the index doesn't start at zero, it will need to for compatibility with the lap splitting logic because it uses the labels via "df.loc"
     if 'index_backup' not in pos_df.columns:
         pos_df['index_backup'] = pos_df.index  # Backup the current index to a new column
     # Drop rows with missing data in columns: 't', 'velocity_x_smooth' and 2 other columns. This occurs from smoothing
-    pos_df = pos_df.dropna(subset=['t', 'x', 'x_smooth', 'velocity_x_smooth', 'acceleration_x_smooth'])    
+    pos_df = pos_df.dropna(subset=required_non_nan_subset)    
     pos_df.reset_index(drop=True, inplace=True) # Either way, reset the index
 
     is_kdiba_session: bool = (sess.get_context().format_name.lower() == 'kdiba')
@@ -275,7 +291,7 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
                                                         global_session=sess) ## Get the timestamps corresponding to the indicies
     else:
         ## use more advanced time-based estimation
-        lap_epochs_df = pos_df.position.detect_general_run_epochs(minimum_epoch_duration=1.0, minimum_run_speed=1.0, merging_adjacent_max_separation_sec = None) # merging_adjacent_max_separation_sec=0.5
+        lap_epochs_df = pos_df.position.detect_general_run_epochs(minimum_epoch_duration=minimum_epoch_duration, minimum_run_speed=minimum_run_speed, merging_adjacent_max_separation_sec = merging_adjacent_max_separation_sec, speed_col_name=speed_col_name) # merging_adjacent_max_separation_sec=0.5
         lap_epochs_df = lap_epochs_df.epochs.get_non_overlapping_df()
         lap_epochs_df = _subfn_perform_compute_laps_pos_indicies(lap_epochs_df, pos_df=pos_df) ## adds back in the ['start_position_index', 'stop_position_index'] columns
         lap_epochs_df = TimeColumnAliasesProtocol.renaming_synonym_columns_if_needed(lap_epochs_df, required_columns_synonym_dict={"start":{'begin','start_t'}, "stop":['end','stop_t'], 'stop_position_index': ['end_position_index']})
@@ -285,7 +301,7 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
         assert 'start_position_index' in lap_epochs_df.columns
         assert 'stop_position_index' in lap_epochs_df.columns
         custom_test_laps_df = lap_epochs_df.laps_accessor.filter_to_valid() ## drop invalid/zero index ones first
-        custom_test_laps_df = custom_test_laps_df.laps_accessor.update_computed_columns(global_session=sess, replace_existing=True) # t_start=t_start, t_delta=t_delta, t_end=t_end
+        custom_test_laps_df = custom_test_laps_df.laps_accessor.update_computed_columns(global_session=sess, replace_existing=True) # t_start=t_start, t_delta=t_delta, t_end=t_end # #TODO 2025-10-21 09:11: - [ ] This is one of the slowest parts, and idk why.
         custom_test_laps_df = custom_test_laps_df.laps_accessor.filter_to_valid()
         assert 'start_position_index' in custom_test_laps_df.columns
         custom_test_laps_obj = Laps(laps=custom_test_laps_df)
@@ -298,14 +314,14 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
     assert custom_test_laps_obj.n_laps > 0, f"estimation for {sess} produced no laps!"
 
     ## Determine the spikes included with each computed lap:
-    spikes_df: pd.DataFrame = deepcopy(sess.spikes_df)
+    spikes_df: pd.DataFrame = deepcopy(sess.spikes_df) ## this deepcopy is kinda slow too
     if time_variable_name is None:
         # time_variable_name = 't_rel_seconds'
         time_variable_name = spikes_df.spikes.time_variable_name # get time_variable_name from the spikes_df object
     # else:
         # time_variable_name = spikes_df.spikes.time_variable_name # get time_variable_name from the spikes_df object
     
-    custom_test_laps_obj = _subfn_compute_laps_spike_indicies(custom_test_laps_obj, spikes_df, time_variable_name=time_variable_name, global_session=sess)
+    custom_test_laps_obj = _subfn_compute_laps_spike_indicies(custom_test_laps_obj, spikes_df, time_variable_name=time_variable_name, global_session=sess) # #TODO 2025-10-21 09:12: - [ ] This is also kinda slow
     sess.laps = deepcopy(custom_test_laps_obj) # replace the laps obj
 
     if should_plot_laps_2d:

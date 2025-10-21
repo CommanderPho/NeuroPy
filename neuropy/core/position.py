@@ -271,6 +271,21 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         self.df = PositionComputedDataMixin._perform_compute_smoothed_position_info(self.df, non_smoothed_column_labels, N=N)
         return self.df        
     
+
+    def compute_speed_info(self) -> pd.DataFrame:
+        """ explicitly recomputes the speed """
+        if 'speed' not in self.df:
+            dt = np.mean(np.diff(self.time))
+            self.df['speed'] = np.insert((np.sqrt(((np.abs(np.diff(self.traces, axis=1))) ** 2).sum(axis=0)) / dt), 0, 0.0) # prepends a 0.0 value to the front of the result array so it's the same length as the other position vectors (x, y, etc)  
+
+        if (self.ndim > 1) and ('speed_xy' not in self.df):
+            if ('velocity_x_smooth' not in self.df) or ('velocity_y_smooth' not in self.df):
+                self.compute_higher_order_derivatives()
+                self.compute_smoothed_position_info()
+            self.df['speed_xy'] = np.hypot(self.df['velocity_x_smooth'], self.df['velocity_y_smooth'])
+        return self.df
+    
+
     ## Linear Position Properties:
     @property
     def linear_pos_obj(self) -> "Position":
@@ -408,6 +423,19 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             self.df['speed'] = np.insert((np.sqrt(((np.abs(np.diff(self.traces, axis=1))) ** 2).sum(axis=0)) / dt), 0, 0.0) # prepends a 0.0 value to the front of the result array so it's the same length as the other position vectors (x, y, etc)        
         return self.df['speed'].to_numpy()
     
+    @property
+    def speed_xy(self):
+        if 'speed_xy' in self.df.columns:
+            return self.df['speed_xy'].to_numpy()
+        else:
+            # Compute the speed if not already done upon first access
+            self.compute_speed_info()
+
+        return self.df['speed_xy'].to_numpy()
+    
+
+
+
     @property
     def dt(self):
         if 'dt' in self.df.columns:
