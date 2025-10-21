@@ -1003,35 +1003,11 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
 
         merged_df = pd.DataFrame(merged, columns=['start', 'stop', 'label'])
         merged_df['duration'] = merged_df['stop'] - merged_df['start']
-        merged_df['label'] = merged_df.index.astype('str')
+        # merged_df['label'] = merged_df.index.astype('str')
+        merged_df['label'] = merged_df['label'].astype('str')
 
         if hasattr(self._obj, 'attrs') and self._obj.attrs is not None:
             merged_df.attrs = deepcopy(self._obj.attrs)
-        
-    
-        # result_df = self.get_valid_df()
-
-        # intra_high_speed_periods: pd.DataFrame = result_df.epochs.get_in_between()
-        # intra_high_speed_periods = intra_high_speed_periods[intra_high_speed_periods['duration'] <= max_merge_duration] ## only get the ones shorter than the max merge distance
-        # original_lap_epochs_df = deepcopy(result_df).set_index('label')
-        # merged_df = []
-        # for a_row in intra_high_speed_periods.itertuples():
-        #     # print(a_row)
-        #     a_row.label
-        #     a_row.precceding_epoch_label
-        #     # a_row.following_epoch_label
-        #     # print(original_lap_epochs_df.loc[a_row.precceding_epoch_label])
-        #     merged_df.append((original_lap_epochs_df.loc[a_row.precceding_epoch_label]['start'], original_lap_epochs_df.loc[a_row.following_epoch_label]['stop']))
-        #     # a_row[.'preceeding_epoch_label']
-        #     # [a_row.following_epoch_label]
-            
-        # merged_df = pd.DataFrame(merged_df, columns=['start', 'stop'])
-        # merged_df['duration'] = merged_df['stop'] - merged_df['start']
-        # merged_df['label'] = merged_df.index.astype('str')
-
-
-        # if hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
-        #     result_df.attrs = deepcopy(self._obj.attrs)
 
         return merged_df
 
