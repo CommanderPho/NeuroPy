@@ -666,7 +666,8 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
     EPSILON_GAP_SIZE_SEC: float = 1e-9  # Amount to subtract from stop times
 
     def __init__(self, pandas_obj):
-        pandas_obj = self.renaming_synonym_columns_if_needed(pandas_obj, required_columns_synonym_dict=self._time_column_name_synonyms)       #@IgnoreException 
+        # pandas_obj = self.renaming_synonym_columns_if_needed(pandas_obj, required_columns_synonym_dict=self._time_column_name_synonyms, fail_on_missing_columns=False)  #@IgnoreException 
+        pandas_obj = self.renaming_synonym_columns_if_needed(pandas_obj, required_columns_synonym_dict={k:v for k, v in self._time_column_name_synonyms.items() if k in ['start', 'stop']}, fail_on_missing_columns=True)  #@IgnoreException         
         pandas_obj = self._validate(pandas_obj)
         self._obj = pandas_obj
         self._obj = self._obj.sort_values(by=["start"]) # sorts all values in ascending order
@@ -676,6 +677,8 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         # Optional: Add 'duration' column:
         self._obj["duration"] = self._obj["stop"] - self._obj["start"]
         # Optional: check for and remove overlaps
+        self._obj = self.renaming_synonym_columns_if_needed(self._obj, required_columns_synonym_dict=self._time_column_name_synonyms, fail_on_missing_columns=True)  #@IgnoreException 
+        
 
     @classmethod
     def _validate(cls, obj):
@@ -756,6 +759,13 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
     def get_unique_labels(self):
         # return np.unique(self.labels) # this is sorted, which is mostly WRONG
         return self._obj.label.unique()
+    
+    def rebuild_labels_column(self, reset_df_index: bool=True):
+        """ resets the index (by default) and then rebuilds the labels. """
+        if reset_df_index:
+            self._obj = self._obj.reset_index(drop=True)
+        self._obj["label"] = self._obj.index.astype("str")
+        return self._obj
 
     def get_start_stop_tuples_list(self):
         """ returns a list of (start, stop) tuples. """
@@ -927,7 +937,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         return result_df
 
 
-    def get_epochs_longer_than(self, minimum_duration, debug_print=False) -> pd.DataFrame:
+    def get_epochs_longer_than(self, minimum_duration: float, debug_print=False) -> pd.DataFrame:
         """ returns a copy of the dataframe contining only epochs longer than the specified minimum_duration. """
         active_filter_epochs = self.get_valid_df()
         if debug_print:
@@ -942,6 +952,131 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             return filtered_epochs
         else:
             return active_filter_epochs[active_filter_epochs['duration'] >= minimum_duration]
+
+    def merge_adjacent_epochs_within(self, max_merge_duration: float) -> pd.DataFrame:
+        """Merge consecutive epochs whose separation is less than or equal to ``max_separation``.
+
+        Rules:
+        - Epochs are treated in start-time order.
+        - If the gap (next.start - current.stop) <= max_separation (+ small numeric tolerance), they are merged.
+        - Overlapping epochs (negative gap) also merge.
+        - ``label`` handling:
+            - 'first' (default): keep the first epoch's label in a merged run
+            - 'concat': concatenate unique labels with '+' in encounter order
+
+        Returns a new dataframe with columns ['start','stop','label','duration'].
+        Does not modify in place.
+        """
+        assert max_merge_duration is not None and max_merge_duration >= 0.0, f"max_separation must be >= 0.0, got {max_merge_duration}"
+
+        # Quick return for trivial sizes
+        if self.n_epochs <= 1:
+            result_df = self.get_valid_df()
+            if hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
+                result_df.attrs = deepcopy(self._obj.attrs)
+            return result_df
+
+
+        #TODO 2025-10-21 09:31: - [ ] ChatGPT-5 Implementation:
+        df = self.get_valid_df().sort_values('start').reset_index(drop=True)
+        merged = []
+        current_start = df.iloc[0]['start']
+        current_stop = df.iloc[0]['stop']
+        current_label = df.iloc[0]['label']
+
+        for i in range(1, len(df)):
+            next_start = df.iloc[i]['start']
+            next_stop = df.iloc[i]['stop']
+            next_label = df.iloc[i]['label']
+            gap = next_start - current_stop
+
+            if gap <= max_merge_duration:
+                # Merge with current run
+                current_stop = max(current_stop, next_stop)
+                current_label = f"{current_label}+{next_label}"
+            else:
+                # Push the previous run
+                merged.append((current_start, current_stop, current_label))
+                current_start, current_stop, current_label = next_start, next_stop, next_label
+
+        merged.append((current_start, current_stop, current_label))
+
+        merged_df = pd.DataFrame(merged, columns=['start', 'stop', 'label'])
+        merged_df['duration'] = merged_df['stop'] - merged_df['start']
+        # merged_df['label'] = merged_df.index.astype('str')
+        merged_df['label'] = merged_df['label'].astype('str')
+
+        if hasattr(self._obj, 'attrs') and self._obj.attrs is not None:
+            merged_df.attrs = deepcopy(self._obj.attrs)
+
+        return merged_df
+
+
+        # # raise NotImplementedError(f'This looses all other columss when merging!!')
+        # # Work on a validated, sorted copy
+        # df = self.get_valid_df().sort_values(by=["start"]).reset_index(drop=True)
+
+        # merged_rows: List[Dict[str, Union[float, str]]] = []
+
+        # curr_start = float(df.loc[0, 'start'])
+        # curr_stop = float(df.loc[0, 'stop'])
+        # curr_labels: List[str] = [str(df.loc[0, 'label'])]
+
+        # tol = self.__class__.EPSILON_OVERLAP_COMPARE_TOL_SEC
+
+        # for i in range(1, len(df)):
+        #     next_start = float(df.loc[i, 'start'])
+        #     next_stop = float(df.loc[i, 'stop'])
+        #     next_label = str(df.loc[i, 'label'])
+
+        #     gap = next_start - curr_stop
+        #     if gap <= (max_separation + tol):
+        #         # Merge into current run
+        #         if next_stop > curr_stop:
+        #             curr_stop = next_stop
+        #         if label_merge_mode == 'concat':
+        #             if (len(curr_labels) == 0) or (next_label != curr_labels[-1]):
+        #                 # keep encounter order, avoid immediate duplicates
+        #                 if next_label not in curr_labels:
+        #                     curr_labels.append(next_label)
+        #         # 'first' keeps original label
+        #     else:
+        #         # Finalize current run
+        #         if label_merge_mode == 'concat':
+        #             out_label = '+'.join(curr_labels)
+        #         else:
+        #             out_label = curr_labels[0]
+        #         merged_rows.append({'start': curr_start, 'stop': curr_stop, 'label': out_label})
+
+        #         # Start new run
+        #         curr_start = next_start
+        #         curr_stop = next_stop
+        #         curr_labels = [next_label]
+
+        # # Finalize last run
+        # if label_merge_mode == 'concat':
+        #     out_label = '+'.join(curr_labels)
+        # else:
+        #     out_label = curr_labels[0]
+        # merged_rows.append({'start': curr_start, 'stop': curr_stop, 'label': out_label})
+
+        # result_df = pd.DataFrame(merged_rows, columns=['start', 'stop', 'label'])
+        # # Ensure dtypes
+        # result_df[['start', 'stop']] = result_df[['start', 'stop']].astype(float)
+        # result_df['label'] = result_df['label'].astype('str')
+        # result_df['duration'] = result_df['stop'] - result_df['start']
+
+        # if debug_print:
+        #     before_num_rows = self.n_epochs
+        #     after_num_rows = np.shape(result_df)[0]
+        #     changed_num_rows = after_num_rows - before_num_rows
+        #     print(f'Merged adjacent epochs within {max_separation} s: {before_num_rows} -> {after_num_rows} ({changed_num_rows = })')
+
+        # if copy_metadata and hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
+        #     from copy import deepcopy
+        #     result_df.attrs = deepcopy(self._obj.attrs)
+
+        # return result_df
 
     # for TimeSlicableObjectProtocol:
     def time_slice(self, t_start, t_stop) -> pd.DataFrame:
@@ -1018,7 +1153,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
 
 
     def get_in_between(self, copy_metadata:bool=False) -> pd.DataFrame:
-        """ gets the epochs that are in-between (non-overlapping) the current epochs.
+        """ Returns the periods between each pair of consecutive epochs
         
         Usage:
             inter_lap_epoch_df: pd.DataFrame = laps_df.epochs.get_in_between()
@@ -1188,7 +1323,7 @@ epochs_df
 
     
     @classmethod
-    def add_maze_id_if_needed(cls, epochs_df: pd.DataFrame, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, labels_column_name:str='label', start_time_col_name: str='start', end_time_col_name: str='stop') -> pd.DataFrame:
+    def add_maze_id_if_needed(cls, epochs_df: pd.DataFrame, t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, active_maze_epochs_df: Optional[pd.DataFrame]=None, replace_existing:bool=True, labels_column_name:str='label', start_time_col_name: str='start', end_time_col_name: str='stop', no_interval_fill_value: Union[str, int] = '') -> pd.DataFrame:
         """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
 
         Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
@@ -1206,22 +1341,33 @@ epochs_df
             laps_df
 
         """
+        from neuropy.utils.mixins.time_slicing import add_fully_overlapping_epochs_id_identity_to_epochs
+        
         # epochs_df = epochs_df.epochs.to_dataframe()
         epochs_df[[labels_column_name]] = epochs_df[[labels_column_name]].astype('int')
         is_missing_column: bool = ('maze_id' not in epochs_df.columns)
         if (is_missing_column or replace_existing):
             # Create the maze_id column:
-            epochs_df['maze_id'] = np.full_like(epochs_df[labels_column_name].to_numpy(), -1) # all -1 to start
-            epochs_df.loc[(np.logical_and((epochs_df[start_time_col_name].to_numpy() >= t_start), (epochs_df[end_time_col_name].to_numpy() <= t_delta))), 'maze_id'] = 0 # first epoch
-            epochs_df.loc[(np.logical_and((epochs_df[start_time_col_name].to_numpy() >= t_delta), (epochs_df[end_time_col_name].to_numpy() <= t_end))), 'maze_id'] = 1 # second epoch, post delta
-            epochs_df['maze_id'] = epochs_df['maze_id'].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
+            if active_maze_epochs_df is not None:
+                epochs_df['maze_id'] = '' # all empty string to start
+                epochs_df = add_fully_overlapping_epochs_id_identity_to_epochs(query_child_epochs = epochs_df, potential_fully_enclosing_epochs_df = active_maze_epochs_df, epoch_id_key_name = 'maze_id', epoch_label_column_name=labels_column_name, start_time_col_name=start_time_col_name, end_time_col_name=end_time_col_name, no_interval_fill_value=no_interval_fill_value)
+                ## These will be string values
+            else:
+                epochs_df['maze_id'] = np.full_like(epochs_df[labels_column_name].to_numpy(), -1) # all -1 to start
+                epochs_df.loc[(np.logical_and((epochs_df[start_time_col_name].to_numpy() >= t_start), (epochs_df[end_time_col_name].to_numpy() <= t_delta))), 'maze_id'] = 0 # first epoch
+                epochs_df.loc[(np.logical_and((epochs_df[start_time_col_name].to_numpy() >= t_delta), (epochs_df[end_time_col_name].to_numpy() <= t_end))), 'maze_id'] = 1 # second epoch, post delta
+                epochs_df['maze_id'] = epochs_df['maze_id'].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
+                
         else:
             # already exists and we shouldn't overwrite it:
-            epochs_df[['maze_id']] = epochs_df[['maze_id']].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
+            if (active_maze_epochs_df is None) and (t_delta is not None):
+                ## only do this in the kdiba mode
+                epochs_df[['maze_id']] = epochs_df[['maze_id']].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
+
         return epochs_df
             
 
-    def adding_maze_id_if_needed(self, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, labels_column_name:str='label') -> pd.DataFrame:
+    def adding_maze_id_if_needed(self, t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, active_maze_epochs_df: Optional[pd.DataFrame]=None, replace_existing:bool=True, labels_column_name:str='label') -> pd.DataFrame:
         """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
 
         Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
@@ -1240,10 +1386,10 @@ epochs_df
 
         """
         epochs_df: pd.DataFrame = self._obj.epochs.get_valid_df()
-        return self.add_maze_id_if_needed(epochs_df=epochs_df, t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=replace_existing, labels_column_name=labels_column_name, start_time_col_name='start', end_time_col_name='stop')
+        return self.add_maze_id_if_needed(epochs_df=epochs_df, t_start=t_start, t_delta=t_delta, t_end=t_end, active_maze_epochs_df=active_maze_epochs_df, replace_existing=replace_existing, labels_column_name=labels_column_name, start_time_col_name='start', end_time_col_name='stop')
     
 
-    def adding_global_epoch_row(self, global_epoch_name='maze', first_included_epoch_name=None, last_included_epoch_name=None) -> pd.DataFrame:
+    def adding_global_epoch_row(self, global_epoch_name='maze_GLOBAL', first_included_epoch_name=None, last_included_epoch_name=None) -> pd.DataFrame:
         """ builds the 'global' epoch row for the entire session that includes by default the times from all other epochs in epochs_df. 
         e.g. builds the 'maze' epoch from ['maze1', 'maze2'] epochs
         
@@ -1308,7 +1454,7 @@ epochs_df
 
         """
         assert created_epoch_name not in self._obj['label'], f"self._obj['label']: {self._obj['label']} already contains the desired created epoch name: '{created_epoch_name}'"
-        assert np.all(np.isin(epochs_to_create_global_from_names, self._obj['label'])), f"missing epochs: epochs_to_create_global_from_names: {epochs_to_create_global_from_names}, epochs_df['label']: {self._obj['label'].values()}"
+        assert np.all(np.isin(epochs_to_create_global_from_names, self._obj['label'])), f"missing epochs: epochs_to_create_global_from_names: {epochs_to_create_global_from_names},\n\tACtual epoch names:_{self._obj['label'].to_list()}"
 
         filtered_epochs_df = self._obj[np.isin(self._obj['label'], epochs_to_create_global_from_names)] ## grab only the epochs of interest
         ## Create the concatenated epoch from the desired epochs:
@@ -1373,6 +1519,17 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
         self._df = epochs.epochs.get_valid_df() # gets already sorted appropriately and everything. epochs.epochs uses the DataFrame accesor
         self._check_epochs(self._df) # check anyway
         # self._check_epochs(epochs) # check anyway
+
+
+    @classmethod
+    def init_from_start_stops_df(cls, starts_stops_df: pd.DataFrame, **kwargs):
+        if 'label' not in starts_stops_df:
+            starts_stops_df['label'] = deepcopy(starts_stops_df.index.astype('str'))
+        if 'duration' not in starts_stops_df:
+            starts_stops_df['duration'] = starts_stops_df['stop'] - starts_stops_df['start']
+        return cls(epochs=starts_stops_df.epochs.get_valid_df(), **kwargs)
+        
+        
 
     @property
     def starts(self):
@@ -1514,7 +1671,7 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
             return np.vstack((self.starts[slice_], self.stops[slice_])).T
 
 
-    def adding_global_epoch_row(self, global_epoch_name='maze', first_included_epoch_name=None, last_included_epoch_name=None) -> "Epoch":
+    def adding_global_epoch_row(self, global_epoch_name='maze_GLOBAL', first_included_epoch_name=None, last_included_epoch_name=None) -> "Epoch":
         """ builds the 'global' epoch row for the entire session that includes by default the times from all other epochs in epochs_df. 
         e.g. builds the 'maze' epoch from ['maze1', 'maze2'] epochs
         

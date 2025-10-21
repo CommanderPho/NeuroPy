@@ -49,7 +49,7 @@ class DebugBinningInfo(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     from neuropy.utils.mixins.binning_helpers import DebugBinningInfo
     
     """
-    n_xbin_edges: serialized_attribute_field(is_computable=False)
+    n_xbin_edges: int = serialized_attribute_field(is_computable=False)
     n_ybin_edges: int = serialized_attribute_field(is_computable=False)
     ndim: int = serialized_attribute_field(is_computable=False)
     nFlatPositionBins: int = serialized_attribute_field(init=False, is_computable=True) ## computable
@@ -511,6 +511,15 @@ class BinnedPositionsMixin(GridBinDebuggableMixin):
             return self.ybin[:-1] + np.diff(self.ybin) / 2
 
     @property
+    def zbin_centers(self) -> Optional[NDArray]:
+        """ the z-position of the centers of each xbin. Note that there is (n_ybins - 1) of these. """
+        if self.zbin is None:
+            return None
+        else:
+            return self.zbin[:-1] + np.diff(self.zbin) / 2
+        
+
+    @property
     def xbin_labels(self) -> NDArray:
         """ the labels of each xbin center. Starts at 1!"""
         return np.arange(start=1, stop=len(self.xbin)) # bin labels are 1-indexed, thus adding 1
@@ -522,6 +531,16 @@ class BinnedPositionsMixin(GridBinDebuggableMixin):
             return None
         else:
             return np.arange(start=1, stop=len(self.ybin))
+        
+
+    @property
+    def zbin_labels(self) -> Optional[NDArray]:
+        """ the labels of each ybin center. Starts at 1!"""
+        if self.zbin is None:
+            return None
+        else:
+            return np.arange(start=1, stop=len(self.zbin))
+        
 
     @property
     def n_xbin_edges(self) -> int:
@@ -535,6 +554,15 @@ class BinnedPositionsMixin(GridBinDebuggableMixin):
             return None
         else:
              return len(self.ybin)
+        
+    @property
+    def n_zbin_edges(self) -> Optional[int]:
+        """ the number of zbin edges. """
+        if self.zbin is None:
+            return None
+        else:
+             return len(self.zbin)
+        
 
     @property
     def n_xbin_centers(self) -> int:
@@ -548,20 +576,41 @@ class BinnedPositionsMixin(GridBinDebuggableMixin):
             return None
         else:
              return (len(self.ybin) - 1) # the -1 is to get the counts for the centers only
+        
+    @property
+    def n_zbin_centers(self) -> Optional[int]:
+        """ the number of zbin (centers). Note that there is (n_ybin_edges - 1) of these. """
+        if self.zbin is None:
+            return None
+        else:
+             return (len(self.zbin) - 1) # the -1 is to get the counts for the centers only
+        
 
     @property
     def dims_coord_tuple(self):
-        """Returns a tuple containing the number of bins in each dimension. For 1D it will be (n_xbins,) for 2D (n_xbins, n_ybins) 
+        """Returns a tuple containing the number of bins in each dimension. For 1D it will be (n_xbins,) for 2D (n_xbins, n_ybins), for 3D (n_xbins, n_ybins, n_zbins) 
         TODO 2023-03-08 19:31: - [ ] Add to parent class (PfND) since it should have the same implementation.
         """
         n_xbins = len(self.xbin) - 1 # the -1 is to get the counts for the centers only
-        if (self.ndim > 1):
-            n_ybins = len(self.ybin) - 1 # the -1 is to get the counts for the centers only
-            dims_coord_ist = (n_xbins, n_ybins)
-        else:
+        if (self.ndim == 1):
             # 1D Only
             n_ybins = None # singleton dimension along this axis. Decide how we want to shape it.
+            n_zbins = None
             dims_coord_ist = (n_xbins,)
+                        
+        elif (self.ndim == 2):
+            n_ybins = len(self.ybin) - 1 # the -1 is to get the counts for the centers only
+            n_zbins = None
+            dims_coord_ist = (n_xbins, n_ybins)
+            
+        elif (self.ndim == 3):
+            n_ybins = len(self.ybin) - 1 # the -1 is to get the counts for the centers only
+            n_zbins = len(self.zbin) - 1 # the -1 is to get the counts for the centers only
+            dims_coord_ist = (n_xbins, n_ybins, n_zbins)
+            
+        else:
+            raise ValueError(f'no implementation for ndim: {self.ndim} greater than 3')
+        
         return dims_coord_ist
 
     @property

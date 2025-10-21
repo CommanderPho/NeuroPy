@@ -341,7 +341,7 @@ class HDF_Converter:
                 f.create_dataset(key, data=value)
         else:
             # ... handle other attribute types as needed
-            raise NotImplementedError
+            raise NotImplementedError(f'for key "{key}", type(value): {type(value)} is not of any known type.')
 
 
     # FROM HDF ___________________________________________________________________________________________________________ #

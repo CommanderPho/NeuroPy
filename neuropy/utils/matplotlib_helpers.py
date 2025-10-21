@@ -11,7 +11,7 @@ import matplotlib
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import AnchoredOffsetbox, TextArea, HPacker, VPacker
-from matplotlib.collections import BrokenBarHCollection # for draw_epoch_regions
+
 from matplotlib.widgets import RectangleSelector # required for `add_rectangular_selector`
 from matplotlib.widgets import SpanSelector
 
@@ -1286,7 +1286,8 @@ def draw_epoch_regions(epoch_obj, curr_ax, facecolor=('green','red'), edgecolors
         fig.show()
 
     """
-
+    from matplotlib.collections import BrokenBarHCollection # for draw_epoch_regions
+    
     if relative_y_positions is None: 
         # relative_rect_y_position
         relative_y_positions = [0.0, 1.0] # [(0.0, 1.0) for i in np.arange(n_epoch_types)] ## each epoch by default spans the entire y-axis, overlapping one another

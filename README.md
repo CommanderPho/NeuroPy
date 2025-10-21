@@ -46,6 +46,11 @@ See also: https://dvc.org/doc/user-guide/how-to/setup-google-drive-remote#using-
 
 ```bash
 dvc remote add --default diba_shared_gdrive gdrive://1DyUM5aOhE5kIKzc7OOkVyBltYjUbJ7tX/dvcstore
+
+dvc remote remove diba_shared_gdrive --global
+dvc remote add --default pho_shared_gdrive gdrive://1A5KUQRjGYsvfvhbbvNERlAHXR0F069P7/dvcstore --global
+dvc remote modify pho_shared_gdrive gdrive_acknowledge_abuse true --global
+
 dvc pull # this will be fetch the files needed from Google Drive, first prompting you for your credentials
 ```
 

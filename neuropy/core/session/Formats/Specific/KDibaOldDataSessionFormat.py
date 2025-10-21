@@ -22,6 +22,8 @@ from neuropy.utils.efficient_interval_search import get_non_overlapping_epochs, 
 from neuropy.utils.dynamic_container import DynamicContainer
 from neuropy.utils.result_context import IdentifyingContext
 from neuropy.core.user_annotations import UserAnnotationsManager
+from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
+
 
 class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     """
@@ -126,6 +128,20 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
     @classmethod
     def get_specific_session_override_dict(cls) -> dict:
         return UserAnnotationsManager.get_hardcoded_specific_session_override_dict()
+
+
+    @classmethod
+    def _get_session_specific_parameters(cls, session_context: IdentifyingContext) -> HardcodedProcessingParameters:
+        """ session-specific type parameters 
+         
+        #TODO 2025-09-20 19:26: - [ ] Is this redudndant with preprocessing parameters?
+        """
+        return IdentifyingContext.matching({ #  Dict[IdentifyingContext, HardcodedProcessingParameters] 
+            ## Fallback defaults:
+            IdentifyingContext(format_name= 'kdiba'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze'],
+                global_session_name='maze',
+            ),									
+        }, criteria=session_context.get_subset(subset_includelist=session_context._get_session_context_keys()).to_dict())
 
 
     @classmethod

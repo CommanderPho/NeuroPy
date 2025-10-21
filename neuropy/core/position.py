@@ -1,6 +1,7 @@
 from copy import deepcopy
 from typing import Sequence, Union, Optional, Tuple, Dict, List, Any
 import itertools # for flattening lists with itertools.chain.from_iterable()
+from nptyping import NDArray
 import numpy as np
 import h5py # for to_hdf and read_hdf definitions
 from pandas.core.indexing import IndexingError
@@ -10,11 +11,12 @@ from .epoch import Epoch
 from .datawriter import DataWriter
 from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableObjectProtocol, TimeSlicableIndiciesMixin, TimeSlicedMixin
 from neuropy.utils.mixins.concatenatable import ConcatenationInitializable
-from neuropy.utils.mixins.dataframe_representable import DataFrameRepresentable
+from neuropy.utils.mixins.dataframe_representable import DataFrameRepresentable, ensure_dataframe
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
 from neuropy.utils.mixins.time_slicing import TimePointEventAccessor
 from neuropy.utils.mixins.position_slicing import PositionSlicedMixin
 
+    
 """ --- Helper FUNCTIONS """
 def build_position_df_time_window_idx(active_pos_df: pd.DataFrame, curr_active_time_windows, debug_print=False):
     """ adds the time_window_idx column to the active_pos_df
@@ -269,6 +271,21 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         self.df = PositionComputedDataMixin._perform_compute_smoothed_position_info(self.df, non_smoothed_column_labels, N=N)
         return self.df        
     
+
+    def compute_speed_info(self) -> pd.DataFrame:
+        """ explicitly recomputes the speed """
+        if 'speed' not in self.df:
+            dt = np.mean(np.diff(self.time))
+            self.df['speed'] = np.insert((np.sqrt(((np.abs(np.diff(self.traces, axis=1))) ** 2).sum(axis=0)) / dt), 0, 0.0) # prepends a 0.0 value to the front of the result array so it's the same length as the other position vectors (x, y, etc)  
+
+        if (self.ndim > 1) and ('speed_xy' not in self.df):
+            if ('velocity_x_smooth' not in self.df) or ('velocity_y_smooth' not in self.df):
+                self.compute_higher_order_derivatives()
+                self.compute_smoothed_position_info()
+            self.df['speed_xy'] = np.hypot(self.df['velocity_x_smooth'], self.df['velocity_y_smooth'])
+        return self.df
+    
+
     ## Linear Position Properties:
     @property
     def linear_pos_obj(self) -> "Position":
@@ -288,7 +305,12 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             self.compute_linearized_position(method=linearization_method)
             assert self.has_linear_pos, "Doesn't have linear position even after `self.compute_linearized_position()` was called!"
             
-        lin_pos_df = deepcopy(self.df[[self.time_variable_name, 'lin_pos']])
+        extra_col_names = ['lap', 'lap_dir']
+        active_extra_col_names = [v for v in extra_col_names if v in self.df.columns]
+        
+        # linear_pos_df[extra_col_names] = deepcopy(pos_df[extra_col_names])
+
+        lin_pos_df = deepcopy(self.df[[self.time_variable_name, 'lin_pos', *active_extra_col_names]])
         # lin_pos_df.rename({'lin_pos':'x'}, axis='columns', errors='raise', inplace=True)
         lin_pos_df['x'] = lin_pos_df['lin_pos'].copy() # duplicate the lin_pos column to the 'x' column
         out_obj = Position(lin_pos_df, metadata=None) ## build position object out of the dataframe
@@ -401,6 +423,19 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             self.df['speed'] = np.insert((np.sqrt(((np.abs(np.diff(self.traces, axis=1))) ** 2).sum(axis=0)) / dt), 0, 0.0) # prepends a 0.0 value to the front of the result array so it's the same length as the other position vectors (x, y, etc)        
         return self.df['speed'].to_numpy()
     
+    @property
+    def speed_xy(self):
+        if 'speed_xy' in self.df.columns:
+            return self.df['speed_xy'].to_numpy()
+        else:
+            # Compute the speed if not already done upon first access
+            self.compute_speed_info()
+
+        return self.df['speed_xy'].to_numpy()
+    
+
+
+
     @property
     def dt(self):
         if 'dt' in self.df.columns:
@@ -668,9 +703,53 @@ class PositionAccessor(PositionDimDataMixin, PositionComputedDataMixin, TimeSlic
             return out_pos_df
 
 
+    def detect_general_run_epochs(self, minimum_run_speed: float = 10.0, minimum_epoch_duration: float = 0.5, merging_adjacent_max_separation_sec: float = 2.0, speed_col_name: str ='speed') -> pd.DataFrame:
+        """ 
+        Returns an Epochs objects describe time frames where the animal is above a certain speed
+        
+        """
+        from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+        
+        a_pos_df: pd.DataFrame = self._obj
+        if speed_col_name not in a_pos_df:
+            ## compute linear speed
+            raise NotImplementedError(f'missing requested speed column: "{speed_col_name}". Present columns: {list(a_pos_df.columns)}')
+        
+        movement_speed_variable = a_pos_df[speed_col_name].abs().values
+        lap_epochs_df = a_pos_df.neuropy.detect_epoch_satisfying_condition(is_condition_satisfied = (movement_speed_variable > minimum_run_speed),
+                                                                           minimum_epoch_duration=minimum_epoch_duration, merging_adjacent_max_separation_sec=merging_adjacent_max_separation_sec,
+                                                                           time_col_name='t')
+        return lap_epochs_df
+
+
     
+def _subfn_build_or_add_traces_df(df: Optional[pd.DataFrame], traces: NDArray, col_suffix: str='') -> pd.DataFrame:
+    if traces.ndim == 1:
+        traces = traces.reshape(1, -1) # required before setting ndim
+        
+    ndim = traces.shape[0]
+    assert ndim <= 3, "Maximum possible dimension of position is 3"
+         
+    if df is None:
+        x = traces[0].flatten().copy()
+        df = pd.DataFrame({f'x{col_suffix}': x})
+    else:
+        x = traces[0]
+        df[f"x{col_suffix}"] = x.flatten().copy()
+        
+    if ndim >= 2:
+        y = traces[1]
+        df[f"y{col_suffix}"] = y.flatten().copy()
+    if ndim >= 3:
+        z = traces[2]
+        df[f"z{col_suffix}"] = z.flatten().copy()
+    return df
+
+
+
 """ --- """
 class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, ConcatenationInitializable, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrameRepresentable, DataWriter):
+    
     def __init__(self, pos_df: pd.DataFrame, metadata=None) -> None:
         """[summary]
         Args:
@@ -687,7 +766,7 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
         return self._data.index[included_indicies]# note that this currently returns a Pandas.Series object. I could get the normal indicis by using included_indicies.to_numpy()
         
     @classmethod
-    def init(cls, traces: np.ndarray, computed_traces: np.ndarray=None, t_start=0, sampling_rate=120, metadata=None):
+    def init(cls, traces: np.ndarray, computed_traces: np.ndarray=None, t_start=0, sampling_rate=120, metadata=None, traces_rot=None):
         """ Comatibility initializer """
         if traces.ndim == 1:
             traces = traces.reshape(1, -1) # required before setting ndim
@@ -705,14 +784,31 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
         df = pd.DataFrame({'t': time, 'x': x})
         if computed_traces is not None:
             if computed_traces.ndim >= 1:
-                df["lin_pos"] = computed_traces[0].flatten().copy()
-        
+                df["lin_pos"] = computed_traces[0].flatten().copy()        
         if ndim >= 2:
             y = traces[1]
             df["y"] = y.flatten().copy()
         if ndim >= 3:
             z = traces[2]
             df["z"] = z.flatten().copy()
+            
+        # df = _subfn_build_or_add_traces_df(df=None, traces=traces, col_suffix='')
+
+        if traces_rot is not None:
+            # print(f'WARN: traces_rot was passed in {traces_rot} but is UNUSED, part of the legacy protocol. It will be IGNORED.')
+            # df = _subfn_build_or_add_traces_df(df=None, traces=traces, col_suffix='')
+            df = _subfn_build_or_add_traces_df(df=df, traces=traces_rot, col_suffix='_rot')
+
+        df = df.dropna(how='any', subset=['t', 'x', 'y'], inplace=False) ## drop any NaN values
+        
+        if metadata is None:
+            metadata = {}
+
+        _potential_metadata = {'t_start': t_start, 't_stop': t_stop, 'sampling_rate': sampling_rate}
+        for k, v in _potential_metadata.items():
+            if (k not in metadata) and (v is not None):
+                metadata[k] = v
+
         return Position(df, metadata=metadata)
 
 
@@ -801,12 +897,36 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
     @classmethod
     def concat(cls, objList: Union[Sequence, np.array]):
         """ Concatenates the object list """
-        objList = np.array(objList)
-        concat_df = pd.concat([obj._data for obj in objList])
-        return cls(concat_df)
+        if isinstance(objList, dict):
+            objList = list(objList.values()) ## convert to a list
+
+        # objList = np.array(objList)
+        # concat_df = pd.concat([obj._data for obj in objList])
+        # return cls(concat_df)
+        merged_pos_df: pd.DataFrame = pd.concat([ensure_dataframe(p) for p in objList], ignore_index=True).drop_duplicates(subset=['t'], keep='first', inplace=False, ignore_index=True).sort_values(by='t', axis='index', ascending=True, inplace=False, ignore_index=True)
+        merged_metadata = None
+        try:                
+            ## Build merged metadata:
+            merged_metadata = pd.DataFrame.from_records([(p.metadata or {}) for p in objList])
+            #TODO 2025-09-11 15:33: - [ ] Assert.all_equal(merged_metadata['sampling_rate'].tolist())
+            merged_metadata = {'t_start': merged_metadata['t_start'].min(),
+            't_stop': merged_metadata['t_stop'].max(),
+            'sampling_rate': merged_metadata['sampling_rate'].min(),
+            }
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            print(f'could not merge metadata with error: {e}')
+            merged_metadata = None
+            pass
+        except Exception as e:
+            raise
+        
+        return cls(pos_df=merged_pos_df, metadata=merged_metadata)
+
 
         
-    def drop_dimensions_above(self, desired_ndim:int):
+
+        
+    def drop_dimensions_above(self, desired_ndim:int) -> None:
         """ modifies the internal dataframe to drop dimensions above a certain number. Always done in place, and returns None. """
         return self.df.position.drop_dimensions_above(desired_ndim, inplace=True)
 

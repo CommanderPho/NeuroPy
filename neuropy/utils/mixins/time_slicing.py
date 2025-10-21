@@ -1,5 +1,5 @@
 from __future__ import annotations # prevents having to specify types for typehinting as strings
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     ## typehinting only imports here
@@ -108,7 +108,7 @@ class TimeColumnAliasesProtocol:
 
 
     @classmethod
-    def renaming_synonym_columns_if_needed(cls, df: pd.DataFrame, required_columns_synonym_dict: Optional[dict]=None) -> pd.DataFrame:
+    def renaming_synonym_columns_if_needed(cls, df: pd.DataFrame, required_columns_synonym_dict: Optional[dict]=None, fail_on_missing_columns: bool=True) -> pd.DataFrame:
         """ if the required columns (as specified in _time_column_name_synonyms's keys are missing, search for synonyms and replace the synonym columns with the preferred column name.
 
         Usage:
@@ -129,7 +129,8 @@ class TimeColumnAliasesProtocol:
                         df = df.rename({a_synonym: preferred_column_name}, axis="columns") # rename the synonym column to preferred_column_name
                 ## must be in there by the time that you're done.
                 if preferred_column_name not in df.columns:
-                    raise AttributeError(f"Must have '{preferred_column_name}' column.")
+                    if fail_on_missing_columns:
+                        raise AttributeError(f"Must have '{preferred_column_name}' column.")
         return df # important! Must return the modified obj to be assigned (since its columns were altered by renaming
 
 
@@ -301,7 +302,7 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
 
 
     @classmethod
-    def add_maze_id_if_needed(cls, active_point_events_df: pd.DataFrame, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, event_time_col_name: str='t_rel_seconds') -> pd.DataFrame: # , labels_column_name:str='label'
+    def add_maze_id_if_needed(cls, active_point_events_df: pd.DataFrame, t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, active_maze_epochs_df: Optional[pd.DataFrame]=None, epoch_id_key_name:str='maze_id', replace_existing:bool=True, event_time_col_name: str='t_rel_seconds', labels_column_name: str ='label', no_interval_fill_value: Union[str, int] = '') -> pd.DataFrame: # , labels_column_name:str='label'
         """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
 
         Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
@@ -319,24 +320,34 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
             laps_df
 
         """
+
+        
         # epochs_df = epochs_df.epochs.to_dataframe()
         # active_point_events_df[[labels_column_name]] = active_point_events_df[[labels_column_name]].astype('int')
         # active_point_events_df[[labels_column_name]] = active_point_events_df[[labels_column_name]].astype('int')
         is_missing_column: bool = ('maze_id' not in active_point_events_df.columns)
         if (is_missing_column or replace_existing):
             # Create the maze_id column:
-            # active_point_events_df['maze_id'] = np.full_like(active_point_events_df[labels_column_name].to_numpy(), -1) # all -1 to start
-            active_point_events_df['maze_id'] = np.full_like(active_point_events_df.index.to_numpy().astype(int), -1) # all -1 to start
-            active_point_events_df.loc[(np.logical_and((active_point_events_df[event_time_col_name].to_numpy() >= t_start), (active_point_events_df[event_time_col_name].to_numpy() <= t_delta))), 'maze_id'] = 0 # first epoch
-            active_point_events_df.loc[(np.logical_and((active_point_events_df[event_time_col_name].to_numpy() >= t_delta), (active_point_events_df[event_time_col_name].to_numpy() <= t_end))), 'maze_id'] = 1 # second epoch, post delta
-            active_point_events_df['maze_id'] = active_point_events_df['maze_id'].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
+            
+            
+            if active_maze_epochs_df is not None:
+                from neuropy.utils.efficient_interval_search import OverlappingIntervalsFallbackBehavior
+                from neuropy.utils.mixins.time_slicing import add_epochs_id_identity
+                active_point_events_df['maze_id'] = '' # all empty string to start -1 to start
+                return add_epochs_id_identity(active_point_events_df, epochs_df=active_maze_epochs_df, epoch_id_key_name=epoch_id_key_name, epoch_label_column_name=None, no_interval_fill_value=no_interval_fill_value, override_time_variable_name=event_time_col_name, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL) # uses new add_epochs_id_identity method which is general                
+
+            else:
+                active_point_events_df['maze_id'] = np.full_like(active_point_events_df[labels_column_name].to_numpy(), -1) # all -1 to start
+                active_point_events_df.loc[(np.logical_and((active_point_events_df[event_time_col_name].to_numpy() >= t_start), (active_point_events_df[event_time_col_name].to_numpy() <= t_delta))), 'maze_id'] = 0 # first epoch
+                active_point_events_df.loc[(np.logical_and((active_point_events_df[event_time_col_name].to_numpy() >= t_delta), (active_point_events_df[event_time_col_name].to_numpy() <= t_end))), 'maze_id'] = 1 # second epoch, post delta
+                active_point_events_df['maze_id'] = active_point_events_df['maze_id'].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
         else:
             # already exists and we shouldn't overwrite it:
             active_point_events_df[['maze_id']] = active_point_events_df[['maze_id']].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
         return active_point_events_df
             
 
-    def adding_maze_id_if_needed(self, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, override_time_variable_name=None) -> pd.DataFrame:
+    def adding_maze_id_if_needed(self, t_start:Optional[float]=None, t_delta:Optional[float]=None, t_end:Optional[float]=None, active_maze_epochs_df: Optional[pd.DataFrame]=None, replace_existing:bool=True, override_time_variable_name=None, no_interval_fill_value: Union[str, int] = '') -> pd.DataFrame:
         """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
 
         Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
@@ -357,7 +368,7 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
         if override_time_variable_name is None:
             override_time_variable_name = self.time_variable_name # 't_rel_seconds'
         active_point_events_df: pd.DataFrame = self._obj.copy()
-        return self.add_maze_id_if_needed(active_point_events_df=active_point_events_df, t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=replace_existing, event_time_col_name=override_time_variable_name) # , labels_column_name=labels_column_name
+        return self.add_maze_id_if_needed(active_point_events_df=active_point_events_df, t_start=t_start, t_delta=t_delta, t_end=t_end, active_maze_epochs_df=active_maze_epochs_df, replace_existing=replace_existing, event_time_col_name=override_time_variable_name, no_interval_fill_value=no_interval_fill_value) # , labels_column_name=labels_column_name
     
     
     def adding_true_decoder_identifier(self, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, override_time_variable_name=None) -> pd.DataFrame:
@@ -424,7 +435,7 @@ def _compute_time_point_event_arbitrary_provided_epoch_ids(spk_df, provided_epoc
 # ==================================================================================================================== #
 # General Spike Identities from Epochs                                                                                 #
 # ==================================================================================================================== #
-def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoch_label_column_name=None, no_interval_fill_value=np.nan, override_time_variable_name=None, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL, debug_print=False):
+def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoch_label_column_name=None, no_interval_fill_value=np.nan, override_time_variable_name=None, overlap_behavior=OverlappingIntervalsFallbackBehavior.FALLBACK_TO_SLOW_SEARCH, debug_print=False):
     """ Computes the appropriate IDs from provided_epochs_df for each spikes to be added as an identities column to spikes_df
     
     overlap_behavior: OverlappingIntervalsFallbackBehavior - If ASSERT_FAIL, an AssertionError will be thrown in the case that any of the intervals in provided_epochs_df overlap each other. Otherwise, if FALLBACK_TO_SLOW_SEARCH, a much slower search will be performed that will still work.
@@ -449,7 +460,44 @@ def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoc
     return spike_epoch_identity_arr
 
 
-def add_epochs_id_identity(spk_df, epochs_df, epoch_id_key_name='temp_epoch_id', epoch_label_column_name='label', override_time_variable_name=None, no_interval_fill_value=np.nan, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL):
+# @function_attributes(short_name=None, tags=['interval', 'epochs', 'interval-interval'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-09-23 13:59', related_items=[])
+def add_fully_overlapping_epochs_id_identity_to_epochs(query_child_epochs, potential_fully_enclosing_epochs_df: pd.DataFrame, epoch_id_key_name: str = 'maze_id', epoch_label_column_name='label', start_time_col_name: str='start', end_time_col_name: str='stop', no_interval_fill_value: Union[str, int] = ''):
+    """ Adds the epoch IDs to each spike in spikes_df as a column named epoch_id_key_name
+    
+    Like `add_epochs_id_identity`, but for entire epochs ['start', 'stop'] and not just a point timeseries ['t']
+    
+    Usage:
+        from neuropy.utils.mixins.time_slicing import add_fully_overlapping_epochs_id_identity_to_epochs
+
+        active_maze_epoch_names = deepcopy(hardcoded_params.non_global_activity_session_names)
+        active_maze_epochs_df: pd.DataFrame = curr_active_pipeline.sess.paradigm.to_dataframe() # ['label']
+        active_maze_epochs_df = active_maze_epochs_df[active_maze_epochs_df['label'].isin(active_maze_epoch_names)]
+        laps_df = add_fully_overlapping_epochs_id_identity_to_epochs(query_child_epochs = laps_df, potential_fully_enclosing_epochs_df = active_maze_epochs_df, epoch_id_key_name = 'maze_id')
+        laps_df
+        
+    """
+    if epoch_label_column_name is not None:
+        assert epoch_label_column_name in potential_fully_enclosing_epochs_df.columns, f"if epoch_label_column_name is specified (not None) than the column {epoch_label_column_name} must exist in the provided_epochs_df, but provided_epochs_df.columns: {list(potential_fully_enclosing_epochs_df.columns)}!"
+
+    ## Create the new column:
+    query_child_epochs[epoch_id_key_name] = no_interval_fill_value
+    
+    found_overlapping_split_idxs_dict = {}
+    for a_row in potential_fully_enclosing_epochs_df.itertuples():
+        is_epoch_in_parent = np.logical_and((a_row.start < query_child_epochs[start_time_col_name]), (query_child_epochs[end_time_col_name] < a_row.stop))
+        # is_epoch_in_parent: NDArray = find_epochs_overlapping_other_epochs(epochs_df=laps_df, epochs_df_required_to_overlap=deepcopy(active_maze_epochs_df[active_maze_epochs_df[epoch_label_column_name] == a_row.label]))
+        if epoch_label_column_name is None:
+            parent_epoch_id_label = a_row.index
+        else:
+            parent_epoch_id_label = a_row._asdict()[epoch_label_column_name]
+        found_overlapping_split_idxs_dict[parent_epoch_id_label] = query_child_epochs[is_epoch_in_parent]
+        query_child_epochs.loc[found_overlapping_split_idxs_dict[parent_epoch_id_label].index, epoch_id_key_name] = parent_epoch_id_label
+        
+    # maze_dfs
+    return query_child_epochs
+
+
+def add_epochs_id_identity(spk_df, epochs_df, epoch_id_key_name='temp_epoch_id', epoch_label_column_name='label', override_time_variable_name=None, no_interval_fill_value=np.nan, overlap_behavior=OverlappingIntervalsFallbackBehavior.FALLBACK_TO_SLOW_SEARCH):
     """ Adds the epoch IDs to each spike in spikes_df as a column named epoch_id_key_name
     
     NOTE: you can use this for non-spikes dataframes by providing `override_time_variable_name='t'`

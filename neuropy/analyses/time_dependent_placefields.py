@@ -256,13 +256,15 @@ class PfND_TimeDependent(PfND):
         # return Ratemap(self.curr_occupancy_weighted_tuning_maps_matrix, spikes_maps=self.curr_spikes_maps_matrix, xbin=self.xbin, ybin=self.ybin, neuron_ids=self.included_neuron_IDs, occupancy=self.curr_seconds_occupancy, neuron_extended_ids=self.frate_filter_fcn(self.all_time_filtered_spikes_df.spikes.neuron_probe_tuple_ids))
         # DO I need neuron_ids=self.frate_filter_fcn(self.included_neuron_IDs)?
         return Ratemap(self.curr_occupancy_weighted_tuning_maps_matrix[self._included_thresh_neurons_indx], spikes_maps=self.curr_spikes_maps_matrix[self._included_thresh_neurons_indx],
-                       xbin=self.xbin, ybin=self.ybin, neuron_ids=self.included_neuron_IDs, occupancy=self.curr_seconds_occupancy, neuron_extended_ids=self.frate_filter_fcn(self.all_time_filtered_spikes_df.spikes.neuron_probe_tuple_ids))
+                       xbin=self.xbin, ybin=self.ybin, zbin=self.zbin,
+                       neuron_ids=self.included_neuron_IDs, occupancy=self.curr_seconds_occupancy, neuron_extended_ids=self.frate_filter_fcn(self.all_time_filtered_spikes_df.spikes.neuron_probe_tuple_ids),
+                       )
 
         ## Passes self.included_neuron_IDs explicitly
 
 
     def __repr__(self):
-        return f'{self.__class__.__qualname__.rsplit(">.", 1)[-1]}(spikes_df={self.spikes_df!r}, position={self.position!r}, epochs={self.epochs!r}, config={self.config!r}, position_srate={self.position_srate!r}, setup_on_init={self.setup_on_init!r}, compute_on_init={self.compute_on_init!r}, _save_intermediate_spikes_maps={self._save_intermediate_spikes_maps!r}, _included_thresh_neurons_indx={self._included_thresh_neurons_indx!r}, _peak_frate_filter_function={self._peak_frate_filter_function!r}, ratemap={self.ratemap!r}, _filtered_pos_df={self._filtered_pos_df!r}, _filtered_spikes_df={self._filtered_spikes_df!r}, ndim={self.ndim!r}, xbin={self.xbin!r}, ybin={self.ybin!r}, bin_info={self.bin_info!r})'
+        return f'{self.__class__.__qualname__.rsplit(">.", 1)[-1]}(spikes_df={self.spikes_df!r}, position={self.position!r}, epochs={self.epochs!r}, config={self.config!r}, position_srate={self.position_srate!r}, setup_on_init={self.setup_on_init!r}, compute_on_init={self.compute_on_init!r}, _save_intermediate_spikes_maps={self._save_intermediate_spikes_maps!r}, _included_thresh_neurons_indx={self._included_thresh_neurons_indx!r}, _peak_frate_filter_function={self._peak_frate_filter_function!r}, ratemap={self.ratemap!r}, _filtered_pos_df={self._filtered_pos_df!r}, _filtered_spikes_df={self._filtered_spikes_df!r}, ndim={self.ndim!r}, xbin={self.xbin!r}, ybin={self.ybin!r}, zbin={self.zbin!r}, bin_info={self.bin_info!r})'
     
   
     # ==================================================================================================================== #
@@ -285,6 +287,12 @@ class PfND_TimeDependent(PfND):
                 if 'binned_y' not in self._filtered_spikes_df:
                     self._filtered_spikes_df['binned_y'] = pd.cut(self._filtered_spikes_df['y'].to_numpy(), bins=self.ybin, include_lowest=True, labels=self.ybin_labels)
     
+            if (self.ndim > 2):
+                self._filtered_spikes_df['z'] = np.interp(self._filtered_spikes_df[self.spikes_df.spikes.time_variable_name].to_numpy(), self.t, self.z)
+                if 'binned_z' not in self._filtered_spikes_df:
+                    self._filtered_spikes_df['binned_z'] = pd.cut(self._filtered_spikes_df['z'].to_numpy(), bins=self.zbin, include_lowest=True, labels=self.zbin_labels)
+    
+
             self._setup_time_varying()
             if self.compute_on_init:
                 # Ignore self.compute() for time varying
@@ -1238,7 +1246,10 @@ def perform_compute_time_dependent_placefields(active_session_spikes_df, active_
     if ((active_epoch_placefields2D is None) or should_force_recompute_placefields):
         print('Recomputing active_epoch_time_dependent_placefields2D...', end=' ')
         spikes_df = deepcopy(active_session_spikes_df).spikes.sliced_by_neuron_type('PYRAMIDAL') # Only use PYRAMIDAL neurons
-        active_epoch_placefields2D = PfND_TimeDependent.from_config_values(spikes_df, deepcopy(active_pos), epochs=included_epochs,
+        active_pos = deepcopy(active_pos)
+        active_pos.drop_dimensions_above(desired_ndim=2) ## inplace, so it returns None
+        
+        active_epoch_placefields2D = PfND_TimeDependent.from_config_values(spikes_df, active_pos, epochs=included_epochs,
                                         speed_thresh=computation_config.speed_thresh, frate_thresh=computation_config.frate_thresh,
                                         grid_bin=computation_config.grid_bin, grid_bin_bounds=computation_config.grid_bin_bounds, smooth=computation_config.smooth)
 

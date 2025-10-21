@@ -50,7 +50,7 @@ class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, Co
         DataWriter (_type_): _description_
     """
     def __init__(self, tuning_curves, unsmoothed_tuning_maps=None, spikes_maps=None, 
-        xbin=None, ybin=None, occupancy=None,
+        xbin=None, ybin=None, zbin=None, occupancy=None,
         neuron_ids=None, neuron_extended_ids=None, metadata=None) -> None:
         
         super().__init__()
@@ -73,6 +73,7 @@ class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, Co
         
         self.xbin = xbin
         self.ybin = ybin
+        self.zbin = zbin
         self.occupancy = occupancy
 
         self.metadata = metadata
@@ -452,6 +453,15 @@ class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, Co
 
                 group['ybin_centers'] = self.ybin_centers
                 group['ybin_centers'].make_scale('ybin_centers name')
+                
+
+            if self.zbin is not None:
+                group['zbin'] = self.zbin
+                group['zbin'].make_scale('zbin name')
+
+                group['zbin_centers'] = self.zbin_centers
+                group['zbin_centers'].make_scale('zbin_centers name')
+                
 
             # Attach scales:
             group['tuning_curves'].dims[0].label = 'neuron_id'
@@ -494,6 +504,7 @@ class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, Co
 
         assert np.all(lhs.xbin == rhs.xbin)
         assert np.all(lhs.ybin == rhs.ybin)
+        assert np.all(lhs.zbin == rhs.zbin)
         xbin = lhs.xbin
         ybin = lhs.ybin
 
