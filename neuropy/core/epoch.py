@@ -977,30 +977,63 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             return result_df
 
 
-        result_df = self.get_valid_df()
+        #TODO 2025-10-21 09:31: - [ ] ChatGPT-5 Implementation:
+        df = self.get_valid_df().sort_values('start').reset_index(drop=True)
+        merged = []
+        current_start = df.iloc[0]['start']
+        current_stop = df.iloc[0]['stop']
+        current_label = df.iloc[0]['label']
 
-        intra_high_speed_periods: pd.DataFrame = result_df.epochs.get_in_between()
-        intra_high_speed_periods = intra_high_speed_periods[intra_high_speed_periods['duration'] <= max_merge_duration] ## only get the ones shorter than the max merge distance
-        original_lap_epochs_df = deepcopy(result_df).set_index('label')
-        new_epochs = []
-        for a_row in intra_high_speed_periods.itertuples():
-            # print(a_row)
-            a_row.label
-            a_row.precceding_epoch_label
-            # a_row.following_epoch_label
-            # print(original_lap_epochs_df.loc[a_row.precceding_epoch_label])
-            new_epochs.append((original_lap_epochs_df.loc[a_row.precceding_epoch_label]['start'], original_lap_epochs_df.loc[a_row.following_epoch_label]['stop']))
-            # a_row[.'preceeding_epoch_label']
-            # [a_row.following_epoch_label]
-            
-        new_epochs = pd.DataFrame(new_epochs, columns=['start', 'stop'])
-        new_epochs['duration'] = new_epochs['stop'] - new_epochs['start']
-        new_epochs['label'] = new_epochs.index.astype('str')
+        for i in range(1, len(df)):
+            next_start = df.iloc[i]['start']
+            next_stop = df.iloc[i]['stop']
+            next_label = df.iloc[i]['label']
+            gap = next_start - current_stop
+
+            if gap <= max_merge_duration:
+                # Merge with current run
+                current_stop = max(current_stop, next_stop)
+                current_label = f"{current_label}+{next_label}"
+            else:
+                # Push the previous run
+                merged.append((current_start, current_stop, current_label))
+                current_start, current_stop, current_label = next_start, next_stop, next_label
+
+        merged.append((current_start, current_stop, current_label))
+
+        merged_df = pd.DataFrame(merged, columns=['start', 'stop', 'label'])
+        merged_df['duration'] = merged_df['stop'] - merged_df['start']
+        merged_df['label'] = merged_df.index.astype('str')
+
+        if hasattr(self._obj, 'attrs') and self._obj.attrs is not None:
+            merged_df.attrs = deepcopy(self._obj.attrs)
         
-        if hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
-            result_df.attrs = deepcopy(self._obj.attrs)
+    
+        # result_df = self.get_valid_df()
 
-        return new_epochs
+        # intra_high_speed_periods: pd.DataFrame = result_df.epochs.get_in_between()
+        # intra_high_speed_periods = intra_high_speed_periods[intra_high_speed_periods['duration'] <= max_merge_duration] ## only get the ones shorter than the max merge distance
+        # original_lap_epochs_df = deepcopy(result_df).set_index('label')
+        # merged_df = []
+        # for a_row in intra_high_speed_periods.itertuples():
+        #     # print(a_row)
+        #     a_row.label
+        #     a_row.precceding_epoch_label
+        #     # a_row.following_epoch_label
+        #     # print(original_lap_epochs_df.loc[a_row.precceding_epoch_label])
+        #     merged_df.append((original_lap_epochs_df.loc[a_row.precceding_epoch_label]['start'], original_lap_epochs_df.loc[a_row.following_epoch_label]['stop']))
+        #     # a_row[.'preceeding_epoch_label']
+        #     # [a_row.following_epoch_label]
+            
+        # merged_df = pd.DataFrame(merged_df, columns=['start', 'stop'])
+        # merged_df['duration'] = merged_df['stop'] - merged_df['start']
+        # merged_df['label'] = merged_df.index.astype('str')
+
+
+        # if hasattr(self._obj, 'attrs') and (self._obj.attrs is not None):
+        #     result_df.attrs = deepcopy(self._obj.attrs)
+
+        return merged_df
 
 
         # # raise NotImplementedError(f'This looses all other columss when merging!!')
