@@ -243,6 +243,17 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
         `sess.laps`
 
     """
+    
+    if debug_plot:
+        from pyphoplacecellanalysis.GUI.PyQtPlot.Widgets.GraphicsWidgets.EpochsEditorItem import EpochsEditor
+
+        # Initialize from session     
+        epochs_editor = EpochsEditor.init_from_session(
+            sess, 
+            include_velocity=True, 
+            include_accel=False
+        )
+
 
     # backup the extant laps object to prepare for the new one:
     has_prev_laps: bool = (sess.laps is not None)
@@ -284,34 +295,57 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
 
     is_kdiba_session: bool = (sess.get_context().format_name.lower() == 'kdiba')
     
-    if is_kdiba_session:
-        lap_change_indicies = _subfn_perform_estimate_lap_splits_1D(pos_df, hardcoded_track_midpoint_x=None, debug_print=debug_print) # allow smart midpoint determiniation
-        (desc_crossing_begining_idxs, desc_crossing_midpoint_idxs, desc_crossing_ending_idxs), (asc_crossing_begining_idxs, asc_crossing_midpoint_idxs, asc_crossing_ending_idxs), hardcoded_track_midpoint_x = lap_change_indicies    
-        custom_test_laps_obj = Laps.init_from_estimated_laps(pos_df['t'].to_numpy(), desc_crossing_begining_idxs=desc_crossing_begining_idxs, desc_crossing_ending_idxs=desc_crossing_ending_idxs, asc_crossing_begining_idxs=asc_crossing_begining_idxs, asc_crossing_ending_idxs=asc_crossing_ending_idxs, 
-                                                        global_session=sess) ## Get the timestamps corresponding to the indicies
-    else:
-        ## use more advanced time-based estimation
-        lap_epochs_df = pos_df.position.detect_general_run_epochs(minimum_epoch_duration=minimum_epoch_duration, minimum_run_speed=minimum_run_speed, merging_adjacent_max_separation_sec = merging_adjacent_max_separation_sec, speed_col_name=speed_col_name) # merging_adjacent_max_separation_sec=0.5
-        lap_epochs_df = lap_epochs_df.epochs.get_non_overlapping_df()
-        lap_epochs_df = _subfn_perform_compute_laps_pos_indicies(lap_epochs_df, pos_df=pos_df) ## adds back in the ['start_position_index', 'stop_position_index'] columns
-        lap_epochs_df = TimeColumnAliasesProtocol.renaming_synonym_columns_if_needed(lap_epochs_df, required_columns_synonym_dict={"start":{'begin','start_t'}, "stop":['end','stop_t'], 'stop_position_index': ['end_position_index']})
-        lap_epochs_df['end_position_index'] = lap_epochs_df['stop_position_index'] ## add both
-        lap_epochs_df['lap_dir'] = 0
-        lap_epochs_df['lap_id'] = lap_epochs_df.index + 1
-        assert 'start_position_index' in lap_epochs_df.columns
-        assert 'stop_position_index' in lap_epochs_df.columns
-        custom_test_laps_df = lap_epochs_df.laps_accessor.filter_to_valid() ## drop invalid/zero index ones first
-        custom_test_laps_df = custom_test_laps_df.laps_accessor.update_computed_columns(global_session=sess, replace_existing=True) # t_start=t_start, t_delta=t_delta, t_end=t_end # #TODO 2025-10-21 09:11: - [ ] This is one of the slowest parts, and idk why.
-        custom_test_laps_df = custom_test_laps_df.laps_accessor.filter_to_valid()
-        assert 'start_position_index' in custom_test_laps_df.columns
-        custom_test_laps_obj = Laps(laps=custom_test_laps_df)
-        custom_test_laps_obj._df['start_position_index'] = custom_test_laps_df['start_position_index']
-        assert 'stop_position_index' in custom_test_laps_df.columns
-        custom_test_laps_obj._df['stop_position_index'] = custom_test_laps_df['stop_position_index']
-        custom_test_laps_obj._df['end_position_index'] = custom_test_laps_df['stop_position_index']
+    custom_test_laps_obj = None
+    try:
+        if is_kdiba_session:
+            lap_change_indicies = _subfn_perform_estimate_lap_splits_1D(pos_df, hardcoded_track_midpoint_x=None, debug_print=debug_print) # allow smart midpoint determiniation
+            (desc_crossing_begining_idxs, desc_crossing_midpoint_idxs, desc_crossing_ending_idxs), (asc_crossing_begining_idxs, asc_crossing_midpoint_idxs, asc_crossing_ending_idxs), hardcoded_track_midpoint_x = lap_change_indicies    
+            custom_test_laps_obj = Laps.init_from_estimated_laps(pos_df['t'].to_numpy(), desc_crossing_begining_idxs=desc_crossing_begining_idxs, desc_crossing_ending_idxs=desc_crossing_ending_idxs, asc_crossing_begining_idxs=asc_crossing_begining_idxs, asc_crossing_ending_idxs=asc_crossing_ending_idxs, global_session=sess) ## Get the timestamps corresponding to the indicies
+        else:
+            ## use more advanced time-based estimation
+            lap_epochs_df = pos_df.position.detect_general_run_epochs(minimum_epoch_duration=minimum_epoch_duration, minimum_run_speed=minimum_run_speed, merging_adjacent_max_separation_sec = merging_adjacent_max_separation_sec, speed_col_name=speed_col_name) # merging_adjacent_max_separation_sec=0.5
+            lap_epochs_df = lap_epochs_df.epochs.get_non_overlapping_df()
+            lap_epochs_df = _subfn_perform_compute_laps_pos_indicies(lap_epochs_df, pos_df=pos_df) ## adds back in the ['start_position_index', 'stop_position_index'] columns
+            lap_epochs_df = TimeColumnAliasesProtocol.renaming_synonym_columns_if_needed(lap_epochs_df, required_columns_synonym_dict={"start":{'begin','start_t'}, "stop":['end','stop_t'], 'stop_position_index': ['end_position_index']})
+            lap_epochs_df['end_position_index'] = lap_epochs_df['stop_position_index'] ## add both
+            lap_epochs_df['lap_dir'] = 0
+            lap_epochs_df['lap_id'] = lap_epochs_df.index + 1
+            assert 'start_position_index' in lap_epochs_df.columns
+            assert 'stop_position_index' in lap_epochs_df.columns
+            custom_test_laps_df = lap_epochs_df.laps_accessor.filter_to_valid() ## drop invalid/zero index ones first
+            custom_test_laps_df = custom_test_laps_df.laps_accessor.update_computed_columns(global_session=sess, replace_existing=True) # t_start=t_start, t_delta=t_delta, t_end=t_end # #TODO 2025-10-21 09:11: - [ ] This is one of the slowest parts, and idk why.
+            custom_test_laps_df = custom_test_laps_df.laps_accessor.filter_to_valid()
+            assert 'start_position_index' in custom_test_laps_df.columns
+            custom_test_laps_obj = Laps(laps=custom_test_laps_df)
+            custom_test_laps_obj._df['start_position_index'] = custom_test_laps_df['start_position_index']
+            assert 'stop_position_index' in custom_test_laps_df.columns
+            custom_test_laps_obj._df['stop_position_index'] = custom_test_laps_df['stop_position_index']
+            custom_test_laps_obj._df['end_position_index'] = custom_test_laps_df['stop_position_index']
 
+    except (IndexError, ValueError) as e:
+        print(f'Error: could not estimate the new laps due to error: {e}...\n\tfalling back to previously backed-up laps and continuing...')        
+        if sess.laps is not None:
+            custom_test_laps_obj = deepcopy(sess.laps)
+        elif getattr(sess, 'laps_backup', None) is not None:
+            custom_test_laps_obj = deepcopy(sess.laps_backup)
+        else:
+            raise NotImplementedError(f'No valid previous laps could be found :/ Aborting!')
+    
+    except Exception as e:
+        raise
 
+    assert custom_test_laps_obj is not None
     assert custom_test_laps_obj.n_laps > 0, f"estimation for {sess} produced no laps!"
+
+    if debug_plot:  
+        # Or initialize from dataframes
+        epochs_editor_post = EpochsEditor.init_laps_diagnoser(
+            pos_df, 
+            custom_test_laps_obj.to_dataframe(), 
+            include_velocity=True, 
+            include_accel=False
+        )
+    
 
     ## Determine the spikes included with each computed lap:
     spikes_df: pd.DataFrame = deepcopy(sess.spikes_df) ## this deepcopy is kinda slow too
@@ -333,10 +367,8 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
 
 
     if debug_plot:
-        from pyphoplacecellanalysis.GUI.PyQtPlot.Widgets.GraphicsWidgets.EpochsEditorItem import EpochsEditor # perform_plot_laps_diagnoser
         custom_epochs_editor = EpochsEditor.init_laps_diagnoser(pos_df, custom_test_laps_obj, include_velocity=True, include_accel=True)
         custom_epochs_editor.add_lap_split_points(lap_change_indicies)
-
 
     return sess
 
