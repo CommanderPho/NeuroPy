@@ -93,7 +93,7 @@ def interleave_elements(start_points, end_points, debug_print:bool=False):
 
 
 
-def get_dict_subset(a_dict: dict, subset_includelist=None, subset_excludelist=None) -> dict:
+def get_dict_subset(a_dict: dict, subset_includelist=None, subset_excludelist=None, require_all_keys=False, included_keys=None) -> dict:
     """
     Returns a subset of the input dictionary based on the specified inclusion or exclusion lists.
 
@@ -102,15 +102,21 @@ def get_dict_subset(a_dict: dict, subset_includelist=None, subset_excludelist=No
         subset_includelist: list, optional - A list of keys to include in the subset. If None, all keys are included.
         subset_excludelist: list, optional - A list of keys to exclude from the subset. If None, no keys are excluded.
 
+        NOTE: `included_keys` is just an alias to `subset_includelist` for compatibility
+        
     Returns:
         dict: The subset of the input dictionary.
-        
+
     Usage:
         from neuropy.utils.mixins.indexing_helpers import get_dict_subset
+
         get_dict_subset(a_dict: dict, subset_includelist=None, subset_excludelist=None)
     """
+    if included_keys is not None:
+        subset_includelist = included_keys
+
     if subset_excludelist is not None:
-        assert subset_includelist is None, "subset_includelist must be None when a subset_excludelist is provided!"
+        assert (subset_includelist is None), "subset_includelist must be None when a subset_excludelist is provided!"
         subset_includelist = [key for key in a_dict.keys() if key not in subset_excludelist]
 
     if subset_includelist is None:
@@ -119,12 +125,14 @@ def get_dict_subset(a_dict: dict, subset_includelist=None, subset_excludelist=No
         # benedict version:
         # return benedict(a_dict).subset(subset_includelist)
         # no benedict required version:
-        subset_dict = {}
-        for key in subset_includelist:
-            if key in a_dict:
-                subset_dict[key] = a_dict[key]
-
-        return subset_dict
+        if require_all_keys:
+            return {included_key:a_dict[included_key] for included_key in subset_includelist} # filter the dictionary for only the keys specified
+        else:
+            subset_dict = {}
+            for included_key in subset_includelist:
+                if included_key in a_dict.keys():
+                    subset_dict[included_key] = a_dict[included_key]
+            return subset_dict
 
 
 
@@ -172,3 +180,24 @@ def pop_dict_subset(a_dict: dict, subset_includelist=None, subset_excludelist=No
             if key in a_dict:
                 subset_dict[key] = a_dict.pop(key)
         return subset_dict
+
+
+def override_dict(lhs_dict, rhs_dict):
+    """returns lhs_dict overriden with the values specified in rhs_dict (if they exist), otherwise returning the extant values.
+
+    from neuropy.utils.mixins.indexing_helpers import get_dict_subset, override_dict, overriding_dict_with
+    
+
+    """
+    limited_rhs_dict = get_dict_subset(rhs_dict, subset_includelist=lhs_dict.keys(), require_all_keys=False)  # restrict the other dict to the subset of keys in lhs_dict
+    return lhs_dict.__or__(limited_rhs_dict) # now can perform normal __or__ using the restricted subset dict
+
+
+def overriding_dict_with(lhs_dict, **kwargs):
+    """returns lhs_dict overriden with the kwargs provided (if they exist), otherwise returning the extant values.
+        Calls self.__ior__(other) under the hood.
+
+        from neuropy.utils.mixins.indexing_helpers import get_dict_subset, override_dict, overriding_dict_with
+
+    """
+    return override_dict(lhs_dict, kwargs)

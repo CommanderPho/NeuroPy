@@ -1,4 +1,6 @@
 from benedict import benedict # https://github.com/fabiocaccamo/python-benedict#usage
+from neuropy.utils.mixins.indexing_helpers import get_dict_subset, override_dict, overriding_dict_with
+
 
 class DictInitializable:
     """ Implementors can be initialized from a dict or dict-like
@@ -26,47 +28,6 @@ class DictRepresentable(DictInitializable):
         raise NotImplementedError
 
 
-
-
-def get_dict_subset(a_dict, included_keys=None, require_all_keys=False):
-    """Gets a subset of a dictionary from a list of keys (included_keys)
-
-    Args:
-        a_dict ([type]): [description]
-        included_keys ([type], optional): [description]. Defaults to None.
-        require_all_keys: Bool, if True, requires all keys in included_keys to be in the dictionary (a_dict)
-
-    Returns:
-        [type]: [description]
-    """
-    if included_keys is not None:
-        if require_all_keys:
-            return {included_key:a_dict[included_key] for included_key in included_keys} # filter the dictionary for only the keys specified
-        else:
-            out_dict = {}
-            for included_key in included_keys:
-                if included_key in a_dict.keys():
-                    out_dict[included_key] = a_dict[included_key]
-            return out_dict
-    else:
-        return a_dict
-    
-    
-def override_dict(lhs_dict, rhs_dict):
-    """returns lhs_dict overriden with the values specified in rhs_dict (if they exist), otherwise returning the extant values.
-
-    from neuropy.utils.mixins.dict_representable import override_dict
-
-    """
-    limited_rhs_dict = get_dict_subset(rhs_dict, included_keys=lhs_dict.keys(), require_all_keys=False)  # restrict the other dict to the subset of keys in lhs_dict
-    return lhs_dict.__or__(limited_rhs_dict) # now can perform normal __or__ using the restricted subset dict
-
-def overriding_dict_with(lhs_dict, **kwargs):
-    """returns lhs_dict overriden with the kwargs provided (if they exist), otherwise returning the extant values.
-        Calls self.__ior__(other) under the hood.
-    """
-    return override_dict(lhs_dict, kwargs)
-    
 
 class DictlikeOverridableMixin:
     """ allows self to be overriden by a kwargs, a dict, or another DictlikeOverridableMixin (dict-like) 
@@ -174,7 +135,7 @@ class DictlikeOverridableMixin:
                 pass # other_dict               
         
         # restrict the other dict to the subset of keys that we have.
-        limited_other_dict = get_dict_subset(other_dict, included_keys=self.to_dict().keys(), require_all_keys=False)
+        limited_other_dict = get_dict_subset(other_dict, subset_includelist=self.to_dict().keys(), require_all_keys=False)
         # dict_or = self.to_dict().__ior__(other_dict)
         dict_or = self.to_dict().__or__(limited_other_dict) # now can perform normal __or__ using the restricted subset dict
         
