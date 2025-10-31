@@ -903,8 +903,8 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             
             
         """
-        bad_sessions = cls.get_hardcoded_bad_sessions()
-        good_sessions = [
+        # bad_sessions = cls.get_hardcoded_bad_sessions()
+        prev_good_sessions = [
             # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-07_11-26-53'), # ONLY ONE SHORT LAP
             IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-08_14-26-15'), # prev completed
             IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_1-22-43'), # prev completed
@@ -916,13 +916,129 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'),
             # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'), # 2025-08-22 - Decided to discard because the positions are shifted between 'x' and 'lin_pos', and that manifests on the pf peaks.
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'),
-            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'), # 2025-08-22 - Decided that this session is bad. The context decoder returns short for nearly all non-lap period pre-delta, and additionally there aren't many replays.
+
+            ## #TODO 2025-10-31 06:09: - [ ] Trial enabled sessions:
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'), # 2025-08-22 - Decided to discard because the positions are shifted between 'x' and 'lin_pos', and that manifests on the pf peaks.
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'), # 2025-08-22 - Decided that this session is bad. The context decoder returns short for nearly all non-lap period pre-delta, and additionally there aren't many replays.
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_21-2-40'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-11_15-16-59'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-12_14-39-31'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-12_17-53-55'),
+            
+
+            ## END NEW BLOCK
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), # 2025-10-20 - Fixed position tracking issues in MATLAB. 2024-10-04 - very bad position tracking data (jumping around everywhere at high frequency)
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'), # 2025-10-20 - Fixed position tracking issues in MATLAB. 2024-10-01 - bad laps, Bad Laps "3"/"4" - don't see lap 1/2
             # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?! Has horrible noise.
             # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
+        ]            
+
+        #TODO 2025-10-31 18:10: - [ ] Added new
+        good_sessions = [
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-07_11-26-53'),
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-07_16-40-19'),
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-08_14-26-15'),
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_15-46-47'),
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_21-16-25'),
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_1-22-43'),
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-09_22-24-40'),
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_3-23-37'),
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-12_15-55-31'),
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-12_16-53-46'),
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-13_14-42-6'),
+            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-13_15-22-3'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_21-26-8'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-05_19-26-43'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_11-43-50'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_12-15-3'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_21-17-16'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_22-4-5'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-03_20-28-3'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-04_21-20-3'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-11_12-48-38'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-11_16-2-46'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-12_15-25-59'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-16_14-49-24'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-16_18-47-52'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-17_12-33-47'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-17_12-52-15'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-18_13-28-57'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-18_13-6-1'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-18_15-23-32'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-19_13-34-40'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-19_13-50-7'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-19_16-37-40'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-21_11-19-2'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-25_13-20-55'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-26_13-51-50'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-27_14-43-12'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_12-38-13'),
         ]
-        return [v for v in good_sessions if (v not in bad_sessions)]
+        
+
+        newly_good_sessions_only = [v for v in good_sessions if (v not in prev_good_sessions)]
+        
+
+        # newly_good_sessions_only = [
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-07_11-26-53'),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-07_16-40-19'),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-08_14-26-15'),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_15-46-47'),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_21-16-25'),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_1-22-43'),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-09_22-24-40'),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_3-23-37'),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-12_15-55-31'),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-12_16-53-46'),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-13_14-42-6'),
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-13_15-22-3'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_21-26-8'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-05_19-26-43'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_11-43-50'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_12-15-3'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_21-17-16'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_22-4-5'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-03_20-28-3'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-04_21-20-3'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-11_12-48-38'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-11_16-2-46'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-12_15-25-59'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-16_14-49-24'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-16_18-47-52'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-17_12-33-47'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-17_12-52-15'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-18_13-28-57'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-18_13-6-1'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-18_15-23-32'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-19_13-34-40'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-19_13-50-7'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-19_16-37-40'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-21_11-19-2'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-25_13-20-55'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-26_13-51-50'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-27_14-43-12'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_12-38-13'),
+        # ]
+
+        return newly_good_sessions_only
+
+        # return [v for v in good_sessions if (v not in bad_sessions)]
 
 
     @classmethod
@@ -943,44 +1059,124 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             
         
         """
+        # prev_bad_session_contexts: List[IdentifyingContext] = [
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-07_11-26-53'), # ONLY ONE SHORT LAP
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_21-16-25'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?!
+        #     IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-09_22-24-40'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?!
+            
+        #     # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'), # 2025-08-22 - Decided to discard because the positions are shifted between 'x' and 'lin_pos', and that manifests on the pf peaks.
+        #     # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'), # 2025-08-22 - Decided that this session is bad. The context decoder returns short for nearly all non-lap period pre-delta, and additionally there aren't many replays.
+        #     # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_21-2-40'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_19-11-57'),
+
+        #     # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-11_15-16-59'),
+
+        #     # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-12_14-39-31'),
+        #     # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-12_17-53-55'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-12_14-59-23'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-16_15-12-23'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-16_18-47-52'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-19_16-48-9'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-21_10-24-35'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-25_14-28-51'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-25_17-17-6'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-26_13-22-13'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-28_12-17-27'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-28_16-48-29'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'), #TODO 2025-07-16 17:36: - [ ] Failed Wave1 - FailedWave3 -- DO NOT USE
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-18_15-38-2'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-25_17-33-28'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-27_18-21-57'),
+        #     IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_17-6-14'),
+        #     # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), # 2024-10-04 - very bad position tracking data (jumping around everywhere at high frequency)
+        #     # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'), # 2025-10-20 - Fixed position tracking issues in MATLAB. 2024-10-01 - bad laps, Bad Laps "3"/"4" - don't see lap 1/2
+        #     # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), # 2025-10-20 - Fixed position tracking issues in MATLAB. 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?!
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-03_11-0-53'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'), ## 2025-10-22 - was included
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_12-35-59'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-2-0'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-55-7'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='redundant'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='showclus'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='sleep'),
+        #     IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='tmaze')
+        # ]
+
         bad_session_contexts: List[IdentifyingContext] = [
-            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-07_11-26-53'), # ONLY ONE SHORT LAP
-            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_21-16-25'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?!
-            IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-09_22-24-40'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?!
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'), # 2025-08-22 - Decided to discard because the positions are shifted between 'x' and 'lin_pos', and that manifests on the pf peaks.
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'), # 2025-08-22 - Decided that this session is bad. The context decoder returns short for nearly all non-lap period pre-delta, and additionally there aren't many replays.
+            ## POTENTIALLY BADS:
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-07_11-26-53'),
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-07_16-40-19'),
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-08_14-26-15'),
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_15-46-47'),
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_21-16-25'),
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_1-22-43'),
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-09_22-24-40'),
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-09_3-23-37'),
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-12_15-55-31'),
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-12_16-53-46'),
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-13_14-42-6'),
+            # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-13_15-22-3'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_21-26-8'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-05_19-26-43'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_11-43-50'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_12-15-3'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_21-17-16'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-09_22-4-5'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-03_20-28-3'),
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-04_21-20-3'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-11_12-48-38'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-11_16-2-46'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-12_15-25-59'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-16_14-49-24'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-16_18-47-52'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-17_12-33-47'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-17_12-52-15'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-18_13-28-57'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-18_13-6-1'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-18_15-23-32'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-19_13-34-40'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-19_13-50-7'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-19_16-37-40'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-21_11-19-2'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-25_13-20-55'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-26_13-51-50'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-27_14-43-12'),
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_12-38-13'),
+            ## Fundamentally bads:
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_12-35-59'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-2-0'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-55-7'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-03_11-0-53'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='redundant'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='showclus'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='sleep'),
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='tmaze'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_19-11-57'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_21-2-40'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-11_15-16-59'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-12_14-39-31'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-12_14-59-23'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-12_17-53-55'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-16_15-12-23'),
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-16_18-47-52'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-18_15-38-2'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-19_16-48-9'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-21_10-24-35'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-25_14-28-51'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-25_17-17-6'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-25_17-33-28'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-26_13-22-13'),
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-27_18-21-57'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-28_12-17-27'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-28_16-48-29'),
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'), #TODO 2025-07-16 17:36: - [ ] Failed Wave1 - FailedWave3 -- DO NOT USE
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_19-11-57'),
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-12_14-59-23'),
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-18_15-38-2'),
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-25_17-33-28'),
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-27_18-21-57'),
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_17-6-14'),
-            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), # 2024-10-04 - very bad position tracking data (jumping around everywhere at high frequency)
-            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'), # 2025-10-20 - Fixed position tracking issues in MATLAB. 2024-10-01 - bad laps, Bad Laps "3"/"4" - don't see lap 1/2
-            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), # 2025-10-20 - Fixed position tracking issues in MATLAB. 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?!
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-03_11-0-53'),
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'), ## 2025-10-22 - was included
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_12-35-59'),
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-2-0'),
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-55-7'),
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='redundant'),
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='showclus'),
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='sleep'),
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='tmaze')
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_17-6-14')
         ]
 
         return bad_session_contexts
