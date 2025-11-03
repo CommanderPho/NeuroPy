@@ -947,6 +947,8 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-12_16-53-46'),
             # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-13_14-42-6'),
             # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-13_15-22-3'),
+            
+
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
@@ -959,13 +961,20 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-03_20-28-3'),
             # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-04_21-20-3'),
+            
+
+
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'),
+            IdentifyingContext(format_name='kdiba', animal='vvp01', exper_name='one', session_name='2006-4-10_21-2-40'), ## #TODO 2025-11-03 11:17: - [ ] NEW
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-11_12-48-38'),
+            IdentifyingContext(format_name='kdiba', animal='vvp01', exper_name='one', session_name='2006-4-11_15-16-59'), ## #TODO 2025-11-03 11:17: - [ ] NEW
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-11_16-2-46'),
+            IdentifyingContext(format_name='kdiba', animal='vvp01', exper_name='one', session_name= '2006-4-12_14-39-31'), ## #TODO 2025-11-03 11:17: - [ ] NEW
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-12_15-25-59'),
+            IdentifyingContext(format_name='kdiba', animal='vvp01', exper_name='one', session_name='2006-4-12_17-53-55'), ## #TODO 2025-11-03 11:17: - [ ] NEW
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-16_14-49-24'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-16_18-47-52'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-17_12-33-47'),
@@ -982,11 +991,13 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-27_14-43-12'),
             # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_12-38-13'),
         ]
+
         
 
         newly_good_sessions_only = [v for v in good_sessions if (v not in prev_good_sessions)]
+        prev_good_sessions_only = [v for v in prev_good_sessions if (v not in good_sessions)]
+        prev_good_sessions_only
         
-
         # newly_good_sessions_only = [
             # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-07_11-26-53'),
             # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-07_16-40-19'),
@@ -1036,7 +1047,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_12-38-13'),
         # ]
 
-        return newly_good_sessions_only
+        return good_sessions
 
         # return [v for v in good_sessions if (v not in bad_sessions)]
 
