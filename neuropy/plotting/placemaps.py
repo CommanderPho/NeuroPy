@@ -124,7 +124,7 @@ def perform_plot_occupancy(occupancy: NDArray, xbin_centers: Optional[NDArray]=N
             occupancy_ax = ax
 
         # only_visited_occupancy = occupancy_1D.copy() # AttributeError: 'PfND' object has no attribute 'copy'
-        only_visited_occupancy = deepcopy(occupancy_1D)
+        only_visited_occupancy = deepcopy(occupancy_1D).astype(float)
         
         # print('only_visited_occupancy: {}'.format(only_visited_occupancy))
         if drop_below_threshold is not None:
