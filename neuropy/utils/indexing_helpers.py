@@ -1376,7 +1376,7 @@ class PandasHelpers:
         return pd.merge(df, subset_neurons_properties_df, on=join_column_name, how='left', suffixes=('_neurons_properties', '_spikes_df'), copy=False) # avoids copying if possible
 
     @classmethod
-    def adding_additional_df_columns(cls, original_df: pd.DataFrame, additional_cols_df: pd.DataFrame) -> pd.DataFrame:
+    def adding_additional_df_columns(cls, original_df: pd.DataFrame, additional_cols_df: pd.DataFrame, require_same_num_rows: bool=True) -> pd.DataFrame:
         """ Adds the columns in `additional_cols_df` to `original_df`, horizontally concatenating them without considering either index.
 
         Usage:
@@ -1385,16 +1385,55 @@ class PandasHelpers:
 
             a_result.filter_epochs = PandasHelpers.adding_additional_df_columns(original_df=a_result.filter_epochs, additional_cols_df=_out_new_scores[a_name]) # update the filter_epochs with the new columns
 
-        """     
-        assert np.shape(additional_cols_df)[0] == np.shape(original_df)[0], f"np.shape(additional_cols_df)[0]: {np.shape(additional_cols_df)[0]} != np.shape(original_df)[0]: {np.shape(original_df)[0]}"
-        # For each column in additional_cols_df, add it to original_df
-        for column in additional_cols_df.columns:
-            if not isinstance(original_df, pd.DataFrame):
-                original_df._df[column] = additional_cols_df[column].values # Assume an Epoch, set the internal df
-            else:
-                # just set the column
-                original_df[column] = additional_cols_df[column].values # TypeError: 'Epoch' object does not support item assignment
+        """
+        # from pyphocorehelpers.assertion_helpers import Assert ## bad dependency
+        
+        if require_same_num_rows:
+            assert np.shape(additional_cols_df)[0] == np.shape(original_df)[0], f"np.shape(additional_cols_df)[0]: {np.shape(additional_cols_df)[0]} != np.shape(original_df)[0]: {np.shape(original_df)[0]}"
+            # For each column in additional_cols_df, add it to original_df
+            for column in additional_cols_df.columns:
+                if not isinstance(original_df, pd.DataFrame):
+                    original_df._df[column] = additional_cols_df[column].values # Assume an Epoch, set the internal df
+                else:
+                    # just set the column
+                    original_df[column] = additional_cols_df[column].values # TypeError: 'Epoch' object does not support item assignment
+                
             
+        else:
+            ## idnex version of `PandasHelpers.adding_additional_df_columns(`
+            ## start by making needed empties in the target df:
+            # {'wcorr_long_LR': dtype('float64'), 'wcorr_long_RL': dtype('float64'), 'wcorr_short_LR': dtype('float64'), 'wcorr_short_RL': dtype('float64'), 'best_decoder_index': dtype('int64'), 'start': dtype('float64'), 'is_valid': dtype('bool')}
+            are_dfs_identical_num_rows: bool = (np.shape(additional_cols_df)[0] == np.shape(original_df)[0])
+            
+            if 'is_valid' not in additional_cols_df.columns:
+                additional_cols_df['is_valid'] = np.isin(additional_cols_df['start'].to_numpy(), original_df['epoch_start_t'].to_numpy())
+
+            # assert np.shape(additional_cols_df)[0] == np.shape(original_df)[0], f"np.shape(additional_cols_df)[0]: {np.shape(additional_cols_df)[0]} != np.shape(original_df)[0]: {np.shape(original_df)[0]}"
+            default_dtype_to_empty_values_map = {np.dtype('float64'): np.nan, np.dtype('int64'): np.nan, np.dtype('object'): '',  np.dtype('bool'): False}
+            # For each column in additional_cols_df, add it to original_df
+            for column, a_col_dtype in additional_cols_df.dtypes.to_dict().items():
+                if are_dfs_identical_num_rows:
+                    if not isinstance(original_df, pd.DataFrame):
+                        original_df._df[column] = additional_cols_df[column].values # Assume an Epoch, set the internal df
+                    else:
+                        # just set the column
+                        original_df[column] = additional_cols_df[column].values # TypeError: 'Epoch' object does not support item assignment
+                else:
+                    ## 2025-11-12 - more complex case
+                    ## create empties first
+                    assert a_col_dtype in default_dtype_to_empty_values_map, f"a_col_dtype: {a_col_dtype} for col: {column} is not handled in default_dtype_to_empty_values_map: {default_dtype_to_empty_values_map}"
+                    a_default_value = default_dtype_to_empty_values_map[a_col_dtype]
+                    if not isinstance(original_df, pd.DataFrame):
+                        original_df._df[column] = a_default_value # Assume an Epoch, set the internal df
+                    else:
+                        # just set the column
+                        original_df[column] = a_default_value # TypeError: 'Epoch' object does not support item assignment
+
+                    # Assert.len_equals(additional_cols_df[additional_cols_df['is_valid']], len(original_df))
+                    assert (len(additional_cols_df[additional_cols_df['is_valid']]) == len(original_df)), f"(len(additional_cols_df[additional_cols_df['is_valid']]): {len(additional_cols_df[additional_cols_df['is_valid']])} != len(original_df): {len(original_df)})"
+                    
+                    original_df[column] = additional_cols_df[additional_cols_df['is_valid']][column] ## get the valid entries only
+
             
         return original_df
 
