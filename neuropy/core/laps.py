@@ -739,7 +739,10 @@ class Laps(Epoch):
         laps_df
 
         """
-        self._df.laps_accessor.update_maze_id_if_needed(t_start, t_delta, t_end)
+        # self._df.laps_accessor.update_maze_id_if_needed(t_start, t_delta, t_end)
+        self._df = self._df.epochs.adding_maze_id_if_needed(
+            t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=True, labels_column_name='lap_id'
+        )    
         return None
 
 
