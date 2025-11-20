@@ -918,8 +918,8 @@ class PandasHelpers:
         Usage:
 
             required_cols = ['missing_column', 'congruent_dir_bins_ratio', 'coverage', 'direction_change_bin_ratio', 'jump', 'laplacian_smoothness', 'longest_sequence_length', 'longest_sequence_length_ratio', 'monotonicity_score', 'sequential_correlation', 'total_congruent_direction_change', 'travel'] # Replace with actual column names you require
-            missing_columns, all_have_all_required_columns = PandasHelpers.check_columns({a_name:a_result.filter_epochs for a_name, a_result in filtered_decoder_filter_epochs_decoder_result_dict.items()}, required_cols, print_missing_columns=True)
-            missing_columns
+            mall_have_all_required_columns, num_missing_columns, missing_columns, found_columns, all_df_columns) = PandasHelpers.check_columns({a_name:a_result.filter_epochs for a_name, a_result in filtered_decoder_filter_epochs_decoder_result_dict.items()}, required_cols, print_missing_columns=True)
+            debug_tuple
             all_have_all_required_columns
 
 
