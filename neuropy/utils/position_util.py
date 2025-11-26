@@ -8,8 +8,15 @@ from scipy.ndimage import gaussian_filter1d
 from .. import core
 from neuropy.utils.mathutil import contiguous_regions, threshPeriods, compute_grid_bin_bounds, map_value
 from neuropy.utils.mixins.binning_helpers import compute_spanning_bins
-
+from typing import Dict, List, Tuple, Optional, Callable, Union, Any
+from typing_extensions import TypeAlias
+from nptyping import NDArray
+import neuropy.utils.type_aliases as types
 from enum import Enum
+from attrs import define, field, Factory
+import numpy as np
+from neuropy.core.epoch import NamedTimerange, EpochsAccessor, Epoch
+from shapely.geometry import LineString, Point # for ShapelyMaze
 
 
 class RegularizationApproach(Enum):
@@ -19,7 +26,44 @@ class RegularizationApproach(Enum):
     RESTORE_X_RANGE = "restore_x_range" # restores the original range of the x values after performing the linearization.
     
 
-def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", sigma=2, override_position_sampling_rate_Hz=None, regularization_approach:RegularizationApproach=RegularizationApproach.RAW_VALUES):
+
+@define(slots=False)
+class ShapelyMaze:
+    nodes: List[Tuple[float, float]] = field(default=Factory(list))
+    maze_track_line: LineString = field(default=None, init=False)
+    
+    def __attrs_post_init__(self):
+        self.maze_track_line = LineString(self.nodes)
+    
+    def shapely_linearize_trajectory(self, df: pd.DataFrame):
+        """
+        Linearize trajectory points by projecting them onto a Shapely LineString.
+
+        Args:
+            df (pd.DataFrame): DataFrame with 'x' and 'y' columns.
+            track_line (LineString): Shapely LineString representing the maze path.
+
+        Returns:
+            pd.Series: Linearized positions (distance along the track_line).
+        """
+        # Create Point objects from 'x' and 'y' columns
+        # Using .apply() with a lambda function for potentially better performance than a list comprehension on large DFs
+        points = df.apply(lambda row: Point(row['x'], row['y']), axis=1)
+
+        # Project each point onto the LineString and get the distance along it
+        linear_positions = [self.maze_track_line.project(p) for p in points]
+        return pd.Series(linear_positions, index=df.index)
+    
+
+@define(slots=False)
+class ShapelyMazeCollection:
+    shapelyMazes: Dict[str, ShapelyMaze] = field(default=Factory(dict))
+    valid_epochs: Dict[str, Tuple[float, float]] = field(default=Factory(dict))    
+
+
+
+def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", sigma=2, override_position_sampling_rate_Hz=None, regularization_approach:RegularizationApproach=RegularizationApproach.RAW_VALUES,
+                          all_session_mazes: Optional[ShapelyMazeCollection]=None):
     """linearize trajectory. Use method='PCA' for off-angle linear track, method='ISOMAP' for any non-linear track.
     ISOMAP is more versatile but also more computationally expensive.
 
@@ -44,6 +88,8 @@ def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", s
     if method.lower() == "pca":
         pca = PCA(n_components=1)
         xlinear = pca.fit_transform(xy_pos).squeeze()
+
+
     elif method.lower() == "isomap":
         imap = Isomap(n_neighbors=5, n_components=2)
         # downsample points to reduce memory load and time
@@ -98,11 +144,42 @@ def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", s
 
         # Interpolate for all timepoints
         from scipy.interpolate import interp1d
-        interp_func = interp1d(
-            t_ds, xlinear_ds, kind='linear', fill_value="extrapolate", assume_sorted=True)
+        interp_func = interp1d(t_ds, xlinear_ds, kind='linear', fill_value="extrapolate", assume_sorted=True)
         xlinear = interp_func(t_all)
 
+    elif method.lower() == "shapely":
+        ## Added 2025-11-26 - Shapely uses user-defined track geometry (shapes) to properly linearize the 2D position in a manner way more efficient than UMAP (which exceeds memory bounds)
+        assert all_session_mazes is not None, f"all_session_mazes must be provided (defining the maze/track geometry) when using method == 'shapely'."
+        ## INPUTS: pos_df, all_session_mazes (with shapelyMazes and valid_epochs)
+        piecewise_lin_pos = pd.Series(np.nan, index=pos_df.index, dtype=float)
+        t_col = pos_df['t'].to_numpy()
 
+        for track_maze_key, shapely_maze in all_session_mazes.shapelyMazes.items():
+            # Get the valid epoch time bounds for this maze
+            epoch_bounds = all_session_mazes.valid_epochs.get(track_maze_key, None)
+            if epoch_bounds is None:
+                continue
+            maze_start_t, maze_end_t = epoch_bounds
+
+            # Find rows where 't' falls within the maze's valid epoch
+            time_mask = (t_col >= maze_start_t) & (t_col <= maze_end_t)
+            if not np.any(time_mask):
+                continue
+
+            # Check if pre-computed linearized position column exists
+            source_col_name = f'shapely_linearized_position_{track_maze_key}'
+            if source_col_name in pos_df.columns:
+                # Use pre-computed values
+                piecewise_lin_pos.loc[time_mask] = pos_df.loc[time_mask, source_col_name]
+            else:
+                # Compute linearization on-the-fly using the ShapelyMaze
+                track_pos_df = pos_df.loc[time_mask, ['x', 'y']]
+                linearized_values = shapely_maze.shapely_linearize_trajectory(track_pos_df)
+                piecewise_lin_pos.loc[time_mask] = linearized_values.values
+
+        xlinear = piecewise_lin_pos.to_numpy()
+        # from pyphoplacecellanalysis.SpecificResults.PendingNotebookCode import bapun_proper_linearize_tracks
+        # pos_df_dict, maze_track_line_dict = bapun_proper_linearize_tracks(curr_active_pipeline)
 
     else:
         print('ERROR: invalid method name: {}'.format(method))
