@@ -314,11 +314,13 @@ class LapsAccessor(EpochsAccessor):
         laps = sess.laps
         laps_df: pd.DataFrame = laps.to_dataframe()
         
-        pos = sess.position
-        linear_pos = pos.linear_pos_obj
+        pos = sess.position        
+        pos_df: pd.DataFrame = pos.adding_approx_head_dir_columns() ## also updates `pos` object 
         
+        linear_pos = pos.linear_pos_obj
         linear_pos_df = linear_pos.to_dataframe()
-        pos_df = pos.to_dataframe()
+
+        # pos_df = pos.to_dataframe()
         extra_col_names = ['lap', 'lap_dir', 'lin_pos_smooth']
         extra_col_names = [v for v in extra_col_names if v in pos_df.columns]
         if len(extra_col_names) > 0:

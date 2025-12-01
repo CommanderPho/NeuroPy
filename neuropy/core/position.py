@@ -358,7 +358,8 @@ class PositionComputedDataMixin(PositionSlicedMixin):
 
         Usage:
             global_pos_obj: Position = deepcopy(global_session.position)
-
+            global_pos_df: pd.DataFrame = global_pos_obj.adding_approx_head_dir_columns() ## also `global_pos_obj` 
+            
         """
         self.df = self.compute_higher_order_derivatives().position.compute_smoothed_position_info(N=N)
         self.df['approx_head_dir_degrees'] = ((np.rad2deg(np.arctan2(self.df['velocity_y_smooth'], self.df['velocity_x_smooth'])) + 360) % 360) # arctan2 is required to get the angle right
