@@ -723,6 +723,32 @@ class PositionAccessor(PositionDimDataMixin, PositionComputedDataMixin, TimeSlic
         return lap_epochs_df
 
 
+    def detect_general_non_running_epochs(self, max_run_speed: float = 2.0, minimum_epoch_duration: float = 0.5, merging_adjacent_max_separation_sec: float = 0.01, speed_col_name: str ='speed_xy') -> pd.DataFrame:
+        """ 
+        Returns an Epochs objects describe time frames where the animal is above a certain speed
+        
+        Usage:
+            a_sess = curr_active_pipeline.filtered_sessions[k]
+            non_running_epochs_df: pd.DataFrame = a_sess.position.compute_speed_info().position.detect_general_non_running_epochs(max_run_speed = 2.0)
+            non_running_epochs_df
+
+        """
+        from neuropy.utils.indexing_helpers import NeuroPyDataframeAccessor
+        
+        a_pos_df: pd.DataFrame = self.compute_speed_info()
+
+        if speed_col_name not in a_pos_df:
+            ## compute linear speed
+            raise NotImplementedError(f'missing requested speed column: "{speed_col_name}". Present columns: {list(a_pos_df.columns)}')
+        
+        movement_speed_variable = a_pos_df[speed_col_name].abs().values
+        non_running_epochs_df: pd.DataFrame = a_pos_df.neuropy.detect_epoch_satisfying_condition(is_condition_satisfied = (movement_speed_variable <= max_run_speed),
+                                                                            minimum_epoch_duration=minimum_epoch_duration, merging_adjacent_max_separation_sec=merging_adjacent_max_separation_sec,
+                                                                            time_col_name='t')
+        return non_running_epochs_df
+
+
+
     
 def _subfn_build_or_add_traces_df(df: Optional[pd.DataFrame], traces: NDArray, col_suffix: str='') -> pd.DataFrame:
     if traces.ndim == 1:
