@@ -1826,8 +1826,19 @@ class NeuroPyDataframeAccessor:
         # 2) each rising must occur before the corresponding falling (falling is index of first-False -> falling-1 is last True)
         assert np.all(rising_edges <= falling_edges - 1), f"some rising_edges > falling_edges-1 (invalid intervals): rising_edges={rising_edges}, falling_edges={falling_edges}"
 
+        # Verify that is_condition_satisfied size matches dataframe size
+        if is_condition_satisfied.size != len(self._df):
+            raise ValueError(f"is_condition_satisfied size ({is_condition_satisfied.size}) must match dataframe length ({len(self._df)})")
+        
+        # Clamp indices to valid range for .iloc[] indexing (handle one-past-the-end case)
+        # falling_edges can contain is_condition_satisfied.size (one-past-the-end), which needs clamping
+        # rising_edges should be valid, but clamp defensively
+        max_valid_idx = len(self._df) - 1
+        rising_edges_clamped = np.clip(rising_edges, 0, max_valid_idx)
+        falling_edges_clamped = np.clip(falling_edges, 0, max_valid_idx)
+        
         # (rising_edges, falling_edges)
-        satisfied_epochs_df: pd.DataFrame = pd.DataFrame(dict(zip(['start', 'stop'], [np.squeeze(self._df[time_col_name].iloc[idxs].to_numpy()) for idxs in (rising_edges, falling_edges)])))
+        satisfied_epochs_df: pd.DataFrame = pd.DataFrame(dict(zip(['start', 'stop'], [np.squeeze(self._df[time_col_name].iloc[idxs].to_numpy()) for idxs in (rising_edges_clamped, falling_edges_clamped)])))
         assert len(rising_edges) == len(satisfied_epochs_df)
         assert len(falling_edges) == len(satisfied_epochs_df)
         
