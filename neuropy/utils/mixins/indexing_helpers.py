@@ -25,21 +25,45 @@ class UnpackableMixin:
         # return [self.__attrs_attrs__.is_global, self.__attrs_attrs__.ripple_most_likely_result_tuple, self.__attrs_attrs__.laps_most_likely_result_tuple, self.__attrs_attrs__.minimum_inclusion_fr_Hz]
         return None
 
+    def UnpackableMixin_unpacking_includes(self) -> Optional[List]:
+        """ Items to be included (allowlist) from unpacking. 
+        """
+        # return [self.__attrs_attrs__.is_global, self.__attrs_attrs__.ripple_most_likely_result_tuple, self.__attrs_attrs__.laps_most_likely_result_tuple, self.__attrs_attrs__.minimum_inclusion_fr_Hz]
+        return None
+    
     def __iter__(self):
         """ allows unpacking. See https://stackoverflow.com/questions/37837520/implement-packing-unpacking-in-an-object """
         # return iter(astuple(self)) # deep unpacking causes problems
         unpacking_excludes = self.UnpackableMixin_unpacking_excludes()
-        if (unpacking_excludes is not None) and (len(unpacking_excludes) > 0):
+        unpacking_includes = self.UnpackableMixin_unpacking_includes()
+        has_excludes: bool = (unpacking_excludes is not None) and (len(unpacking_excludes) > 0)
+        has_includes: bool = (unpacking_includes is not None) and (len(unpacking_includes) > 0)
+        assert (not (has_includes and has_excludes)), f"cannot use both includes and excludes! unpacking_excludes: {unpacking_excludes}, unpacking_includes: {unpacking_includes}"
+        
+        if has_excludes:
             # unpack all but the filter object:
-            return iter(attrs.astuple(self, filter=attrs.filters.exclude(*self.UnpackableMixin_unpacking_excludes()))) #  'is_global'
+            return iter(attrs.astuple(self, filter=attrs.filters.exclude(*unpacking_excludes))) #  'is_global'
+        
+        elif has_includes:
+            # unpack all but the filter object:
+            return iter(attrs.astuple(self, filter=attrs.filters.include(*unpacking_includes))) #  'is_global'
+
         else:
             # no filter:
             return iter(attrs.astuple(self))
 
+    def as_tuple(self) -> Tuple:
+        return tuple(self.__iter__())
+        
+
     def __len__(self) -> int:
         # length is the number of tuple attributes to unpack
-        return len(tuple(self.__iter__()))
+        # return len(tuple(self.__iter__()))
+        return len(self.as_tuple())
 
+
+    def __getitem__(self, index):
+        return self.as_tuple()[index]
 
 
 
