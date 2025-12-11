@@ -1768,7 +1768,7 @@ class NeuroPyDataframeAccessor:
 
 
     def detect_epoch_satisfying_condition(self, is_condition_satisfied: NDArray,  minimum_epoch_duration: Optional[float] = None, merging_adjacent_max_separation_sec: Optional[float] = None, time_col_name: str = 't',
-                                            drop_epochs_overlapping_start_end: bool=False):
+                                            drop_epochs_overlapping_start_end: bool=False, debug_print: bool=False):
         """
         Returns an Epochs objects describe time frames where a certain condition is satisfied, for example the animal is above a certain speed
 
@@ -1799,14 +1799,16 @@ class NeuroPyDataframeAccessor:
                 if len(falling_edges) == (len(rising_edges) + 1):
                     ## remove the extra falling edge
                     falling_edges = falling_edges[1:]
-                    print(f'dropped 1 falling_edges')
+                    if debug_print:
+                        print(f'dropped 1 falling_edges')
                 assert len(falling_edges) == len(rising_edges), f'ERROR: rising_edges: {rising_edges}\nfalling_edges: {falling_edges}'
             if is_condition_satisfied[-1]:
                 ## drop last rising_edge
                 if len(rising_edges) == (len(falling_edges) + 1):
                     ## remove the extra rising edge
                     rising_edges = rising_edges[:-1]
-                    print(f'dropped 1 rising_edges')
+                    if debug_print:
+                        print(f'dropped 1 rising_edges')
                 assert len(rising_edges) == len(falling_edges), f'ERROR: rising_edges: {rising_edges}\nfalling_edges: {falling_edges}'
         else:
             # include partial epochs by padding to the recording boundaries
@@ -1814,12 +1816,14 @@ class NeuroPyDataframeAccessor:
                 # rising_edges = np.concatenate(([0], rising_edges)) if rising_edges.size else np.array([0], dtype=int)
                 ## add initial rising edge
                 rising_edges = np.concatenate(([0], rising_edges)) if rising_edges.size else np.array([0], dtype=int)
-                print(f'adding one 1 rising_edges')
+                if debug_print:
+                    print(f'adding one 1 rising_edges')
             if is_condition_satisfied[-1]:
                 # falling_edges = np.concatenate((falling_edges, [is_condition_satisfied.size])) if falling_edges.size else np.array([is_condition_satisfied.size], dtype=int)
                 ## add final falling edge one-past-last
                 falling_edges = np.concatenate((falling_edges, [is_condition_satisfied.size])) if falling_edges.size else np.array([is_condition_satisfied.size], dtype=int)
-                print(f'adding one 1 falling_edges')
+                if debug_print:
+                    print(f'adding one 1 falling_edges')
 
 
         assert len(rising_edges) == len(falling_edges), f"even after correction, len(rising_edges) != len(falling_edges)\n\tlen(rising_edges): {len(rising_edges)}, len(falling_edges): {len(falling_edges)}"
