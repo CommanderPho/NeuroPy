@@ -162,8 +162,11 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         bapun_epochs = BapunDataSessionFormatRegisteredClass._bapun_session_fixup_epochs_to_be_non_overlapping(bapun_epochs=bapun_epochs)
         
         """
-        bapun_epochs_df: pd.DataFrame = ensure_dataframe(bapun_epochs) #.to_dataframe()
+        from neuropy.core.epoch import Epoch, EpochsAccessor, NamedTimerange, ensure_dataframe, ensure_Epoch
         
+        bapun_epochs_df: pd.DataFrame = ensure_dataframe(bapun_epochs) #.to_dataframe()
+        bapun_params = cls._get_session_specific_parameters(session_context=curr_sess_context)
+
         is_bapun_Day4OpenField_sess: bool = False
         needs_update: bool = True
         if curr_sess_context is not None:
@@ -197,7 +200,9 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         if enable_global_epoch:
             # maze_epochs_df = deepcopy(curr_active_pipeline.sess.epochs).to_dataframe()
             if 'maze_GLOBAL' not in bapun_epochs_df['label']:
-                bapun_epochs_df = bapun_epochs_df.epochs.adding_global_epoch_row(global_epoch_name='maze_GLOBAL')
+                assert len(bapun_params.non_global_activity_session_names) >= 2, f"bapun_params.non_global_activity_session_names: {non_global_activity_session_names}"
+                bapun_epochs_df = bapun_epochs_df.epochs.adding_global_epoch_row(global_epoch_name='maze_GLOBAL',
+                                             first_included_epoch_name=bapun_params.non_global_activity_session_names[0], last_included_epoch_name=bapun_params.non_global_activity_session_names[-1], inplace=False)
 
         return Epoch(bapun_epochs_df, metadata=bapun_epochs.metadata)
 
