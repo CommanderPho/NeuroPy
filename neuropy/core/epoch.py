@@ -2179,8 +2179,6 @@ def ensure_Epoch(epochs: Union[Epoch, pd.DataFrame], metadata=None) -> Epoch:
         return epochs
     
 
-
-
 def subdivide_epochs(df: pd.DataFrame, subdivide_bin_size: float, start_col='start', stop_col='stop') -> pd.DataFrame:
     """ splits each epoch into equally sized chunks determined by subidivide_bin_size.
     
