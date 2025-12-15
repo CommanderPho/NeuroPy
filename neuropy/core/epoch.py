@@ -1445,7 +1445,7 @@ epochs_df
         if inplace:
             self._obj = maze_epochs_df
             
-        return self._obj
+        return maze_epochs_df # self._obj
 
 
     # @function_attributes(short_name=None, tags=['epochs', 'combine' 'global'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-09-08 16:19', related_items=[])
