@@ -426,7 +426,7 @@ def _compute_time_point_event_arbitrary_provided_epoch_ids(spk_df, provided_epoc
         assert epoch_label_column_name in provided_epochs_df.columns, f"if epoch_label_column_name is specified (not None) than the column {epoch_label_column_name} must exist in the provided_epochs_df, but provided_epochs_df.columns: {list(provided_epochs_df.columns)}!"
         selected_spikes = active_spikes_df.groupby(['Probe_Epoch_id', 'aclu'])[active_spikes_df.spikes.time_variable_name].first() # first spikes
     
-    spike_epoch_identity_arr = _compute_time_point_event_arbitrary_provided_epoch_ids(spk_df, epochs_df, epoch_label_column_name=epoch_label_column_name, override_time_variable_name=override_time_variable_name, no_interval_fill_value=no_interval_fill_value, overlap_behavior=overlap_behavior)
+    spike_epoch_identity_arr = determine_event_interval_identity(spk_df, epochs_df, epoch_label_column_name=epoch_label_column_name, override_time_variable_name=override_time_variable_name, no_interval_fill_value=no_interval_fill_value, overlap_behavior=overlap_behavior)
     spk_df[epoch_id_key_name] = spike_epoch_identity_arr
     return spk_df
 
@@ -453,10 +453,30 @@ def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoc
     else:
         assert epoch_label_column_name in provided_epochs_df.columns, f"if epoch_label_column_name is specified (not None) than the column {epoch_label_column_name} must exist in the provided_epochs_df, but provided_epochs_df.columns: {list(provided_epochs_df.columns)}!"
         curr_epoch_identity_labels = provided_epochs_df[epoch_label_column_name].to_numpy()
-        
-    if debug_print:
-        print(f'np.shape(spk_times_arr): {np.shape(spk_times_arr)}, p.shape(curr_epochs_start_stop_arr): {np.shape(curr_epochs_start_stop_arr)}, p.shape(curr_epoch_identity_labels): {np.shape(curr_epoch_identity_labels)}')
-    spike_epoch_identity_arr = determine_event_interval_identity(spk_times_arr, curr_epochs_start_stop_arr, curr_epoch_identity_labels, no_interval_fill_value=no_interval_fill_value, overlap_behavior=overlap_behavior)
+    if (isinstance(no_interval_fill_value, str) or isinstance(curr_epoch_identity_labels[0], str)):
+        # Stable encoding
+        unique_labels, period_identity_label_codes = np.unique(curr_epoch_identity_labels, return_inverse=True)
+        _bak_no_interval_fill_value = deepcopy(no_interval_fill_value)
+        no_interval_fill_value = -1 # force to -1
+        restore_replace_map = dict(zip(period_identity_label_codes, unique_labels))
+        restore_replace_map[no_interval_fill_value] = _bak_no_interval_fill_value
+        # unique_labels: array(['roam', 'sprinkle'], dtype=object)
+        # period_identity_label_codes: array([0, 1], dtype=int64)
+        if debug_print:
+            print(f'np.shape(spk_times_arr): {np.shape(spk_times_arr)}, p.shape(curr_epochs_start_stop_arr): {np.shape(curr_epochs_start_stop_arr)}, p.shape(curr_epoch_identity_labels): {np.shape(curr_epoch_identity_labels)}')
+        spike_epoch_identity_arr = determine_event_interval_identity(spk_times_arr, curr_epochs_start_stop_arr, period_identity_label_codes, no_interval_fill_value=no_interval_fill_value, overlap_behavior=overlap_behavior)
+        assert restore_replace_map is not None
+        # Convert codes back to string labels:
+        spike_epoch_identity_arr = np.array([restore_replace_map[v] for v in spike_epoch_identity_arr], dtype=object)
+
+
+    else:
+        ## regular non-string case:
+        period_identity_label_codes = None
+        if debug_print:
+            print(f'np.shape(spk_times_arr): {np.shape(spk_times_arr)}, p.shape(curr_epochs_start_stop_arr): {np.shape(curr_epochs_start_stop_arr)}, p.shape(curr_epoch_identity_labels): {np.shape(curr_epoch_identity_labels)}')
+        spike_epoch_identity_arr = determine_event_interval_identity(spk_times_arr, curr_epochs_start_stop_arr, curr_epoch_identity_labels, no_interval_fill_value=no_interval_fill_value, overlap_behavior=overlap_behavior)
+
     return spike_epoch_identity_arr
 
 
@@ -519,6 +539,7 @@ def add_epochs_id_identity(spk_df, epochs_df, epoch_id_key_name='temp_epoch_id',
         # np.shape(spk_times_arr): (16318817,), p.shape(pbe_start_stop_arr): (10960, 2), p.shape(pbe_identity_label): (10960,)
         spike_pbe_identity_arr # Elapsed Time (seconds) = 90.92654037475586, 93.46184754371643, 90.16610431671143 , 89.04321789741516
     """
+    
     spike_epoch_identity_arr = _compute_spike_arbitrary_provided_epoch_ids(spk_df, epochs_df, epoch_label_column_name=epoch_label_column_name, override_time_variable_name=override_time_variable_name, no_interval_fill_value=no_interval_fill_value, overlap_behavior=overlap_behavior)
     spk_df[epoch_id_key_name] = spike_epoch_identity_arr
     return spk_df
