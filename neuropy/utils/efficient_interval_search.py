@@ -341,8 +341,6 @@ def determine_event_interval_identity(times_arr, start_stop_times_arr, period_id
             are_intervals_overlapping = not verify_non_overlapping(start_stop_times_arr=start_stop_times_arr)
             if are_intervals_overlapping:
                 print('WARNING: Intervals in start_stop_times_arr are normally non-overlapping, but we can continue since we are using the slower determine_unsorted_event_interval_identity(...). Continuing.')
-            # return _compiled_unsorted_event_interval_identity(times_arr, start_stop_times_arr, period_identity_labels, no_interval_fill_value=no_interval_fill_value) # Issue: TypingError: Failed in nopython mode pipeline (step: nopython frontend)
-                # non-precise type array(pyobject, 1d, C)
             event_interval_identity_arr, interval_timestamp_indicies_lists = _SLOW_unsorted_event_interval_identity(times_arr, start_stop_times_arr, period_identity_label_codes, no_interval_fill_value=no_interval_fill_value) # event_interval_identity_arr, interval_timestamp_indicies_lists
             assert restore_replace_map is not None
             # Convert codes back to string labels:
@@ -355,29 +353,28 @@ def determine_event_interval_identity(times_arr, start_stop_times_arr, period_id
     else:
         ## regular non-string case:
         period_identity_label_codes = None
-        if debug_print:
-            if overlap_behavior.name == OverlappingIntervalsFallbackBehavior.ASSERT_FAIL.name:
-                from numba import TypingError
-                assert verify_non_overlapping(start_stop_times_arr=start_stop_times_arr), 'Intervals in start_stop_times_arr must be non-overlapping'
-                try:
-                    return _compiled_searchsorted_event_interval_identity(times_arr, start_stop_times_arr, period_identity_labels, no_interval_fill_value=no_interval_fill_value) 
-                except TypingError as e:
-                    # # Failed in nopython mode pipeline (step: nopython frontend)
-                    print(f'WARNING: encountered numba TypingError: {e} on the period_identity_labels: type(period_identity_labels): {type(period_identity_labels)} passed.\nperiod_identity_labels: {period_identity_labels}. \n\tTrying to convert them to int and continue...')
-                    period_identity_labels = period_identity_labels.astype('int')
-                    return _compiled_searchsorted_event_interval_identity(times_arr, start_stop_times_arr, period_identity_labels, no_interval_fill_value=no_interval_fill_value) # event_interval_identity_arr
-                except Exception as e:
-                    raise e
-            elif overlap_behavior.name == OverlappingIntervalsFallbackBehavior.FALLBACK_TO_SLOW_SEARCH.name:
-                are_intervals_overlapping = not verify_non_overlapping(start_stop_times_arr=start_stop_times_arr)
-                if are_intervals_overlapping:
-                    print('WARNING: Intervals in start_stop_times_arr are normally non-overlapping, but we can continue since we are using the slower determine_unsorted_event_interval_identity(...). Continuing.')
-                
-                event_interval_identity_arr, interval_timestamp_indicies_lists = _SLOW_unsorted_event_interval_identity(times_arr, start_stop_times_arr, period_identity_labels, no_interval_fill_value=no_interval_fill_value) # event_interval_identity_arr, interval_timestamp_indicies_lists
-                return event_interval_identity_arr
+        if overlap_behavior.name == OverlappingIntervalsFallbackBehavior.ASSERT_FAIL.name:
+            from numba import TypingError
+            assert verify_non_overlapping(start_stop_times_arr=start_stop_times_arr), 'Intervals in start_stop_times_arr must be non-overlapping'
+            try:
+                return _compiled_searchsorted_event_interval_identity(times_arr, start_stop_times_arr, period_identity_labels, no_interval_fill_value=no_interval_fill_value) 
+            except TypingError as e:
+                # # Failed in nopython mode pipeline (step: nopython frontend)
+                print(f'WARNING: encountered numba TypingError: {e} on the period_identity_labels: type(period_identity_labels): {type(period_identity_labels)} passed.\nperiod_identity_labels: {period_identity_labels}. \n\tTrying to convert them to int and continue...')
+                period_identity_labels = period_identity_labels.astype('int')
+                return _compiled_searchsorted_event_interval_identity(times_arr, start_stop_times_arr, period_identity_labels, no_interval_fill_value=no_interval_fill_value) # event_interval_identity_arr
+            except Exception as e:
+                raise e
+        elif overlap_behavior.name == OverlappingIntervalsFallbackBehavior.FALLBACK_TO_SLOW_SEARCH.name:
+            are_intervals_overlapping = not verify_non_overlapping(start_stop_times_arr=start_stop_times_arr)
+            if are_intervals_overlapping:
+                print('WARNING: Intervals in start_stop_times_arr are normally non-overlapping, but we can continue since we are using the slower determine_unsorted_event_interval_identity(...). Continuing.')
+            
+            event_interval_identity_arr, interval_timestamp_indicies_lists = _SLOW_unsorted_event_interval_identity(times_arr, start_stop_times_arr, period_identity_labels, no_interval_fill_value=no_interval_fill_value) # event_interval_identity_arr, interval_timestamp_indicies_lists
+            return event_interval_identity_arr
 
-            else:
-                raise NotImplementedError
+        else:
+            raise NotImplementedError
 
 
 
