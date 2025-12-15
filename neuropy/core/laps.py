@@ -30,7 +30,7 @@ from neuropy.utils.efficient_interval_search import get_non_overlapping_epochs, 
 class LapsAccessor(EpochsAccessor):
     """ A Pandas DataFrame-based Laps helper.
     
-    from neuropy.core.laps import LapsAccessor
+    from neuropy.core.laps import LapsAccessor, Laps
     
     
     """
@@ -159,16 +159,30 @@ class LapsAccessor(EpochsAccessor):
         if 'lap_id' in self._obj.columns:
             self._obj[['lap_id']] = self._obj[['lap_id']].astype('int')
         if 'maze_id' in self._obj.columns:
-            self._obj[['maze_id']] = self._obj[['maze_id']].astype('int')
+            try:
+                self._obj[['maze_id']] = self._obj[['maze_id']].astype('int')
+            except (ValueError, TypeError) as e:
+                print(f'encountered error for column: "maze_id", error: {e}. Skipping.') 
+            except Exception as e:
+                raise
+            
         if set(['start_spike_index','end_spike_index']).issubset(self._obj.columns):
             self._obj[['start_spike_index', 'end_spike_index']] = self._obj[['start_spike_index', 'end_spike_index']].astype('int')
             self._obj['num_spikes'] = self._obj['end_spike_index'] - self._obj['start_spike_index'] # builds 'num_spikes'
         if 'lap_dir' in self._obj.columns:
             # Either way, ensure that the lap_dir is an 'int' column.
-            self._obj['lap_dir'] = self._obj['lap_dir'].astype('int')
+            try:
+                self._obj['lap_dir'] = self._obj['lap_dir'].astype('int')
+            except (ValueError, TypeError) as e:
+                print(f'encountered error for column: "lap_dir", error: {e}. Skipping.') 
+            except Exception as e:
+                raise
+            
+
         if 'label' in self._obj.columns:               
             self._obj['label'] = self._obj['lap_id'].astype('str') # add the string "label" column
         return self._obj
+
 
     def to_Laps_obj(self, metadata=None) -> "Laps":
         """ builds a Laps object from the LapsAccessor's dataframe 
@@ -176,6 +190,16 @@ class LapsAccessor(EpochsAccessor):
             pos_df.position.to_Position_obj()
         """
         return Laps(self._obj, metadata=metadata)
+
+
+    @classmethod
+    def init_from_df(cls, laps_df: pd.DataFrame, metadata=None) -> "Laps":
+        """ builds a Laps object from the LapsAccessor's dataframe 
+        Usage:
+            pos_df.position.to_Position_obj()
+        """
+        return Laps(laps_df, metadata=metadata)
+
 
 
     def as_epoch_obj(self) -> Epoch:
@@ -876,4 +900,13 @@ class Laps(Epoch):
                                                                   debug_print=debug_print,
                                                                   t_start=t_start, t_delta=t_delta, t_end=t_end, global_session=global_session)
         return Laps(filtered_laps_df)
+
+
+    @classmethod
+    def init_from_df(cls, laps_df: pd.DataFrame, metadata=None) -> "Laps":
+        """ builds a Laps object from the LapsAccessor's dataframe 
+        Usage:
+            pos_df.position.to_Position_obj()
+        """
+        return LapsAccessor.init_from_df(laps_df, metadata=metadata)
 
