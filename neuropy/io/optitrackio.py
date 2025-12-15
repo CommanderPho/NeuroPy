@@ -1,6 +1,7 @@
 import csv
 import linecache
 import re
+from typing import Optional
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
@@ -346,6 +347,30 @@ def get_sync_info(_sync_file):
 
 
 class OptitrackIO:
+    """
+
+    Usage:
+        from neuropy.core.position import Position
+
+        csv_path = Path(r"W:\Data\Bapun\RatU\RatUDay5OpenfieldSD\Raw_data\position\CSV").resolve()
+        assert csv_path.exists()
+        _out: OptitrackIO = OptitrackIO(dirname=csv_path)
+        pos_df: pd.DataFrame = _out.to_dataframe()
+        # pos_df
+
+        pos_obj: Position = Position(pos_df, metadata={'sampling_rate': _out.sampling_rate,
+                                                    'source': 'from_csvs',
+                                                    'source_files': _out.dirname.as_posix(),
+                                                        'scale_factor': _out.scale_factor,
+                                                        'datetime': _out.datetime,
+                                                        'time': _out.time,
+                                                        'override_included_csv_files': _out.override_included_csv_files,
+                                                        })
+
+        # pos_obj: Position = Position.init(traces=pos_df[['t', 'x', 'y', 'z', 'dt']].to_numpy(), sampling_rate=_out.sampling_rate, metadata={'source': 'from_csvs', 'source_files': _out.dirname.as_posix(), })
+        pos_obj
+
+    """
     def __init__(self, dirname, scale_factor=1.0, override_included_csv_files=None) -> None:
         self.dirname = dirname
         self.scale_factor = scale_factor
@@ -584,4 +609,32 @@ class OptitrackIO:
         pos_df['t'] = (pos_df['t'] - np.nanmin(pos_df['dt'])).dt.total_seconds() ## minimum (first) time to 't' (seconds) column
         pos_df.attrs.update({'srate': self.sampling_rate, 'scale_factor': self.scale_factor})
         return pos_df
+    
+
+    def to_position_obj(self, pos_obj_save_path: Optional[Path]=None):
+        """
+        
+        """
+        from neuropy.core.position import Position
+        
+        pos_df: pd.DataFrame = self.to_dataframe()
+        pos_obj: Position = Position(pos_df, metadata={'sampling_rate': self.sampling_rate,
+                                                    'source': 'from_csvs',
+                                                    'source_files': self.dirname.as_posix(),
+                                                        'scale_factor': self.scale_factor,
+                                                        'datetime': self.datetime,
+                                                        'time': self.time,
+                                                        'override_included_csv_files': self.override_included_csv_files,
+                                                        })
+
+        # pos_obj: Position = Position.init(traces=pos_df[['t', 'x', 'y', 'z', 'dt']].to_numpy(), sampling_rate=_out.sampling_rate, metadata={'source': 'from_csvs', 'source_files': _out.dirname.as_posix(), })
+        if pos_obj_save_path is not None:
+            pos_obj.filename = pos_obj_save_path ## set the filename
+            print(f'trying to save pos_obj to "{pos_obj_save_path.as_posix()}"')
+            pos_obj.save()
+            print(f'\tdone.')
+            
+        return pos_obj
+    
+
     
