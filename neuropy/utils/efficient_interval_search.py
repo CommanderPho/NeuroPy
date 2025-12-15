@@ -310,7 +310,6 @@ def determine_event_interval_identity(times_arr, start_stop_times_arr, period_id
         period_identity_labels = np.arange(np.shape(start_stop_times_arr)[0]) # just label them ascending if they don't have labels
     assert np.shape(start_stop_times_arr)[0] == np.shape(period_identity_labels)[0], f'np.shape(period_identity_labels)[0] and np.shape(start_stop_times_arr)[0] must be the same, but np.shape(period_identity_labels)[0]: {np.shape(period_identity_labels)[0]} and np.shape(start_stop_times_arr)[0]: {np.shape(start_stop_times_arr)[0]}'
 
-
     ## #TODO 2025-12-15 10:26: - [ ] Implement
     if (isinstance(no_interval_fill_value, str) or isinstance(period_identity_labels[0], str)):
         # Stable encoding
