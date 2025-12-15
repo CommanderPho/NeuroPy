@@ -76,6 +76,15 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
                 lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=20.0, merging_adjacent_max_separation_sec=6.0),
             ),
+            IdentifyingContext(format_name= 'bapun', animal= 'RatU', session_name= 'RatUDay5OpenfieldSD'): HardcodedProcessingParameters(
+                # decoder_building_session_names=['maze', 'sprinkle', 'maze_GLOBAL'],
+                decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                # non_global_activity_session_names=['maze', 'sprinkle'],
+                non_global_activity_session_names=['roam', 'sprinkle'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+            ),            
             IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
@@ -164,7 +173,13 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
 
 
-        if (is_bapun_Day4OpenField_sess and needs_update):
+            is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'RatUDay5OpenfieldSD'}) ## all must match, 'animal': 'RatN'
+            if is_bapun_RatUDay5OpenfieldSD_sess:
+                assert (len(bapun_epochs_df) >= 6), f"{len(bapun_epochs_df)}"
+                needs_update = (len(bapun_epochs_df) >= 6) and ('roam' not in bapun_epochs_df['label'].to_list())
+
+
+        if ((is_bapun_Day4OpenField_sess or is_bapun_RatUDay5OpenfieldSD_sess) and needs_update):
             ## Applicable to Day4OpenField only: add the 'roam' row if it doesn't already exist
             # bapun_epochs_arr = bapun_epochs_df.to_numpy()
             # new_roam_row = [bapun_epochs_arr[1, 0], (bapun_epochs_arr[2, 0]-1), 'roam', 0.0] # ['start', 'stop', 'label', 'duration']
@@ -189,7 +204,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
 
     @classmethod
-    def session_fixup_epochs(cls, sess, override_session_epochs: Optional[Epoch]=None, enable_global_epoch: bool=True, **kwargs) -> Epoch:
+    def session_fixup_epochs(cls, sess, override_session_epochs: Optional[Epoch]=None, enable_global_epoch: bool=True, override_extant: bool=True, **kwargs) -> Epoch:
         """ fixes up the loaded epochs
         has two conflicting (overlapping) epochs:
         "maze"
@@ -211,22 +226,33 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
         session_epochs: Epoch = BapunDataSessionFormatRegisteredClass.session_fixup_epochs(sess=curr_active_pipeline.sess)
         """
-        if override_session_epochs is None:
-            override_session_epochs = deepcopy(sess.epochs)
-
         # curr_sess_context = sess.get_session_context()
         curr_sess_context = sess.get_context()
         
         # is_bapun_Day4OpenField_sess: bool = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatN', 'session_name': 'Day4OpenField'}) ## all must match
         updated_epochs: Epoch = deepcopy(sess.epochs)
+        needs_update: bool = False        
+
         if (not hasattr(sess, 'epochs_bak')):
             print(f'fixing up session computation epochs...')
-            updated_epochs = cls._bapun_session_fixup_epochs_to_be_non_overlapping(curr_sess_context=curr_sess_context, bapun_epochs=override_session_epochs, enable_global_epoch=enable_global_epoch, **kwargs)
             sess.epochs_bak = deepcopy(sess.epochs) ## backup the bad ones
-            sess.epochs = updated_epochs
-            print(f'\tdone. new epochs: \n{updated_epochs}\n')
+            needs_update = True
         else:
             print(f'WARN: already fixedup session epochs.')
+            if override_extant:
+                print(f'\trestoring backed up epochs:')
+                sess.epochs = deepcopy(sess.epochs_bak)
+                needs_update = True
+
+
+        if needs_update:
+            if override_session_epochs is None:
+                override_session_epochs = deepcopy(sess.epochs)
+            
+            updated_epochs = cls._bapun_session_fixup_epochs_to_be_non_overlapping(curr_sess_context=curr_sess_context, bapun_epochs=override_session_epochs, enable_global_epoch=enable_global_epoch, **kwargs)
+            sess.epochs = updated_epochs
+            print(f'\tdone. new epochs: \n{updated_epochs}\n')
+
             
         return updated_epochs
 
