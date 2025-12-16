@@ -243,7 +243,8 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
         `sess.laps`
 
     """
-    
+    from neuropy.utils.mixins.time_slicing import TimeColumnAliasesProtocol
+
     if debug_plot:
         from pyphoplacecellanalysis.GUI.PyQtPlot.Widgets.GraphicsWidgets.EpochsEditorItem import EpochsEditor
 
@@ -354,6 +355,15 @@ def estimate_session_laps(sess, N: int=20, should_backup_extant_laps_obj=False, 
         time_variable_name = spikes_df.spikes.time_variable_name # get time_variable_name from the spikes_df object
     # else:
         # time_variable_name = spikes_df.spikes.time_variable_name # get time_variable_name from the spikes_df object
+    target_time_variable_name: str = deepcopy(time_variable_name)
+    # target_time_variable_name: str = deepcopy(spikes_df.spikes.time_variable_name)
+    if target_time_variable_name not in spikes_df.columns:    
+        # t_col_name: str = TimeColumnAliasesProtocol.find_first_extant_suitable_columns_name(spikes_df, col_connonical_name=target_time_variable_name, required_columns_synonym_dict={target_time_variable_name:{'t','t_seconds',"t_rel_seconds"}}, should_raise_exception_on_fail=False)
+        spikes_df = TimeColumnAliasesProtocol.renaming_synonym_columns_if_needed(spikes_df, required_columns_synonym_dict={target_time_variable_name:{'t','t_seconds',"t_rel_seconds"}}) #.drop_duplicates(column='t_rel_seconds', inplace=False)
+        assert target_time_variable_name in spikes_df.columns, f"target t col name ('{target_time_variable_name}') still not in list(spikes_df.columns): {list(spikes_df.columns)}"
+        # spikes_df.spikes.set_time_variable_name(new_time_variable_name='t_seconds')
+
+
     
     custom_test_laps_obj = _subfn_compute_laps_spike_indicies(custom_test_laps_obj, spikes_df, time_variable_name=time_variable_name, global_session=sess) # #TODO 2025-10-21 09:12: - [ ] This is also kinda slow
     sess.laps = deepcopy(custom_test_laps_obj) # replace the laps obj
