@@ -1613,7 +1613,23 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
 
     def __repr__(self) -> str:
         # return f"{len(self.starts)} epochs"
-        return f"{len(self.starts)} epochs\n{self.as_array().__repr__()}\n"
+        # return f"{len(self.starts)} epochs\n{self.as_array().__repr__()}\n"    
+        # """
+        # 1 epochs
+        # array([[7125, 11745]])
+        # """
+        # return self.to_dataframe()[['label', 'start', 'stop']].values
+        # return self.to_dataframe()[['label', 'start', 'stop']].itertuples(index=False)
+        column_names: List[str] = ['label', 'start', 'stop']
+        code_value: str = list(tuple(v) for v in an_epoch.to_dataframe()[column_names].itertuples(index=False))
+        return code_value
+        # return f"pd.DataFrame.from_records({code_value}, columns={column_names})" ## return whole initialization code
+        # """
+        # array([['roam', 7125.0, 9590.999999],
+        # ['sprinkle', 9591.0, 11745.0]], dtype=object)
+        # """
+
+
 
     def _repr_pretty_(self, p, cycle=False):
         """ The cycle parameter will be true if the representation recurses - e.g. if you put a container inside itself. """
