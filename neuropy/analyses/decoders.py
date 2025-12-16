@@ -522,12 +522,58 @@ def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[cor
     n_tbin_centers: NDArray[ND.Shape['N_EPOCHS'], Any] = np.zeros(n_epochs, dtype="int")
 
     for i, epoch in enumerate(epoch_df.itertuples()):
-        
+        epoch_duration = epoch.stop - epoch.start
+
+        # if use_single_time_bin_per_epoch:
+        #     time_bin_edges = np.array([epoch.start, epoch.stop]) # two edges for the epoch
+        # else:
+        #     ## Binning with Fixed Bin Sizes: fixed time-bin duration -> variable num time bins per epoch depending on epoch length
+        #     # time_bin_edges, time_bin_edges_binning_info = compute_spanning_bins(variable_values=None, bin_size=bin_size, variable_start_value=epoch.start, variable_end_value=epoch.stop) # fixed_step mode
+        #     # Handle edge case: if epoch duration is shorter than bin_size, treat it like single bin per epoch
+        #     if epoch_duration < bin_size:
+        #         # TODO: added 2025-12-17 by AI as a suggested fix to single-time-bin item discrepancies
+        #         time_bin_edges = np.array([epoch.start, epoch.stop]) ## same as the `use_single_time_bin_per_epoch` case
+        #         # Create a BinningInfo manually for this special case
+        #         time_bin_edges_binning_info = BinningInfo(variable_extents=(epoch.start, epoch.stop), step=epoch_duration, num_bins=1)
+
+        #     else:
+        #         time_bin_edges, time_bin_edges_binning_info = compute_spanning_bins(variable_values=None, bin_size=bin_size, variable_start_value=epoch.start, variable_end_value=epoch.stop) # fixed_step mode
+
+
         if use_single_time_bin_per_epoch:
             time_bin_edges = np.array([epoch.start, epoch.stop]) # two edges for the epoch
         else:
             ## Binning with Fixed Bin Sizes: fixed time-bin duration -> variable num time bins per epoch depending on epoch length
-            time_bin_edges, time_bin_edges_binning_info = compute_spanning_bins(variable_values=None, bin_size=bin_size, variable_start_value=epoch.start, variable_end_value=epoch.stop) # fixed_step mode
+            # Handle edge case: if epoch duration is shorter than bin_size, treat it like single bin per epoch
+            if epoch_duration < bin_size:
+                # Ensure bin edges are monotonically increasing (handle zero-duration epochs)
+                if epoch_duration <= 0:
+                    # Zero or negative duration: create a bin of size bin_size starting at epoch.start
+                    # This ensures np.histogram works (requires monotonically increasing bins)
+                    time_bin_edges = np.array([epoch.start, epoch.start + bin_size])
+                    time_bin_edges_binning_info = BinningInfo(
+                        variable_extents=(epoch.start, epoch.start + bin_size), 
+                        step=bin_size, 
+                        num_bins=2  # 2 edges = 1 bin, but num_bins in BinningInfo represents edges
+                    )
+                else:
+                    # Positive but short duration: use actual epoch boundaries
+                    time_bin_edges = np.array([epoch.start, epoch.stop])
+                    time_bin_edges_binning_info = BinningInfo(
+                        variable_extents=(epoch.start, epoch.stop), 
+                        step=epoch_duration, 
+                        num_bins=2  # 2 edges = 1 bin
+                    )
+            else:
+                time_bin_edges, time_bin_edges_binning_info = compute_spanning_bins(
+                    variable_values=None, 
+                    bin_size=bin_size, 
+                    variable_start_value=epoch.start, 
+                    variable_end_value=epoch.stop
+                )
+            
+
+
         n_tbin_centers[i] = (len(time_bin_edges) -1 ) ## #TODO 2025-03-10 14:57: - [ ] MAJOR: !!! is this supposed to be centers, or edges?!?
  
         unit_specific_time_binned_spike_counts, _included_neuron_ids = spikes_df.spikes.compute_unit_time_binned_spike_counts(time_bin_edges=time_bin_edges, included_neuron_ids=included_neuron_ids)
@@ -548,6 +594,7 @@ def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[cor
 
     # END for i, epoch in enumerate(epoch_df.itertuples())
     return spkcount, included_neuron_ids, n_tbin_centers, time_bin_containers_list # Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]
+
 
 def _OLD_epochs_spkcount(neurons: Union[core.Neurons, pd.DataFrame], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, slideby=None, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False):
     """Binning events and calculating spike counts
