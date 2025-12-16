@@ -618,6 +618,7 @@ class OptitrackIO:
         from neuropy.core.position import Position
         
         pos_df: pd.DataFrame = self.to_dataframe()
+        pos_df = pos_df.dropna(how='any', subset=['t', 'x', 'y'], inplace=False) ## drop any NaN values
         pos_obj: Position = Position(pos_df, metadata={'sampling_rate': self.sampling_rate,
                                                     'source': 'from_csvs',
                                                     'source_files': self.dirname.as_posix(),
