@@ -227,12 +227,9 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         needs_update: bool = True
         if curr_sess_context is not None:
             is_bapun_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'Day4OpenField'}) ## all must match, 'animal': 'RatN'
-            if is_bapun_Day4OpenField_sess:
-                assert (len(bapun_epochs_df) == 4), f"{len(bapun_epochs_df)}"
-                needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
-                
+            is_bapun_ratK_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatK', 'session_name': 'Day4Openfield'}) ## all must match, 'animal': 'RatK'
+            is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'RatUDay5OpenfieldSD'}) ## all must match, 'animal': 'RatN'
 
-            is_bapun_ratK_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatK', 'session_name': 'Day4Openfield'}) ## all must match, 'animal': 'RatN'
             if is_bapun_ratK_Day4OpenField_sess:
                 assert (len(bapun_epochs_df) == 3), f"{len(bapun_epochs_df)}"
                 needs_update = not ((len(bapun_epochs_df) == 3) and (['pre', 'maze', 'post'] == bapun_epochs_df['label'].to_list()))
@@ -241,10 +238,10 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                     enable_global_epoch = False
                 # assert (len(bapun_epochs_df) == 4), f"{len(bapun_epochs_df)}"
                 # needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
-
-
-            is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'RatUDay5OpenfieldSD'}) ## all must match, 'animal': 'RatN'
-            if is_bapun_RatUDay5OpenfieldSD_sess:
+            elif is_bapun_Day4OpenField_sess:
+                assert (len(bapun_epochs_df) == 4), f"{len(bapun_epochs_df)}"
+                needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
+            elif is_bapun_RatUDay5OpenfieldSD_sess:
                 assert (len(bapun_epochs_df) >= 6), f"{len(bapun_epochs_df)}"
                 needs_update = (len(bapun_epochs_df) >= 6) and ('roam' not in bapun_epochs_df['label'].to_list())
 
