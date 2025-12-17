@@ -31,10 +31,11 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
         _out
 
     """
-    
     fine_pdf: np.ndarray = field()
     dx_f: float = field()
     dy_f: float = field()
+
+    ## scale factor:
     Ny_f: int = field(init=False)
     Nx_f: int = field(init=False)
     
@@ -52,7 +53,7 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
             print(f"Warning: Input total mass = {total_mass:.6f} (should be ~1)")
     
 
-    def downsample(self, rx: float, ry: Optional[float]=None, method: str = 'trapezoidal') -> Tuple[np.ndarray, float, float]:
+    def downsample_slow(self, rx: float, ry: Optional[float]=None, method: str = 'trapezoidal') -> Tuple[np.ndarray, float, float]:
         """
         Downsample with factors rx, ry (>1 for downsampling).
         
@@ -120,6 +121,60 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
         
         return coarse_pdf, dx_c, dy_c
     
+    def downsample_fast(self, rx: float, ry: Optional[float] = None) -> Tuple[np.ndarray, float, float]:
+            """
+            Optimized downsampling using separable 1D integration via cumulative sums.
+            This is O(N) instead of O(N^2) and stays entirely in NumPy.
+            """
+            if ry is None: ry = rx
+            
+            Ny_f, Nx_f = self.fine_pdf.shape
+            Nx_c = int(np.ceil(Nx_f / rx))
+            Ny_c = int(np.ceil(Ny_f / ry))
+            
+            dx_c = (Nx_f * self.dx_f) / Nx_c
+            dy_c = (Ny_f * self.dy_f) / Ny_c
+
+            # 1. Downsample X dimension
+            # Integrate across rows to get mass in each coarse X-bin
+            x_coarse_edges = np.arange(Nx_c + 1) * dx_c
+            x_fine_edges = np.arange(Nx_f + 1) * self.dx_f
+            
+            # Cumulative mass along X for every row
+            # Result shape: (Ny_f, Nx_f + 1)
+            fine_mass_x = self.fine_pdf * self.dx_f
+            cum_mass_x = np.insert(np.cumsum(fine_mass_x, axis=1), 0, 0, axis=1)
+            
+            # Interpolate to find mass at coarse boundaries
+            # We process all rows at once
+            interp_mass_x = np.array([np.interp(x_coarse_edges, x_fine_edges, cum_mass_x[row, :]) 
+                                    for row in range(Ny_f)])
+            
+            # Mass per coarse X-bin: (Ny_f, Nx_c)
+            coarse_x_mass = np.diff(interp_mass_x, axis=1)
+
+            # 2. Downsample Y dimension
+            # Cumulative mass along Y for every coarse X-column
+            y_coarse_edges = np.arange(Ny_c + 1) * dy_c
+            y_fine_edges = np.arange(Ny_f + 1) * self.dy_f
+            
+            # Result shape: (Ny_f + 1, Nx_c)
+            cum_mass_y = np.insert(np.cumsum(coarse_x_mass, axis=0), 0, 0, axis=0)
+            
+            # Interpolate Y boundaries for all coarse X-columns
+            final_mass = np.zeros((Ny_c, Nx_c))
+            for col in range(Nx_c):
+                interp_y = np.interp(y_coarse_edges, y_fine_edges, cum_mass_y[:, col])
+                final_mass[:, col] = np.diff(interp_y)
+
+            # Convert mass back to density: density = mass / (dx_c * dy_c)
+            coarse_pdf = final_mass / (dx_c * dy_c)
+            
+            return coarse_pdf, dx_c, dy_c
+
+    def downsample(self, *args, **kwargs):
+        return self.downsample_fast(*args, **kwargs)
+
 
     def plot_comparison(self, coarse_pdf: np.ndarray, dx_c: float, dy_c: float, figsize: Tuple[int, int] = (12, 5)):
         """Visualize fine vs coarse PDF."""
@@ -160,6 +215,8 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
 
         downsampler = RigorousPDFDownsampler(fine_pdf, dx_f, dy_f)
         coarse_pdf, dx_c, dy_c = downsampler.downsample(rx=4.2, ry=3.8)
+
+
         fig, (ax1, ax2) = downsampler.plot_comparison(coarse_pdf, dx_c, dy_c)
         return downsampler, fig, (ax1, ax2)
 
@@ -281,6 +338,8 @@ def approx_downsample_pdf(a_p_x_given_n, downsample_factor=4, xbin_centers=None,
 # Example Usage: 2D Gaussian PDF
 if __name__ == "__main__":
 
+    import matplotlib.pyplot as plt
+
     # Example: 2D Gaussian (PASTE THIS INTO JUPYTER)
     Nx_f, Ny_f = 200, 200
     x_f = np.linspace(0, 10, Nx_f)
@@ -296,3 +355,5 @@ if __name__ == "__main__":
     coarse_pdf, dx_c, dy_c = downsampler.downsample(rx=10, ry=5)
     fig, (ax1, ax2) = downsampler.plot_comparison(coarse_pdf, dx_c, dy_c)
     fig.show()
+    plt.show()  # Wait until the plot window is closed before exiting
+
