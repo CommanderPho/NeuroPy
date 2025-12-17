@@ -737,7 +737,12 @@ class NeuronType(HDFConvertableEnum, Enum):
                 if len(itemindex[0]) < 1:
                     # if not found in bapunNpyFileStyleShortClassNames, try hdf_coding_ClassNames
                     itemindex = np.where(cls.hdf_coding_ClassNames()==string_value)
-
+                    if len(itemindex[0]) < 1:
+                        # if not found in hdf_coding_ClassNames, try last dicth error correction for Bapun session's ('1' strings)
+                        known_error_neuron_types_dict = {'1': 1, }
+                        itemindex = [known_error_neuron_types_dict.get(string_value, None)] # np.where(cls.hdf_coding_ClassNames()==string_value)
+                        if itemindex[0] is None:
+                            raise NotImplementedError(f'unhandled neuron type: string_value: "{string_value}" could not be detected to be of any known format.')
         return NeuronType(itemindex[0])
 
     @classmethod
