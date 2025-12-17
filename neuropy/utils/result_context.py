@@ -376,7 +376,7 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
 
 
 
-    def query(self, criteria: Union[Dict[str, Any], "IdentifyingContext"]) -> bool:
+    def query(self, criteria: Union[Dict[str, Any], "IdentifyingContext"], is_case_sensitive: bool=False) -> bool:
         """
         Checks if the IdentifyingContext instance matches the given criteria.
 
@@ -385,6 +385,9 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         criteria : Dict[str, Any]
             A dictionary where keys are attribute names and values are attribute values that an
             IdentifyingContext instance should have to match the criteria.
+        is_case_sensitive : bool, default=False
+            If False, string comparisons are case-insensitive. If True, all comparisons are
+            case-sensitive. Non-string values are always compared normally.
 
         Returns
         -------
@@ -392,8 +395,18 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
             True if the IdentifyingContext instance matches the criteria, False otherwise.
         """
         for key, value in criteria.items():
-            if not hasattr(self, key) or getattr(self, key) != value:
+            if not hasattr(self, key):
                 return False
+            
+            attr_value = getattr(self, key)
+            
+            # Handle case-insensitive string comparison
+            if not is_case_sensitive and isinstance(attr_value, str) and isinstance(value, str):
+                if attr_value.lower() != value.lower():
+                    return False
+            else:
+                if attr_value != value:
+                    return False
         return True
 
 
