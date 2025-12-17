@@ -352,8 +352,21 @@ if __name__ == "__main__":
     fine_pdf /= np.sum(fine_pdf) * dx_f * dy_f  # <-- THE FIXED LINE
 
     downsampler = RigorousPDFDownsampler(fine_pdf, dx_f, dy_f)
-    coarse_pdf, dx_c, dy_c = downsampler.downsample(rx=10, ry=5)
-    fig, (ax1, ax2) = downsampler.plot_comparison(coarse_pdf, dx_c, dy_c)
-    fig.show()
-    plt.show()  # Wait until the plot window is closed before exiting
+    
+    downsample_factors = [
+        (2, 2),
+        (4, 4),
+        (10, 5),
+        (20, 15),
+    ]
 
+    figs = []
+    for (rx, ry) in downsample_factors:
+        print(f'(rx: {rx}, ry: {ry})')
+        coarse_pdf, dx_c, dy_c = downsampler.downsample(rx=rx, ry=ry)
+        fig, (ax1, ax2) = downsampler.plot_comparison(coarse_pdf, dx_c, dy_c)
+        fig.suptitle(f"Downsample factors: rx={rx}, ry={ry}\nCoarse shape: {coarse_pdf.shape}")
+        # fig.show()
+        figs.append(fig)
+
+    plt.show()  # Wait until the plot windows are closed before exiting
