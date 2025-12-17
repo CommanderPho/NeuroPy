@@ -121,6 +121,8 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
         
         return coarse_pdf, dx_c, dy_c
     
+
+
     def downsample_fast(self, rx: float, ry: Optional[float] = None) -> Tuple[np.ndarray, float, float]:
             """
             Optimized downsampling using separable 1D integration via cumulative sums.
@@ -155,11 +157,14 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
 
             # 2. Downsample Y dimension
             # Cumulative mass along Y for every coarse X-column
+            # Note: coarse_x_mass is mass per unit length in Y, so we need to multiply by dy_f
             y_coarse_edges = np.arange(Ny_c + 1) * dy_c
             y_fine_edges = np.arange(Ny_f + 1) * self.dy_f
             
+            # Convert to actual mass by multiplying by dy_f, then compute cumulative
             # Result shape: (Ny_f + 1, Nx_c)
-            cum_mass_y = np.insert(np.cumsum(coarse_x_mass, axis=0), 0, 0, axis=0)
+            coarse_x_mass_actual = coarse_x_mass * self.dy_f
+            cum_mass_y = np.insert(np.cumsum(coarse_x_mass_actual, axis=0), 0, 0, axis=0)
             
             # Interpolate Y boundaries for all coarse X-columns
             final_mass = np.zeros((Ny_c, Nx_c))
@@ -170,10 +175,21 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
             # Convert mass back to density: density = mass / (dx_c * dy_c)
             coarse_pdf = final_mass / (dx_c * dy_c)
             
+            # Normalize to ensure mass conservation (fixes small interpolation errors)
+            total_mass = np.sum(final_mass)
+            if total_mass > 0 and not np.isclose(total_mass, 1.0, rtol=1e-10):
+                # Normalize the mass to exactly 1.0
+                final_mass = final_mass / total_mass
+                coarse_pdf = final_mass / (dx_c * dy_c)
+            
             return coarse_pdf, dx_c, dy_c
 
-    def downsample(self, *args, **kwargs):
-        return self.downsample_fast(*args, **kwargs)
+
+    def downsample(self, *args, method='fast', **kwargs):
+        if method == 'fast':
+            return self.downsample_fast(*args, **kwargs)
+        else:
+            return self.downsample_slow(*args, **kwargs)
 
 
     def plot_comparison(self, coarse_pdf: np.ndarray, dx_c: float, dy_c: float, figsize: Tuple[int, int] = (12, 5)):
@@ -360,13 +376,24 @@ if __name__ == "__main__":
         (20, 15),
     ]
 
-    figs = []
-    for (rx, ry) in downsample_factors:
+    # Create a single figure with 4 rows (one for each downsample factor) and 2 columns (fine vs coarse)
+    fig, axes = plt.subplots(4, 2, figsize=(12, 16))
+    
+    for idx, (rx, ry) in enumerate(downsample_factors):
         print(f'(rx: {rx}, ry: {ry})')
         coarse_pdf, dx_c, dy_c = downsampler.downsample(rx=rx, ry=ry)
-        fig, (ax1, ax2) = downsampler.plot_comparison(coarse_pdf, dx_c, dy_c)
-        fig.suptitle(f"Downsample factors: rx={rx}, ry={ry}\nCoarse shape: {coarse_pdf.shape}")
-        # fig.show()
-        figs.append(fig)
-
+        
+        # Left column: Fine PDF (same for all rows)
+        ax_fine = axes[idx, 0]
+        im1 = ax_fine.imshow(downsampler.fine_pdf.T, origin='lower', cmap='hot', aspect='equal')
+        ax_fine.set_title(f'Fine PDF (rx={rx}, ry={ry})')
+        plt.colorbar(im1, ax=ax_fine)
+        
+        # Right column: Coarse PDF
+        ax_coarse = axes[idx, 1]
+        im2 = ax_coarse.imshow(coarse_pdf.T, origin='lower', cmap='hot', aspect='equal')
+        ax_coarse.set_title(f'Coarse PDF (shape: {coarse_pdf.shape})')
+        plt.colorbar(im2, ax=ax_coarse)
+    
+    plt.tight_layout()
     plt.show()  # Wait until the plot windows are closed before exiting

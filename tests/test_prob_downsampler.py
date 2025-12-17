@@ -246,6 +246,40 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
         coarse_pdf, dx_c, dy_c = downsampler.downsample(rx=4.0, ry=4.0)
         
         self.assertTrue(np.all(coarse_pdf >= 0), msg="All output values should be non-negative")
+
+
+    def test_output_remains_normalized_fast(self):
+        """Test that output PDF is non-negative."""
+        downsampler = RigorousPDFDownsampler(self.fine_pdf, self.dx_f, self.dy_f)
+        coarse_pdf, dx_c, dy_c = downsampler.downsample(rx=4.0, ry=4.0, method='fast')
+        normalized_sum = np.sum(coarse_pdf) * dx_c * dy_c
+
+        self.assertAlmostEqual(normalized_sum, 1.0, places=4, msg=f"Output should remain normalized but sums to {normalized_sum}")
+
+
+    def test_output_remains_normalized_slow(self):
+        """Test that output PDF is non-negative."""
+        downsampler = RigorousPDFDownsampler(self.fine_pdf, self.dx_f, self.dy_f)
+        coarse_pdf, dx_c, dy_c = downsampler.downsample(rx=4.0, ry=4.0, method='slow')
+        normalized_sum = np.sum(coarse_pdf) * dx_c * dy_c
+
+        self.assertAlmostEqual(normalized_sum, 1.0, places=4, msg=f"Output should remain normalized but sums to {normalized_sum}")
+
+
+    def test_output_pdf_reducible_to_pmf(self):
+        """Test that output PDF is non-negative."""
+        dx_f = 1.0
+        dy_f = 1.0
+
+        downsampler = RigorousPDFDownsampler(self.fine_pdf, dx_f, dy_f)
+        coarse_pdf, dx_c, dy_c = downsampler.downsample(rx=4.0, ry=4.0, method='fast')
+        print(f'dx_c: {dx_c}, dy_c: {dx_c}')
+        # normalized_sum = np.sum(coarse_pdf) * dx_c * dy_c
+        normalized_sum = np.sum(coarse_pdf)
+
+        self.assertAlmostEqual(normalized_sum, 1.0, places=4, msg=f"Output should remain normalized but sums to {normalized_sum}")
+
+
     
     def test_output_shape_consistency(self):
         """Test that output shape is consistent with input and downsampling factor."""
