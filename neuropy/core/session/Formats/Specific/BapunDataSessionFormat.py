@@ -115,7 +115,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),      
-            IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day4OpenField'): HardcodedProcessingParameters(
+            IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day4Openfield'): HardcodedProcessingParameters(
                 # decoder_building_session_names=['maze', 'sprinkle', 'maze_GLOBAL'],
                 decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
