@@ -1,11 +1,11 @@
 import numpy as np
 from typing import Tuple, Optional
-
-
-
+from attrs import define, field
+from neuropy.utils.mixins.AttrsClassHelpers import SimpleFieldSizesReprMixin
 
 # @metadata_attributes(short_name=None, tags=['UNFINISHED', 'UNEVALUATED', 'AI'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-12-17 09:17', related_items=[])
-class RigorousPDFDownsampler:
+@define(slots=False, eq=False, repr=False)
+class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
     """
     Mathematically rigorous 2D PDF downsampler using conservative coarse-graining.
     
@@ -32,21 +32,22 @@ class RigorousPDFDownsampler:
 
     """
     
-    def __init__(self, fine_pdf: np.ndarray, dx_f: float, dy_f: float):
+    fine_pdf: np.ndarray = field()
+    dx_f: float = field()
+    dy_f: float = field()
+    Ny_f: int = field(init=False)
+    Nx_f: int = field(init=False)
+    
+    def __attrs_post_init__(self):
         """
-        Args:
-            fine_pdf: 2D array (shape=(Ny, Nx)), values are densities p(x,y)
-            dx_f, dy_f: Fine grid spacings (uniform)
+        Validates input and computes derived attributes.
         """
-        if fine_pdf.ndim != 2:
+        if self.fine_pdf.ndim != 2:
             raise ValueError("fine_pdf must be 2D array (Ny, Nx)")
-        self.fine_pdf = fine_pdf
-        self.Ny_f, self.Nx_f = fine_pdf.shape
-        self.dx_f = dx_f
-        self.dy_f = dy_f
+        self.Ny_f, self.Nx_f = self.fine_pdf.shape
         
         # Verify input is roughly normalized (tolerance for numerics)
-        total_mass = np.sum(fine_pdf) * dx_f * dy_f
+        total_mass = np.sum(self.fine_pdf) * self.dx_f * self.dy_f
         if not np.isclose(total_mass, 1.0, rtol=1e-6):
             print(f"Warning: Input total mass = {total_mass:.6f} (should be ~1)")
     
