@@ -95,6 +95,7 @@ class HardcodedProcessingParameters(HDF_SerializationMixin, AttrsBasedClassHelpe
     non_global_activity_session_names: List[str] = non_serialized_field(default=Factory(list))
     grid_bin_bounds: Optional[List] = non_serialized_field(default=Factory(list))
     lap_estimation_parameters: Optional[Dict] = non_serialized_field(default=Factory(dict))
+    linearization_parameters: Optional[Dict] = non_serialized_field(default=Factory(dict))
     
     # HDFMixin Conformances ______________________________________________________________________________________________ #
     def to_hdf(self, file_path, key: str, **kwargs):

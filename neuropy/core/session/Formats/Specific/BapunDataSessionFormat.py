@@ -16,6 +16,34 @@ from neuropy.utils.result_context import IdentifyingContext
 from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
 
 
+from neuropy.utils.position_util import ShapelyMaze, ShapelyMazeCollection
+
+# linearization_method: str = 'umap'
+
+# linearization_method: str = 'shapely'
+Day5TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollection(shapelyMazes = {
+    # Define the skeletons (re-using the coordinates identified earlier)
+    # "N"-shaped maze
+    'maze1': ShapelyMaze(nodes = [
+        (-66.31, 88.82),  # TL
+        (-64.57, -54.62), # BL
+        (25.0, 65.0),  # TR
+        (73.88, -59.85)   # BR
+    ]),
+    # "U"-shaped maze
+    'maze2': ShapelyMaze(nodes = [
+        (-48.62, 63.79),  # Top-Left
+        (-33.99, -41.77), # Bot-Left
+        (3.32, -49.23),   # Bot-Mid
+        (37.16, -34.00),  # Bot-Right
+        (52.74, 76.34)    # Top-Right
+    ]),
+},
+    valid_epochs =  {'maze1': (11070.0, 13970.0), 'maze2': (20756.0, 24004.0)}, # 'maze_GLOBAL': (0.0, 42305.0), 
+)   
+
+
+
 class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     """
 
@@ -74,7 +102,8 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['roam', 'sprinkle'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=20.0, merging_adjacent_max_separation_sec=6.0),
+                lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=20.0, merging_adjacent_max_separation_sec=6.0,),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatU', session_name= 'RatUDay5OpenfieldSD'): HardcodedProcessingParameters(
                 # decoder_building_session_names=['maze', 'sprinkle', 'maze_GLOBAL'],
@@ -84,17 +113,22 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 non_global_activity_session_names=['roam', 'sprinkle'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
                 lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),            
             IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='shapely', all_session_mazes=Day5TwoNovel_all_session_mazes),
             ),
             ## Fallback defaults:
             IdentifyingContext(format_name= 'bapun'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0,),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),									
         }
 
@@ -346,6 +380,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             # NOTE: WARNING: DataSession.compute_linearized_position(session, an_epoch_label) causes MemoryErrors when called for an_epoch_label that doesn't have position data. For Bapun's r'W:\Data\Bapun\RatS\Day5TwoNovel' data, ['maze1', 'maze2'] were the acceptable epochs (and they were hardcoded).
             # I encountered the MemoryError when I ran the same load_session function for r'W:\Data\Bapun\RatN\Day4OpenField', which has the epochs ['pre', 'maze', 'sprinkle', 'post']. Restricting these computations to ['maze'] solves the problem for this session. It seems like I could just detect if there are any position samples left in the filtered position dataframe within the DataSession.compute_linearized_position(session, an_epoch_label), and handle the error there if there aren't (which I believe would prevent the MemoryError and excessive computation).
             
+            #TODO 2025-12-17 12:16: - [ ] Needs generalization for the other session names (e.g. 'roam', )
             only_included_pos_computation_labels = ['maze']
             all_epoch_labels = list(session.epochs.labels)
             
