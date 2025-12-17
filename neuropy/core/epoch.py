@@ -9,6 +9,7 @@ import nptyping as ND
 from nptyping import NDArray
 import pandas as pd
 import portion as P # Required for interval search: portion~=2.3.0
+import heapq # for `assign_overlap_y_offset`
 
 from neuropy.utils.mixins.dataframe_representable import DataFrameRepresentable, DataFrameInitializable
 from .datawriter import DataWriter
@@ -17,6 +18,7 @@ from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableO
 from neuropy.utils.efficient_interval_search import get_non_overlapping_epochs, deduplicate_epochs # for EpochsAccessor's .get_non_overlapping_df()
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_field, serialized_attribute_field, non_serialized_field
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
+
 
 
 def find_data_indicies_from_epoch_times(a_df: pd.DataFrame, epoch_times: NDArray, t_column_names=None, atol:float=1e-3, not_found_action='skip_index', debug_print=False) -> NDArray:
@@ -610,7 +612,58 @@ def split_epochs_into_training_and_test(epochs_df: pd.DataFrame, training_data_p
     ## OUTPUTS: epochs_training_df, epochs_test_df
     return epochs_training_df, epochs_test_df
 
-    
+
+
+class EpochHelpers:
+    """ top-level static helpers for epochs
+
+    from neuropy.core.epoch import Epoch, EpochsAccessor, ensure_dataframe, ensure_Epoch, EpochHelpers
+
+
+    """
+    @classmethod
+    def assign_overlap_y_offset(cls, df: pd.DataFrame, start_col: str = 'start', stop_col: str = 'stop', out_col: str = 'overlap_y_offset') -> pd.DataFrame:
+        """Assign an integer y-offset so overlapping epochs don't share the same band.
+        Used by: 'pyphoplacecellanalysis.GUI.PyQtPlot.Widgets.GraphicsWidgets.EpochsEditorItem'
+
+        Usage:
+            from neuropy.core.epoch import Epoch, EpochsAccessor, ensure_dataframe, ensure_Epoch, EpochHelpers
+
+            curr_paradigm_df = EpochHelpers.assign_overlap_y_offset(df=curr_paradigm_df)
+            curr_paradigm_df
+
+        """
+        if df.empty:
+            df[out_col] = []
+            return df
+
+        sorted_df = df.sort_values(by=[start_col, stop_col])
+        starts = sorted_df[start_col].to_numpy()
+        stops = sorted_df[stop_col].to_numpy()
+        idxs = sorted_df.index.to_numpy()
+
+        active = []
+        free_levels = []
+        next_level = 0
+        level_by_index = {}
+
+        for start, stop, idx in zip(starts, stops, idxs):
+            while active and active[0][0] < start:
+                finished_stop, finished_level = heapq.heappop(active)
+                heapq.heappush(free_levels, finished_level)
+
+            if free_levels:
+                level = heapq.heappop(free_levels)
+            else:
+                level = next_level
+                next_level += 1
+
+            level_by_index[idx] = level
+            heapq.heappush(active, (stop, level))
+
+        df[out_col] = pd.Series(level_by_index)
+        return df
+
 
 
 """ 
