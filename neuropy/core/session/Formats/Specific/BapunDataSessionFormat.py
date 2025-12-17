@@ -117,10 +117,11 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             ),      
             IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day4Openfield'): HardcodedProcessingParameters(
                 # decoder_building_session_names=['maze', 'sprinkle', 'maze_GLOBAL'],
-                decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
-                global_session_name='maze_GLOBAL',
+                decoder_building_session_names=['maze'],
+                # global_session_name='maze_GLOBAL',
+                global_session_name='maze',
                 # non_global_activity_session_names=['maze', 'sprinkle'],
-                non_global_activity_session_names=['roam', 'sprinkle'],
+                non_global_activity_session_names=['maze'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
                 lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
@@ -229,6 +230,17 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             if is_bapun_Day4OpenField_sess:
                 assert (len(bapun_epochs_df) == 4), f"{len(bapun_epochs_df)}"
                 needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
+                
+
+            is_bapun_ratK_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatK', 'session_name': 'Day4Openfield'}) ## all must match, 'animal': 'RatN'
+            if is_bapun_ratK_Day4OpenField_sess:
+                assert (len(bapun_epochs_df) == 3), f"{len(bapun_epochs_df)}"
+                needs_update = not ((len(bapun_epochs_df) == 3) and (['pre', 'maze', 'post'] == bapun_epochs_df['label'].to_list()))
+                if not needs_update:
+                    print(f'overrinding enable_global_epoch == False since this session only has one maze epoch')
+                    enable_global_epoch = False
+                # assert (len(bapun_epochs_df) == 4), f"{len(bapun_epochs_df)}"
+                # needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
 
 
             is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'RatUDay5OpenfieldSD'}) ## all must match, 'animal': 'RatN'
