@@ -153,7 +153,18 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
     ### Specific Load Functions used in the session_spec
     @classmethod
     def _load_neurons_file(cls, filepath, session): # .neurons
+        ## here we need to handle the "1" type cells
+        """
+            neuron_type
+                array(['pyr', 'pyr', 'pyr', 'mua', '1', 'inter', 'pyr', '1', 'pyr', 'pyr', '1', '1', '1', 'pyr', 'mua', 'mua', 'pyr', '1', 'pyr', 'mua', 'mua', 'pyr', '1', 'mua', '1', 'pyr', 'pyr', 'pyr', 'mua', 'pyr', 'pyr', 'pyr', 'pyr', '1', '1', 'pyr', 'pyr', '1', 'pyr', 'mua', '1', '1', '1', '1', '1', 'inter', 'pyr', 'mua', '1', 'pyr', 'pyr', 'pyr', 'mua', 'pyr', 'pyr', 'inter', 'pyr', 'pyr', 'pyr', '1', 'pyr', 'pyr', 'pyr', 'pyr', 'pyr', '1', 'pyr', '1', 'pyr', 'pyr', '1', 'pyr', 'mua', 'pyr', 'mua', '1', 'pyr'], dtype='<U5')
+            neuron_type[neuron_type == '1']
+                array(['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'], dtype='<U5')
+            neuron_type[neuron_type == '1'] = 'mua'
+
+        """
         session.neurons = Neurons.from_file(filepath)
+
+
         return session
     @classmethod
     def _load_probegroup_file(cls, filepath, session): # .probegroup
