@@ -1012,7 +1012,7 @@ class PfND_TimeDependent(PfND):
             
         Usage:
         
-            from neuropy.core.epoch import subdivide_epochs, ensure_dataframe
+            from neuropy.core.epoch import EpochHelpers, ensure_dataframe
             from neuropy.analyses.time_dependent_placefields import PfND_TimeDependent
 
             ## INPUTS: long_LR_epochs_obj, long_LR_results
@@ -1025,7 +1025,7 @@ class PfND_TimeDependent(PfND):
             df['interval_type_id'] = 666
 
             subdivide_bin_size = 0.050 # Specify the size of each sub-epoch in seconds
-            subdiv_df: pd.DataFrame = subdivide_epochs(df, subdivide_bin_size)
+            subdiv_df: pd.DataFrame = EpochHelpers.subdivide_epochs(df, subdivide_bin_size)
 
             ## Evolve the ratemaps:
             _a_pf1D_dt_snapshots = a_pf1D_dt.batch_snapshotting(subdiv_df, reset_at_start=True)

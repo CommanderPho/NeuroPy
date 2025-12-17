@@ -21,597 +21,51 @@ from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, po
 
 
 
+
+
+# Compatibility wrappers - these delegate to EpochHelpers for backward compatibility
+# These can be deprecated in the future. New code should use EpochHelpers directly.
 def find_data_indicies_from_epoch_times(a_df: pd.DataFrame, epoch_times: NDArray, t_column_names=None, atol:float=1e-3, not_found_action='skip_index', debug_print=False) -> NDArray:
-    """ returns the matching data indicies corresponding to the epoch [start, stop] times 
-    epoch_times: S x 2 array of epoch start/end times
-
-
-    skip_index: drops indicies that can't be found, meaning that the number of returned indicies might be less than len(epoch_times)
-
-
-    Returns: (S, ) array of data indicies corresponding to the times.
-
-    Uses:
-        from neuropy.core.epoch import find_data_indicies_from_epoch_times
-
-        selection_start_stop_times = deepcopy(active_epochs_df[['start', 'stop']].to_numpy())
-        print(f'np.shape(selection_start_stop_times): {np.shape(selection_start_stop_times)}')
-
-        test_epochs_data_df: pd.DataFrame = deepcopy(ripple_simple_pf_pearson_merged_df)
-        print(f'np.shape(test_epochs_data_df): {np.shape(test_epochs_data_df)}')
-
-        # 2D_search (for both start, end times):
-        found_data_indicies = find_data_indicies_from_epoch_times(test_epochs_data_df, epoch_times=selection_start_stop_times)
-        print(f'np.shape(found_data_indicies): {np.shape(found_data_indicies)}')
-
-        # 1D_search (only for start times):
-        found_data_indicies_1D_search = find_data_indicies_from_epoch_times(test_epochs_data_df, epoch_times=np.squeeze(selection_start_stop_times[:, 0]))
-        print(f'np.shape(found_data_indicies_1D_search): {np.shape(found_data_indicies_1D_search)}')
-        found_data_indicies_1D_search
-
-        assert np.array_equal(found_data_indicies, found_data_indicies_1D_search)
+    """DEPRECATED: Use EpochHelpers.find_data_indicies_from_epoch_times instead.
     
-
-    - [X] FIXED 2024-03-04 19:55 - This function was peviously incorrect and could return multiple matches for each passed time due to the tolerance.
-        
+    This is a compatibility wrapper that delegates to EpochHelpers.find_data_indicies_from_epoch_times.
     """
-    def _subfn_find_epoch_times(epoch_slices_df: pd.DataFrame, epoch_times: NDArray, active_t_column_names=['start','stop'], ndim:int=2) -> NDArray:
-        """Loop through each pair of epoch_times and find the closest start and end time
-        
-        Captures: atol, debug_print, not_found_action
-
-        """
-        assert len(active_t_column_names) == ndim, f"ndim: {ndim}, active_t_column_names: {active_t_column_names}"
-        assert not_found_action in ['skip_index', 'full_nan']
-
-        if (ndim == 0):
-            epoch_times = np.atleast_1d(epoch_times)
-            ndim = 1
-
-        indices = []
-        if (ndim == 1):
-            for start_time in epoch_times:
-                # Find the index with the closest start time
-                start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin() # idxmin returns a .loc index apparently?
-
-                ## Numpy-only version:
-                # start_index: NDArray = np.argmin(epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().to_numpy())
-
-                # start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin() 
-                selected_index = start_index
-                
-                ## End if
-                ## Check the tolerance
-                assert selected_index is not None
-                was_index_found: bool = True # true by default
-
-                if atol is not None:
-                    
-                    # Can convert to an actual integer index like this:
-                    # selected_integer_position_index = epoch_slices_df.index.get_loc(selected_index) # to match with .iloc do this
-                    # selected_index_diff = epoch_slices_df.iloc[selected_integer_position_index].sub(start_time)
-
-                    ## See how the selecteded index's values diff from the search values
-                    selected_index_diff = epoch_slices_df.loc[selected_index].sub(start_time) # IndexError: single positional indexer is out-of-bounds
-
-                    ## Check against tolerance:
-                    exceeds_tolerance: bool = np.any((selected_index_diff.abs() > atol))
-                    if exceeds_tolerance:
-                        if debug_print:
-                            print(f'WARN: CLOSEST FOUND INDEX EXCEEDS TOLERANCE (atol={atol}):\n\tsearch_time: {start_time}, closest: {epoch_slices_df.loc[selected_index].to_numpy()}, {selected_index_diff}. No matching index was found.')
-                        selected_index = np.nan
-                        was_index_found = False
-
-                if was_index_found:
-                    # index was found
-                    indices.append(selected_index)
-                else:
-                    ## index not found:
-                    if not_found_action == 'skip_index':
-                        # skip without adding this index. This means the the output array will be smaller than the epoch_times
-                        pass
-                    elif (not_found_action == 'full_nan'):
-                        ## append the nan anyway
-                        indices.append(selected_index)
-                    else:
-                        raise NotImplementedError(f"not_found_action: {not_found_action}")
-
-
-            # end for
-                    
-        elif (ndim == 2):
-            for start_time, end_time in epoch_times:
-                # Find the index with the closest start time
-                start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin()
-                # Find the index with the closest end time
-                end_index = epoch_slices_df[active_t_column_names[1]].sub(end_time).abs().idxmin()
-                
-                was_index_found: bool = True # true by default
-                
-                selected_index = None
-                # If the start and end indices are the same, we have a match
-                if (start_index == end_index):
-                    ## Good, this is how it should be, they correspond to the same (single) row:
-                    selected_index = start_index
-                else:
-                    ## MODE: CLOSEST START
-                    if debug_print:
-                        print(f'WARNING: CLOSEST START INDEX: {start_index} is not equal to the closest END index: {end_index}. Using start index.')
-                    selected_index = start_index
-
-                    # ## MODE: CLOSEST START OR STOP
-                    # start_diff = epoch_slices_df.iloc[start_index].sub([start_time, end_time]).abs().sum()
-                    # end_diff = epoch_slices_df.iloc[end_index].sub([start_time, end_time]).abs().sum()
-                    # # If not, find which one is closer overall (by comparing the sum of absolute differences to start_time and end_time)
-                    # selected_index = (start_index if start_diff <= end_diff else end_index)
-
-                ## End if
-                ## Check the tolerance
-                assert selected_index is not None
-                if atol is not None:
-                    ## See how the selecteded index's values diff from the search values
-                    selected_index_diff = epoch_slices_df.loc[selected_index].sub([start_time, end_time]) # .loc[selected_index] method supposedly compatibile with .idxmin()
-                    # selected_index_diff = epoch_slices_df.iloc[selected_index].sub([start_time, end_time]) #.abs() #.sum() # IndexError: single positional indexer is out-of-bounds -- selected_index: 319. SHIT. Confirmed it corresponds to df.Index == 319, which is at .iloc[134]
-                    exceeds_tolerance: bool = np.any((selected_index_diff.abs() > atol))
-                    if exceeds_tolerance:
-                        if debug_print:
-                            print(f'WARN: CLOSEST FOUND INDEX EXCEEDS TOLERANCE (atol={atol}):\n\tsearch_time: [{start_time}, {end_time}], closest: [{epoch_slices_df.loc[selected_index].to_numpy()}], diff: [{selected_index_diff.to_numpy()}]. No matching index was found.')
-                        selected_index = np.nan
-                        was_index_found = False
-
-                if was_index_found:
-                    # index was found
-                    indices.append(selected_index)
-                else:
-                    ## index not found:
-                    if not_found_action == 'skip_index':
-                        # skip without adding this index. This means the the output array will be smaller than the epoch_times
-                        pass
-                    elif (not_found_action == 'full_nan'):
-                        ## append the nan anyway
-                        indices.append(selected_index)
-                    else:
-                        raise NotImplementedError(f"not_found_action: {not_found_action}")
-                # end for
-        else:
-            raise NotImplementedError(f"ndim: {ndim}")
-        
-        # Return the indices as an ndarray
-        return np.array(indices)
-
-
-    # BEGIN FUNCTION BODY ________________________________________________________________________________________________ #
-    assert not_found_action in ['skip_index', 'full_nan']
-
-    if ((np.ndim(epoch_times) == 2) and (np.shape(epoch_times)[1] == 2)):
-        if t_column_names is None:
-            t_column_names = ['start', 'stop']
-        assert (len(t_column_names) == 2), f"len(t_column_names): {len(t_column_names)} != 2)"
-        num_query_times: int = np.shape(epoch_times)[0]
-    elif (np.ndim(epoch_times) == 1):
-        # start times only
-        if t_column_names is None:
-            t_column_names = ['start',]
-        if len(t_column_names) > 1:
-            t_column_names = [t_column_names[0],]
-        num_query_times: int = len(epoch_times)
-
-
-    elif (np.ndim(epoch_times) == 0):
-        # single start time only
-        if t_column_names is None:
-            t_column_names = ['start',]
-        if len(t_column_names) > 1:
-            t_column_names = [t_column_names[0],]
-        epoch_times = np.atleast_1d(epoch_times)
-        num_query_times: int = 1
-
-    else:
-        raise NotImplementedError(f"np.ndim(epoch_times): {np.ndim(epoch_times)}, np.shape(epoch_times)[1]: {np.shape(epoch_times)[1]}")
-
-    # start, stop epoch times:
-    epoch_slices_df = a_df[t_column_names]
-
-    found_data_indicies = _subfn_find_epoch_times(epoch_slices_df=epoch_slices_df, epoch_times=epoch_times, active_t_column_names=t_column_names, ndim=len(t_column_names))
-    if not_found_action == 'skip_index':
-        # skip without adding this index. This means the the output found_data_indicies might be smaller than the num_query_times
-        assert (len(found_data_indicies) <= num_query_times), f"num_query_times: {num_query_times}, len(found_data_indicies): {len(found_data_indicies)}"
-    elif (not_found_action == 'full_nan'):
-        assert (len(found_data_indicies) == num_query_times), f"num_query_times: {num_query_times}, len(found_data_indicies): {len(found_data_indicies)}"
-    else:
-        raise NotImplementedError(f"not_found_action: {not_found_action}")
-
-    return found_data_indicies
-
+    return EpochHelpers.find_data_indicies_from_epoch_times(a_df, epoch_times, t_column_names=t_column_names, atol=atol, not_found_action=not_found_action, debug_print=debug_print)
 
 def find_epoch_times_to_data_indicies_map(a_df: pd.DataFrame, epoch_times: NDArray, t_column_names=None, atol:float=1e-3, not_found_action='skip_index', debug_print=False) -> Dict[Union[float, Tuple[float, float]], Union[int, NDArray]]:
-    """ returns the matching data indicies corresponding to the epoch [start, stop] times 
-    epoch_times: S x 2 array of epoch start/end times
-
-
-    skip_index: drops indicies that can't be found, meaning that the number of returned indicies might be less than len(epoch_times)
-
-
-    Returns: (S, ) array of data indicies corresponding to the times.
-
-    Uses:
-        from neuropy.core.epoch import find_epoch_times_to_data_indicies_map
-        
-        selection_start_stop_times = deepcopy(active_epochs_df[['start', 'stop']].to_numpy())
-        print(f'np.shape(selection_start_stop_times): {np.shape(selection_start_stop_times)}')
-
-        test_epochs_data_df: pd.DataFrame = deepcopy(ripple_simple_pf_pearson_merged_df)
-        print(f'np.shape(test_epochs_data_df): {np.shape(test_epochs_data_df)}')
-
-        # 2D_search (for both start, end times):
-        found_data_indicies = find_data_indicies_from_epoch_times(test_epochs_data_df, epoch_times=selection_start_stop_times)
-        print(f'np.shape(found_data_indicies): {np.shape(found_data_indicies)}')
-
-        # 1D_search (only for start times):
-        found_data_indicies_1D_search = find_data_indicies_from_epoch_times(test_epochs_data_df, epoch_times=np.squeeze(selection_start_stop_times[:, 0]))
-        print(f'np.shape(found_data_indicies_1D_search): {np.shape(found_data_indicies_1D_search)}')
-        found_data_indicies_1D_search
-
-        assert np.array_equal(found_data_indicies, found_data_indicies_1D_search)
+    """DEPRECATED: Use EpochHelpers.find_epoch_times_to_data_indicies_map instead.
     
-
-    - [X] FIXED 2024-03-04 19:55 - This function was peviously incorrect and could return multiple matches for each passed time due to the tolerance.
-        
+    This is a compatibility wrapper that delegates to EpochHelpers.find_epoch_times_to_data_indicies_map.
     """
-    def _subfn_find_epoch_times_map(epoch_slices_df: pd.DataFrame, epoch_times: NDArray, active_t_column_names=['start','stop'], ndim:int=2):
-        """Loop through each pair of epoch_times and find the closest start and end time
-        
-        Captures: atol, debug_print, not_found_action
+    return EpochHelpers.find_epoch_times_to_data_indicies_map(a_df, epoch_times, t_column_names=t_column_names, atol=atol, not_found_action=not_found_action, debug_print=debug_print)
 
-        """
-        assert len(active_t_column_names) == ndim, f"ndim: {ndim}, active_t_column_names: {active_t_column_names}"
-        assert not_found_action in ['skip_index', 'full_nan']
-
-        if (ndim == 0):
-            epoch_times = np.atleast_1d(epoch_times)
-            ndim = 1
-
-        indices = []
-        epoch_time_to_index_map = {}
-        if (ndim == 1):
-            for start_time in epoch_times:
-                # Find the index with the closest start time
-                start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin() # idxmin returns a .loc index apparently?
-
-                ## Numpy-only version:
-                # start_index: NDArray = np.argmin(epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().to_numpy())
-
-                # start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin() 
-                selected_index = start_index
-                
-                ## End if
-                ## Check the tolerance
-                assert selected_index is not None
-                was_index_found: bool = True # true by default
-
-                if atol is not None:
-                    
-                    # Can convert to an actual integer index like this:
-                    # selected_integer_position_index = epoch_slices_df.index.get_loc(selected_index) # to match with .iloc do this
-                    # selected_index_diff = epoch_slices_df.iloc[selected_integer_position_index].sub(start_time)
-
-                    ## See how the selecteded index's values diff from the search values
-                    selected_index_diff = epoch_slices_df.loc[selected_index].sub(start_time) # IndexError: single positional indexer is out-of-bounds
-
-                    ## Check against tolerance:
-                    exceeds_tolerance: bool = np.any((selected_index_diff.abs() > atol))
-                    if exceeds_tolerance:
-                        if debug_print:
-                            print(f'WARN: CLOSEST FOUND INDEX EXCEEDS TOLERANCE (atol={atol}):\n\tsearch_time: {start_time}, closest: {epoch_slices_df.loc[selected_index].to_numpy()}, {selected_index_diff}. No matching index was found.')
-                        selected_index = np.nan
-                        was_index_found = False
-
-                if was_index_found:
-                    # index was found
-                    indices.append(selected_index)
-                    if isinstance(selected_index, (list, tuple, NDArray)):
-                        ## if it's a list, tuple, NDArray, etc
-                        if len(selected_index) > 0:
-                            if (not isinstance(selected_index, NDArray)):
-                                selected_index = NDArray(selected_index) ## convert to NDArray
-                                
-                    epoch_time_to_index_map[start_time] = selected_index
-                    
-                else:
-                    ## index not found:
-                    if not_found_action == 'skip_index':
-                        # skip without adding this index. This means the the output array will be smaller than the epoch_times
-                        pass
-                    elif (not_found_action == 'full_nan'):
-                        ## append the nan anyway
-                        indices.append(selected_index)
-                        if isinstance(selected_index, (list, tuple, NDArray)):
-                            ## if it's a list, tuple, NDArray, etc
-                            if len(selected_index) > 0:
-                                if (not isinstance(selected_index, NDArray)):
-                                    selected_index = NDArray(selected_index) ## convert to NDArray
-                                
-                        epoch_time_to_index_map[start_time] = selected_index
-                    else:
-                        raise NotImplementedError(f"not_found_action: {not_found_action}")
-
-
-            # end for
-                    
-        elif (ndim == 2):
-            for start_time, end_time in epoch_times:
-                # Find the index with the closest start time
-                start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin()
-                # Find the index with the closest end time
-                end_index = epoch_slices_df[active_t_column_names[1]].sub(end_time).abs().idxmin()
-                
-                was_index_found: bool = True # true by default
-                
-                selected_index = None
-                # If the start and end indices are the same, we have a match
-                if (start_index == end_index):
-                    ## Good, this is how it should be, they correspond to the same (single) row:
-                    selected_index = start_index
-                else:
-                    ## MODE: CLOSEST START
-                    if debug_print:
-                        print(f'WARNING: CLOSEST START INDEX: {start_index} is not equal to the closest END index: {end_index}. Using start index.')
-                    selected_index = start_index
-
-                    # ## MODE: CLOSEST START OR STOP
-                    # start_diff = epoch_slices_df.iloc[start_index].sub([start_time, end_time]).abs().sum()
-                    # end_diff = epoch_slices_df.iloc[end_index].sub([start_time, end_time]).abs().sum()
-                    # # If not, find which one is closer overall (by comparing the sum of absolute differences to start_time and end_time)
-                    # selected_index = (start_index if start_diff <= end_diff else end_index)
-
-                ## End if
-                ## Check the tolerance
-                assert selected_index is not None
-                if atol is not None:
-                    ## See how the selecteded index's values diff from the search values
-                    selected_index_diff = epoch_slices_df.loc[selected_index].sub([start_time, end_time]) # .loc[selected_index] method supposedly compatibile with .idxmin()
-                    # selected_index_diff = epoch_slices_df.iloc[selected_index].sub([start_time, end_time]) #.abs() #.sum() # IndexError: single positional indexer is out-of-bounds -- selected_index: 319. SHIT. Confirmed it corresponds to df.Index == 319, which is at .iloc[134]
-                    exceeds_tolerance: bool = np.any((selected_index_diff.abs() > atol))
-                    if exceeds_tolerance:
-                        if debug_print:
-                            print(f'WARN: CLOSEST FOUND INDEX EXCEEDS TOLERANCE (atol={atol}):\n\tsearch_time: [{start_time}, {end_time}], closest: [{epoch_slices_df.loc[selected_index].to_numpy()}], diff: [{selected_index_diff.to_numpy()}]. No matching index was found.')
-                        selected_index = np.nan
-                        was_index_found = False
-                        
-                # if (not isinstance(selected_index, (float, int))):
-
-
-                if was_index_found:
-                    # index was found
-                    indices.append(selected_index)
-                    if isinstance(selected_index, (list, tuple, NDArray)):
-                        ## if it's a list, tuple, NDArray, etc
-                        if len(selected_index) > 0:
-                            if (not isinstance(selected_index, NDArray)):
-                                selected_index = NDArray(selected_index) ## convert to NDArray
-                    epoch_time_to_index_map[(start_time, end_time,)] = selected_index
-                else:
-                    ## index not found:
-                    if not_found_action == 'skip_index':
-                        # skip without adding this index. This means the the output array will be smaller than the epoch_times
-                        pass
-                    elif (not_found_action == 'full_nan'):
-                        ## append the nan anyway
-                        indices.append(selected_index)
-                        if isinstance(selected_index, (list, tuple, NDArray)):
-                            ## if it's a list, tuple, NDArray, etc
-                            if len(selected_index) > 0:
-                                if (not isinstance(selected_index, NDArray)):
-                                    selected_index = NDArray(selected_index) ## convert to NDArray
-        
-                        epoch_time_to_index_map[(start_time, end_time,)] = selected_index
-                    else:
-                        raise NotImplementedError(f"not_found_action: {not_found_action}")
-                # end for
-        else:
-            raise NotImplementedError(f"ndim: {ndim}")
-        
-        # Return the indices as an ndarray
-        return epoch_time_to_index_map, np.array(indices)
-
-
-    # BEGIN FUNCTION BODY ________________________________________________________________________________________________ #
-    assert not_found_action in ['skip_index', 'full_nan']
-
-    if ((np.ndim(epoch_times) == 2) and (np.shape(epoch_times)[1] == 2)):
-        if t_column_names is None:
-            t_column_names = ['start', 'stop']
-        assert (len(t_column_names) == 2), f"len(t_column_names): {len(t_column_names)} != 2)"
-        num_query_times: int = np.shape(epoch_times)[0]
-    elif (np.ndim(epoch_times) == 1):
-        # start times only
-        if t_column_names is None:
-            t_column_names = ['start',]
-        if len(t_column_names) > 1:
-            t_column_names = [t_column_names[0],]
-        num_query_times: int = len(epoch_times)
-
-
-    elif (np.ndim(epoch_times) == 0):
-        # single start time only
-        if t_column_names is None:
-            t_column_names = ['start',]
-        if len(t_column_names) > 1:
-            t_column_names = [t_column_names[0],]
-        epoch_times = np.atleast_1d(epoch_times)
-        num_query_times: int = 1
-
-    else:
-        raise NotImplementedError
-
-    # start, stop epoch times:
-    epoch_slices_df = a_df[t_column_names]
-
-    epoch_time_to_index_map, found_data_indicies = _subfn_find_epoch_times_map(epoch_slices_df=epoch_slices_df, epoch_times=epoch_times, active_t_column_names=t_column_names, ndim=len(t_column_names))
-    if not_found_action == 'skip_index':
-        # skip without adding this index. This means the the output found_data_indicies might be smaller than the num_query_times
-        assert (len(found_data_indicies) <= num_query_times), f"num_query_times: {num_query_times}, len(found_data_indicies): {len(found_data_indicies)}"
-    elif (not_found_action == 'full_nan'):
-        assert (len(found_data_indicies) == num_query_times), f"num_query_times: {num_query_times}, len(found_data_indicies): {len(found_data_indicies)}"
-    else:
-        raise NotImplementedError(f"not_found_action: {not_found_action}")
-
-    # , found_data_indicies
-    
-    return epoch_time_to_index_map
-            
 def find_epochs_overlapping_other_epochs(epochs_df: pd.DataFrame, epochs_df_required_to_overlap: pd.DataFrame):
-    """ 
-    For example, you might wonder which epochs occur during laps:
-
-        from neuropy.core.epoch import find_epochs_overlapping_other_epochs
-
-        ## INPUTS: time_bin_containers, global_laps
-        left_edges = deepcopy(time_bin_containers.left_edges)
-        right_edges = deepcopy(time_bin_containers.right_edges)
-        continuous_time_binned_computation_epochs_df: pd.DataFrame = pd.DataFrame({'start': left_edges, 'stop': right_edges, 'label': np.arange(len(left_edges))})
-        is_included: NDArray = find_epochs_overlapping_other_epochs(epochs_df=continuous_time_binned_computation_epochs_df, epochs_df_required_to_overlap=deepcopy(global_laps))
-        continuous_time_binned_computation_epochs_df['is_in_laps'] = is_included
-        continuous_time_binned_computation_epochs_df
-        continuous_time_binned_computation_epochs_included_only_df = continuous_time_binned_computation_epochs_df[continuous_time_binned_computation_epochs_df['is_in_laps']].drop(columns=['is_in_laps'])
-        continuous_time_binned_computation_epochs_included_only_df
-
+    """DEPRECATED: Use EpochHelpers.find_epochs_overlapping_other_epochs instead.
+    
+    This is a compatibility wrapper that delegates to EpochHelpers.find_epochs_overlapping_other_epochs.
     """
-    ## INPUTS: continuous_time_binned_computation_epochs, laps
-    epochs_df: pd.DataFrame = ensure_dataframe(epochs_df)
-    epochs_df_required_to_overlap: pd.DataFrame = ensure_dataframe(epochs_df_required_to_overlap)
-    epochs_df_required_to_overlap_portion: P.Interval = epochs_df_required_to_overlap.epochs.to_PortionInterval()
-    continuous_time_binned_computation_epochs_portion_intervals: List[P.Interval] = [P.closedopen(a_row.start, a_row.stop) for a_row in epochs_df[['start', 'stop']].itertuples()]
-    is_included: NDArray = np.array([an_interval.overlaps(epochs_df_required_to_overlap_portion) for an_interval in continuous_time_binned_computation_epochs_portion_intervals])
-    return is_included
+    return EpochHelpers.find_epochs_overlapping_other_epochs(epochs_df, epochs_df_required_to_overlap)
 
-
-# @function_attributes(short_name=None, tags=['epoch'], input_requires=[], output_provides=[], uses=[], used_by=['split_epochs_into_training_and_test'], creation_date='2025-01-27 13:48', related_items=[])
 def sample_random_period_from_epoch(epoch_start: float, epoch_stop: float, training_data_portion: float, *additional_lap_columns, debug_print=False, debug_override_training_start_t=None):
-    """ randomly sample a portion of each lap. Draw a random period of duration (duration[i] * training_data_portion) from the lap.
-
+    """DEPRECATED: Use EpochHelpers.sample_random_period_from_epoch instead.
+    
+    This is a compatibility wrapper that delegates to EpochHelpers.sample_random_period_from_epoch.
     """
-    total_epoch_duration: float = (epoch_stop - epoch_start)
-    training_duration: float = total_epoch_duration * training_data_portion
-    test_duration: float = total_epoch_duration - training_duration
+    return EpochHelpers.sample_random_period_from_epoch(epoch_start, epoch_stop, training_data_portion, *additional_lap_columns, debug_print=debug_print, debug_override_training_start_t=debug_override_training_start_t)
 
-    ## new method:
-    # I'd like to randomly choose a test_start_t period from any time during the interval.
-
-    # TRAINING data split mode:
-    if debug_override_training_start_t is not None:
-        print(f'debug_override_training_start_t: {debug_override_training_start_t} provided, so not generating random number.')
-        training_start_t = debug_override_training_start_t
-    else:
-        training_start_t = np.random.uniform(epoch_start, epoch_stop)
-    
-    training_end_t = (training_start_t + training_duration)
-    
-    if debug_print:
-        print(f'training_start_t: {training_start_t}, training_end_t: {training_end_t}') # , training_wrap_duration: {training_wrap_duration}
-
-    if training_end_t > epoch_stop:
-        # Wrap around if training_end_t is beyond the period (wrap required):
-        # CASE: [train[0], test[0], train[1]] - train[1] = (train
-        # Calculate how much time should wrap to the beginning
-        wrap_duration = training_end_t - epoch_stop
-        
-        # Define the training periods
-        train_period_1 = (training_start_t, epoch_stop, *additional_lap_columns) # training spans to the end of the lap
-        train_period_2 = (epoch_start, (epoch_start + wrap_duration), *additional_lap_columns) ## new period is crated for training at start of lap
-        
-        # Return both training periods
-        train_outputs = [train_period_1, train_period_2]
-    else:
-        # all other cases have only one train interval (train[0])
-        train_outputs = [(training_start_t, training_end_t, *additional_lap_columns)]
-
-
-    train_outputs.sort(key=lambda i: (i[0], i[1])) # sort by low first, then by high if the low keys tie
-    return train_outputs
-
-
-# @function_attributes(short_name=None, tags=['epoch'], input_requires=[], output_provides=[], uses=['sample_random_period_from_epoch'], used_by=['Epoch.split_into_training_and_test'], creation_date='2025-01-27 13:48', related_items=[])
 def split_epochs_into_training_and_test(epochs_df: pd.DataFrame, training_data_portion: float=5.0/6.0, group_column_name: str='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], debug_print: bool = False):
-    """ Splits laps into separate training and test sections
+    """DEPRECATED: Use EpochHelpers.split_epochs_into_training_and_test instead.
     
-    Usage:
-
-        from pyphoplacecellanalysis.SpecificResults.PendingNotebookCode import split_laps_training_and_test
-
-        ### Get the laps to train on
-        training_data_portion: float = 5.0/6.0
-        test_data_portion: float = 1.0 - training_data_portion # test data portion is 1/6 of the total duration
-
-        print(f'training_data_portion: {training_data_portion}, test_data_portion: {test_data_portion}')
-
-        laps_df: pd.DataFrame = deepcopy(global_any_laps_epochs_obj.to_dataframe())
-
-        laps_training_df, laps_test_df = split_laps_training_and_test(laps_df=laps_df, training_data_portion=training_data_portion, debug_print=False)
-
-        laps_df
-        laps_training_df
-        laps_test_df 
-
+    This is a compatibility wrapper that delegates to EpochHelpers.split_epochs_into_training_and_test.
     """
-    from neuropy.core.epoch import Epoch, ensure_dataframe
+    return EpochHelpers.split_epochs_into_training_and_test(epochs_df, training_data_portion=training_data_portion, group_column_name=group_column_name, additional_epoch_identity_column_names=additional_epoch_identity_column_names, debug_print=debug_print)
 
-    # BEGIN FUNCTION BODY ________________________________________________________________________________________________ #
-
-    # Randomly sample a portion of each lap. Draw a random period of duration (duration[i] * training_data_portion) from the lap.
-    train_rows = []
-    test_rows = []
-
-    for epoch_id, group in epochs_df.groupby(group_column_name):
-        lap_start = group['start'].min()
-        lap_stop = group['stop'].max()
-        curr_lap_duration: float = lap_stop - lap_start
-        if debug_print:
-            print(f'lap_id: {epoch_id} - group: {group}')
-        curr_additional_lap_column_values = [group[a_col].to_numpy()[0] for a_col in additional_epoch_identity_column_names]
-        if debug_print:
-            print(f'\tcurr_additional_lap_column_values: {curr_additional_lap_column_values}')
-        # Get the random training start and stop times for the lap.
-        # Define your period as an interval
-        curr_lap_period = P.closed(lap_start, lap_stop)
-        epoch_start_stop_tuple_list = sample_random_period_from_epoch(lap_start, lap_stop, training_data_portion, *curr_additional_lap_column_values)
-
-        a_combined_intervals = P.empty()
-        for an_epoch_start_stop_tuple in epoch_start_stop_tuple_list:
-            a_combined_intervals = a_combined_intervals.union(P.closed(an_epoch_start_stop_tuple[0], an_epoch_start_stop_tuple[1]))
-            train_rows.append(an_epoch_start_stop_tuple)
-        
-        # Calculate the difference between the period and the combined interval
-        complement_intervals = curr_lap_period.difference(a_combined_intervals)
-        _temp_test_epochs_df = EpochsAccessor.from_PortionInterval(complement_intervals)
-        _temp_test_epochs_df[additional_epoch_identity_column_names] = curr_additional_lap_column_values ## add in the additional columns
-        test_rows.append(_temp_test_epochs_df)
-
-        ## VALIDATE:
-        a_train_durations = [(an_epoch_start_stop_tuple[1]-an_epoch_start_stop_tuple[0]) for an_epoch_start_stop_tuple in epoch_start_stop_tuple_list]
-        all_train_durations: float = np.sum(a_train_durations)
-        all_test_durations: float = _temp_test_epochs_df['duration'].sum()
-        assert np.isclose(curr_lap_duration, (all_train_durations+all_test_durations)), f"(all_train_durations: {all_train_durations} + all_test_durations: {all_test_durations}) should equal curr_lap_duration: {curr_lap_duration}, but instead it equals {(all_train_durations+all_test_durations)}"
-
-
-    ## INPUTS: laps_df, laps_df
-
-    # train_rows
-    # Convert to DataFrame and reset indices
-    epochs_training_df = pd.DataFrame(train_rows, columns=['start', 'stop', *additional_epoch_identity_column_names])
-    epochs_training_df['duration'] = epochs_training_df['stop'] - epochs_training_df['start']
-
-
-    # Convert to DataFrame and reset indices
-    epochs_test_df = pd.concat(test_rows)
-    epochs_training_df.reset_index(drop=True, inplace=True)
-    epochs_test_df.reset_index(drop=True, inplace=True)
-
-    # assert np.shape(laps_test_df)[0] == np.shape(laps_df)[0], f"np.shape(laps_test_df)[0]: {np.shape(laps_test_df)[0]} != np.shape(laps_df)[0]: {np.shape(laps_df)[0]}"
-
-    ## OUTPUTS: epochs_training_df, epochs_test_df
-    return epochs_training_df, epochs_test_df
-
+def subdivide_epochs(df: pd.DataFrame, subdivide_bin_size: float, start_col='start', stop_col='stop') -> pd.DataFrame:
+    """DEPRECATED: Use EpochHelpers.subdivide_epochs instead.
+    
+    This is a compatibility wrapper that delegates to EpochHelpers.subdivide_epochs.
+    """
+    return EpochHelpers.subdivide_epochs(df, subdivide_bin_size, start_col=start_col, stop_col=stop_col)
 
 
 class EpochHelpers:
@@ -663,6 +117,645 @@ class EpochHelpers:
 
         df[out_col] = pd.Series(level_by_index)
         return df
+
+    @classmethod
+    def find_data_indicies_from_epoch_times(cls, a_df: pd.DataFrame, epoch_times: NDArray, t_column_names=None, atol:float=1e-3, not_found_action='skip_index', debug_print=False) -> NDArray:
+        """ returns the matching data indicies corresponding to the epoch [start, stop] times 
+        epoch_times: S x 2 array of epoch start/end times
+
+
+        skip_index: drops indicies that can't be found, meaning that the number of returned indicies might be less than len(epoch_times)
+
+
+        Returns: (S, ) array of data indicies corresponding to the times.
+
+        Uses:
+            from neuropy.core.epoch import EpochHelpers
+
+            selection_start_stop_times = deepcopy(active_epochs_df[['start', 'stop']].to_numpy())
+            print(f'np.shape(selection_start_stop_times): {np.shape(selection_start_stop_times)}')
+
+            test_epochs_data_df: pd.DataFrame = deepcopy(ripple_simple_pf_pearson_merged_df)
+            print(f'np.shape(test_epochs_data_df): {np.shape(test_epochs_data_df)}')
+
+            # 2D_search (for both start, end times):
+            found_data_indicies = EpochHelpers.find_data_indicies_from_epoch_times(test_epochs_data_df, epoch_times=selection_start_stop_times)
+            print(f'np.shape(found_data_indicies): {np.shape(found_data_indicies)}')
+
+            # 1D_search (only for start times):
+            found_data_indicies_1D_search = EpochHelpers.find_data_indicies_from_epoch_times(test_epochs_data_df, epoch_times=np.squeeze(selection_start_stop_times[:, 0]))
+            print(f'np.shape(found_data_indicies_1D_search): {np.shape(found_data_indicies_1D_search)}')
+            found_data_indicies_1D_search
+
+            assert np.array_equal(found_data_indicies, found_data_indicies_1D_search)
+        
+
+        - [X] FIXED 2024-03-04 19:55 - This function was peviously incorrect and could return multiple matches for each passed time due to the tolerance.
+            
+        """
+        def _subfn_find_epoch_times(epoch_slices_df: pd.DataFrame, epoch_times: NDArray, active_t_column_names=['start','stop'], ndim:int=2) -> NDArray:
+            """Loop through each pair of epoch_times and find the closest start and end time
+            
+            Captures: atol, debug_print, not_found_action
+
+            """
+            assert len(active_t_column_names) == ndim, f"ndim: {ndim}, active_t_column_names: {active_t_column_names}"
+            assert not_found_action in ['skip_index', 'full_nan']
+
+            if (ndim == 0):
+                epoch_times = np.atleast_1d(epoch_times)
+                ndim = 1
+
+            indices = []
+            if (ndim == 1):
+                for start_time in epoch_times:
+                    # Find the index with the closest start time
+                    start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin() # idxmin returns a .loc index apparently?
+
+                    ## Numpy-only version:
+                    # start_index: NDArray = np.argmin(epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().to_numpy())
+
+                    # start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin() 
+                    selected_index = start_index
+                    
+                    ## End if
+                    ## Check the tolerance
+                    assert selected_index is not None
+                    was_index_found: bool = True # true by default
+
+                    if atol is not None:
+                        
+                        # Can convert to an actual integer index like this:
+                        # selected_integer_position_index = epoch_slices_df.index.get_loc(selected_index) # to match with .iloc do this
+                        # selected_index_diff = epoch_slices_df.iloc[selected_integer_position_index].sub(start_time)
+
+                        ## See how the selecteded index's values diff from the search values
+                        selected_index_diff = epoch_slices_df.loc[selected_index].sub(start_time) # IndexError: single positional indexer is out-of-bounds
+
+                        ## Check against tolerance:
+                        exceeds_tolerance: bool = np.any((selected_index_diff.abs() > atol))
+                        if exceeds_tolerance:
+                            if debug_print:
+                                print(f'WARN: CLOSEST FOUND INDEX EXCEEDS TOLERANCE (atol={atol}):\n\tsearch_time: {start_time}, closest: {epoch_slices_df.loc[selected_index].to_numpy()}, {selected_index_diff}. No matching index was found.')
+                            selected_index = np.nan
+                            was_index_found = False
+
+                    if was_index_found:
+                        # index was found
+                        indices.append(selected_index)
+                    else:
+                        ## index not found:
+                        if not_found_action == 'skip_index':
+                            # skip without adding this index. This means the the output array will be smaller than the epoch_times
+                            pass
+                        elif (not_found_action == 'full_nan'):
+                            ## append the nan anyway
+                            indices.append(selected_index)
+                        else:
+                            raise NotImplementedError(f"not_found_action: {not_found_action}")
+
+
+                # end for
+                        
+            elif (ndim == 2):
+                for start_time, end_time in epoch_times:
+                    # Find the index with the closest start time
+                    start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin()
+                    # Find the index with the closest end time
+                    end_index = epoch_slices_df[active_t_column_names[1]].sub(end_time).abs().idxmin()
+                    
+                    was_index_found: bool = True # true by default
+                    
+                    selected_index = None
+                    # If the start and end indices are the same, we have a match
+                    if (start_index == end_index):
+                        ## Good, this is how it should be, they correspond to the same (single) row:
+                        selected_index = start_index
+                    else:
+                        ## MODE: CLOSEST START
+                        if debug_print:
+                            print(f'WARNING: CLOSEST START INDEX: {start_index} is not equal to the closest END index: {end_index}. Using start index.')
+                        selected_index = start_index
+
+                        # ## MODE: CLOSEST START OR STOP
+                        # start_diff = epoch_slices_df.iloc[start_index].sub([start_time, end_time]).abs().sum()
+                        # end_diff = epoch_slices_df.iloc[end_index].sub([start_time, end_time]).abs().sum()
+                        # # If not, find which one is closer overall (by comparing the sum of absolute differences to start_time and end_time)
+                        # selected_index = (start_index if start_diff <= end_diff else end_index)
+
+                    ## End if
+                    ## Check the tolerance
+                    assert selected_index is not None
+                    if atol is not None:
+                        ## See how the selecteded index's values diff from the search values
+                        selected_index_diff = epoch_slices_df.loc[selected_index].sub([start_time, end_time]) # .loc[selected_index] method supposedly compatibile with .idxmin()
+                        # selected_index_diff = epoch_slices_df.iloc[selected_index].sub([start_time, end_time]) #.abs() #.sum() # IndexError: single positional indexer is out-of-bounds -- selected_index: 319. SHIT. Confirmed it corresponds to df.Index == 319, which is at .iloc[134]
+                        exceeds_tolerance: bool = np.any((selected_index_diff.abs() > atol))
+                        if exceeds_tolerance:
+                            if debug_print:
+                                print(f'WARN: CLOSEST FOUND INDEX EXCEEDS TOLERANCE (atol={atol}):\n\tsearch_time: [{start_time}, {end_time}], closest: [{epoch_slices_df.loc[selected_index].to_numpy()}], diff: [{selected_index_diff.to_numpy()}]. No matching index was found.')
+                            selected_index = np.nan
+                            was_index_found = False
+
+                    if was_index_found:
+                        # index was found
+                        indices.append(selected_index)
+                    else:
+                        ## index not found:
+                        if not_found_action == 'skip_index':
+                            # skip without adding this index. This means the the output array will be smaller than the epoch_times
+                            pass
+                        elif (not_found_action == 'full_nan'):
+                            ## append the nan anyway
+                            indices.append(selected_index)
+                        else:
+                            raise NotImplementedError(f"not_found_action: {not_found_action}")
+                    # end for
+            else:
+                raise NotImplementedError(f"ndim: {ndim}")
+            
+            # Return the indices as an ndarray
+            return np.array(indices)
+
+
+        # BEGIN FUNCTION BODY ________________________________________________________________________________________________ #
+        assert not_found_action in ['skip_index', 'full_nan']
+
+        if ((np.ndim(epoch_times) == 2) and (np.shape(epoch_times)[1] == 2)):
+            if t_column_names is None:
+                t_column_names = ['start', 'stop']
+            assert (len(t_column_names) == 2), f"len(t_column_names): {len(t_column_names)} != 2)"
+            num_query_times: int = np.shape(epoch_times)[0]
+        elif (np.ndim(epoch_times) == 1):
+            # start times only
+            if t_column_names is None:
+                t_column_names = ['start',]
+            if len(t_column_names) > 1:
+                t_column_names = [t_column_names[0],]
+            num_query_times: int = len(epoch_times)
+
+
+        elif (np.ndim(epoch_times) == 0):
+            # single start time only
+            if t_column_names is None:
+                t_column_names = ['start',]
+            if len(t_column_names) > 1:
+                t_column_names = [t_column_names[0],]
+            epoch_times = np.atleast_1d(epoch_times)
+            num_query_times: int = 1
+
+        else:
+            raise NotImplementedError(f"np.ndim(epoch_times): {np.ndim(epoch_times)}, np.shape(epoch_times)[1]: {np.shape(epoch_times)[1]}")
+
+        # start, stop epoch times:
+        epoch_slices_df = a_df[t_column_names]
+
+        found_data_indicies = _subfn_find_epoch_times(epoch_slices_df=epoch_slices_df, epoch_times=epoch_times, active_t_column_names=t_column_names, ndim=len(t_column_names))
+        if not_found_action == 'skip_index':
+            # skip without adding this index. This means the the output found_data_indicies might be smaller than the num_query_times
+            assert (len(found_data_indicies) <= num_query_times), f"num_query_times: {num_query_times}, len(found_data_indicies): {len(found_data_indicies)}"
+        elif (not_found_action == 'full_nan'):
+            assert (len(found_data_indicies) == num_query_times), f"num_query_times: {num_query_times}, len(found_data_indicies): {len(found_data_indicies)}"
+        else:
+            raise NotImplementedError(f"not_found_action: {not_found_action}")
+
+        return found_data_indicies
+
+    @classmethod
+    def find_epoch_times_to_data_indicies_map(cls, a_df: pd.DataFrame, epoch_times: NDArray, t_column_names=None, atol:float=1e-3, not_found_action='skip_index', debug_print=False) -> Dict[Union[float, Tuple[float, float]], Union[int, NDArray]]:
+        """ returns the matching data indicies corresponding to the epoch [start, stop] times 
+        epoch_times: S x 2 array of epoch start/end times
+
+
+        skip_index: drops indicies that can't be found, meaning that the number of returned indicies might be less than len(epoch_times)
+
+
+        Returns: (S, ) array of data indicies corresponding to the times.
+
+        Uses:
+            from neuropy.core.epoch import EpochHelpers
+            
+            selection_start_stop_times = deepcopy(active_epochs_df[['start', 'stop']].to_numpy())
+            print(f'np.shape(selection_start_stop_times): {np.shape(selection_start_stop_times)}')
+
+            test_epochs_data_df: pd.DataFrame = deepcopy(ripple_simple_pf_pearson_merged_df)
+            print(f'np.shape(test_epochs_data_df): {np.shape(test_epochs_data_df)}')
+
+            # 2D_search (for both start, end times):
+            found_data_indicies = EpochHelpers.find_data_indicies_from_epoch_times(test_epochs_data_df, epoch_times=selection_start_stop_times)
+            print(f'np.shape(found_data_indicies): {np.shape(found_data_indicies)}')
+
+            # 1D_search (only for start times):
+            found_data_indicies_1D_search = EpochHelpers.find_data_indicies_from_epoch_times(test_epochs_data_df, epoch_times=np.squeeze(selection_start_stop_times[:, 0]))
+            print(f'np.shape(found_data_indicies_1D_search): {np.shape(found_data_indicies_1D_search)}')
+            found_data_indicies_1D_search
+
+            assert np.array_equal(found_data_indicies, found_data_indicies_1D_search)
+        
+
+        - [X] FIXED 2024-03-04 19:55 - This function was peviously incorrect and could return multiple matches for each passed time due to the tolerance.
+            
+        """
+        def _subfn_find_epoch_times_map(epoch_slices_df: pd.DataFrame, epoch_times: NDArray, active_t_column_names=['start','stop'], ndim:int=2):
+            """Loop through each pair of epoch_times and find the closest start and end time
+            
+            Captures: atol, debug_print, not_found_action
+
+            """
+            assert len(active_t_column_names) == ndim, f"ndim: {ndim}, active_t_column_names: {active_t_column_names}"
+            assert not_found_action in ['skip_index', 'full_nan']
+
+            if (ndim == 0):
+                epoch_times = np.atleast_1d(epoch_times)
+                ndim = 1
+
+            indices = []
+            epoch_time_to_index_map = {}
+            if (ndim == 1):
+                for start_time in epoch_times:
+                    # Find the index with the closest start time
+                    start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin() # idxmin returns a .loc index apparently?
+
+                    ## Numpy-only version:
+                    # start_index: NDArray = np.argmin(epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().to_numpy())
+
+                    # start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin() 
+                    selected_index = start_index
+                    
+                    ## End if
+                    ## Check the tolerance
+                    assert selected_index is not None
+                    was_index_found: bool = True # true by default
+
+                    if atol is not None:
+                        
+                        # Can convert to an actual integer index like this:
+                        # selected_integer_position_index = epoch_slices_df.index.get_loc(selected_index) # to match with .iloc do this
+                        # selected_index_diff = epoch_slices_df.iloc[selected_integer_position_index].sub(start_time)
+
+                        ## See how the selecteded index's values diff from the search values
+                        selected_index_diff = epoch_slices_df.loc[selected_index].sub(start_time) # IndexError: single positional indexer is out-of-bounds
+
+                        ## Check against tolerance:
+                        exceeds_tolerance: bool = np.any((selected_index_diff.abs() > atol))
+                        if exceeds_tolerance:
+                            if debug_print:
+                                print(f'WARN: CLOSEST FOUND INDEX EXCEEDS TOLERANCE (atol={atol}):\n\tsearch_time: {start_time}, closest: {epoch_slices_df.loc[selected_index].to_numpy()}, {selected_index_diff}. No matching index was found.')
+                            selected_index = np.nan
+                            was_index_found = False
+
+                    if was_index_found:
+                        # index was found
+                        indices.append(selected_index)
+                        if isinstance(selected_index, (list, tuple, NDArray)):
+                            ## if it's a list, tuple, NDArray, etc
+                            if len(selected_index) > 0:
+                                if (not isinstance(selected_index, NDArray)):
+                                    selected_index = NDArray(selected_index) ## convert to NDArray
+                                
+                        epoch_time_to_index_map[start_time] = selected_index
+                        
+                    else:
+                        ## index not found:
+                        if not_found_action == 'skip_index':
+                            # skip without adding this index. This means the the output array will be smaller than the epoch_times
+                            pass
+                        elif (not_found_action == 'full_nan'):
+                            ## append the nan anyway
+                            indices.append(selected_index)
+                            if isinstance(selected_index, (list, tuple, NDArray)):
+                                ## if it's a list, tuple, NDArray, etc
+                                if len(selected_index) > 0:
+                                    if (not isinstance(selected_index, NDArray)):
+                                        selected_index = NDArray(selected_index) ## convert to NDArray
+                                
+                            epoch_time_to_index_map[start_time] = selected_index
+                        else:
+                            raise NotImplementedError(f"not_found_action: {not_found_action}")
+
+
+                # end for
+                        
+            elif (ndim == 2):
+                for start_time, end_time in epoch_times:
+                    # Find the index with the closest start time
+                    start_index = epoch_slices_df[active_t_column_names[0]].sub(start_time).abs().idxmin()
+                    # Find the index with the closest end time
+                    end_index = epoch_slices_df[active_t_column_names[1]].sub(end_time).abs().idxmin()
+                    
+                    was_index_found: bool = True # true by default
+                    
+                    selected_index = None
+                    # If the start and end indices are the same, we have a match
+                    if (start_index == end_index):
+                        ## Good, this is how it should be, they correspond to the same (single) row:
+                        selected_index = start_index
+                    else:
+                        ## MODE: CLOSEST START
+                        if debug_print:
+                            print(f'WARNING: CLOSEST START INDEX: {start_index} is not equal to the closest END index: {end_index}. Using start index.')
+                        selected_index = start_index
+
+                        # ## MODE: CLOSEST START OR STOP
+                        # start_diff = epoch_slices_df.iloc[start_index].sub([start_time, end_time]).abs().sum()
+                        # end_diff = epoch_slices_df.iloc[end_index].sub([start_time, end_time]).abs().sum()
+                        # # If not, find which one is closer overall (by comparing the sum of absolute differences to start_time and end_time)
+                        # selected_index = (start_index if start_diff <= end_diff else end_index)
+
+                    ## End if
+                    ## Check the tolerance
+                    assert selected_index is not None
+                    if atol is not None:
+                        ## See how the selecteded index's values diff from the search values
+                        selected_index_diff = epoch_slices_df.loc[selected_index].sub([start_time, end_time]) # .loc[selected_index] method supposedly compatibile with .idxmin()
+                        # selected_index_diff = epoch_slices_df.iloc[selected_index].sub([start_time, end_time]) #.abs() #.sum() # IndexError: single positional indexer is out-of-bounds -- selected_index: 319. SHIT. Confirmed it corresponds to df.Index == 319, which is at .iloc[134]
+                        exceeds_tolerance: bool = np.any((selected_index_diff.abs() > atol))
+                        if exceeds_tolerance:
+                            if debug_print:
+                                print(f'WARN: CLOSEST FOUND INDEX EXCEEDS TOLERANCE (atol={atol}):\n\tsearch_time: [{start_time}, {end_time}], closest: [{epoch_slices_df.loc[selected_index].to_numpy()}], diff: [{selected_index_diff.to_numpy()}]. No matching index was found.')
+                            selected_index = np.nan
+                            was_index_found = False
+                            
+                    # if (not isinstance(selected_index, (float, int))):
+
+
+                    if was_index_found:
+                        # index was found
+                        indices.append(selected_index)
+                        if isinstance(selected_index, (list, tuple, NDArray)):
+                            ## if it's a list, tuple, NDArray, etc
+                            if len(selected_index) > 0:
+                                if (not isinstance(selected_index, NDArray)):
+                                    selected_index = NDArray(selected_index) ## convert to NDArray
+                        epoch_time_to_index_map[(start_time, end_time,)] = selected_index
+                    else:
+                        ## index not found:
+                        if not_found_action == 'skip_index':
+                            # skip without adding this index. This means the the output array will be smaller than the epoch_times
+                            pass
+                        elif (not_found_action == 'full_nan'):
+                            ## append the nan anyway
+                            indices.append(selected_index)
+                            if isinstance(selected_index, (list, tuple, NDArray)):
+                                ## if it's a list, tuple, NDArray, etc
+                                if len(selected_index) > 0:
+                                    if (not isinstance(selected_index, NDArray)):
+                                        selected_index = NDArray(selected_index) ## convert to NDArray
+        
+                            epoch_time_to_index_map[(start_time, end_time,)] = selected_index
+                        else:
+                            raise NotImplementedError(f"not_found_action: {not_found_action}")
+                    # end for
+            else:
+                raise NotImplementedError(f"ndim: {ndim}")
+            
+            # Return the indices as an ndarray
+            return epoch_time_to_index_map, np.array(indices)
+
+
+        # BEGIN FUNCTION BODY ________________________________________________________________________________________________ #
+        assert not_found_action in ['skip_index', 'full_nan']
+
+        if ((np.ndim(epoch_times) == 2) and (np.shape(epoch_times)[1] == 2)):
+            if t_column_names is None:
+                t_column_names = ['start', 'stop']
+            assert (len(t_column_names) == 2), f"len(t_column_names): {len(t_column_names)} != 2)"
+            num_query_times: int = np.shape(epoch_times)[0]
+        elif (np.ndim(epoch_times) == 1):
+            # start times only
+            if t_column_names is None:
+                t_column_names = ['start',]
+            if len(t_column_names) > 1:
+                t_column_names = [t_column_names[0],]
+            num_query_times: int = len(epoch_times)
+
+
+        elif (np.ndim(epoch_times) == 0):
+            # single start time only
+            if t_column_names is None:
+                t_column_names = ['start',]
+            if len(t_column_names) > 1:
+                t_column_names = [t_column_names[0],]
+            epoch_times = np.atleast_1d(epoch_times)
+            num_query_times: int = 1
+
+        else:
+            raise NotImplementedError
+
+        # start, stop epoch times:
+        epoch_slices_df = a_df[t_column_names]
+
+        epoch_time_to_index_map, found_data_indicies = _subfn_find_epoch_times_map(epoch_slices_df=epoch_slices_df, epoch_times=epoch_times, active_t_column_names=t_column_names, ndim=len(t_column_names))
+        if not_found_action == 'skip_index':
+            # skip without adding this index. This means the the output found_data_indicies might be smaller than the num_query_times
+            assert (len(found_data_indicies) <= num_query_times), f"num_query_times: {num_query_times}, len(found_data_indicies): {len(found_data_indicies)}"
+        elif (not_found_action == 'full_nan'):
+            assert (len(found_data_indicies) == num_query_times), f"num_query_times: {num_query_times}, len(found_data_indicies): {len(found_data_indicies)}"
+        else:
+            raise NotImplementedError(f"not_found_action: {not_found_action}")
+
+        # , found_data_indicies
+        
+        return epoch_time_to_index_map
+
+    @classmethod
+    def find_epochs_overlapping_other_epochs(cls, epochs_df: pd.DataFrame, epochs_df_required_to_overlap: pd.DataFrame):
+        """ 
+        For example, you might wonder which epochs occur during laps:
+
+            from neuropy.core.epoch import EpochHelpers
+
+            ## INPUTS: time_bin_containers, global_laps
+            left_edges = deepcopy(time_bin_containers.left_edges)
+            right_edges = deepcopy(time_bin_containers.right_edges)
+            continuous_time_binned_computation_epochs_df: pd.DataFrame = pd.DataFrame({'start': left_edges, 'stop': right_edges, 'label': np.arange(len(left_edges))})
+            is_included: NDArray = EpochHelpers.find_epochs_overlapping_other_epochs(epochs_df=continuous_time_binned_computation_epochs_df, epochs_df_required_to_overlap=deepcopy(global_laps))
+            continuous_time_binned_computation_epochs_df['is_in_laps'] = is_included
+            continuous_time_binned_computation_epochs_df
+            continuous_time_binned_computation_epochs_included_only_df = continuous_time_binned_computation_epochs_df[continuous_time_binned_computation_epochs_df['is_in_laps']].drop(columns=['is_in_laps'])
+            continuous_time_binned_computation_epochs_included_only_df
+
+        """
+        ## INPUTS: continuous_time_binned_computation_epochs, laps
+        epochs_df: pd.DataFrame = ensure_dataframe(epochs_df)
+        epochs_df_required_to_overlap: pd.DataFrame = ensure_dataframe(epochs_df_required_to_overlap)
+        epochs_df_required_to_overlap_portion: P.Interval = epochs_df_required_to_overlap.epochs.to_PortionInterval()
+        continuous_time_binned_computation_epochs_portion_intervals: List[P.Interval] = [P.closedopen(a_row.start, a_row.stop) for a_row in epochs_df[['start', 'stop']].itertuples()]
+        is_included: NDArray = np.array([an_interval.overlaps(epochs_df_required_to_overlap_portion) for an_interval in continuous_time_binned_computation_epochs_portion_intervals])
+        return is_included
+
+    @classmethod
+    def sample_random_period_from_epoch(cls, epoch_start: float, epoch_stop: float, training_data_portion: float, *additional_lap_columns, debug_print=False, debug_override_training_start_t=None):
+        """ randomly sample a portion of each lap. Draw a random period of duration (duration[i] * training_data_portion) from the lap.
+
+        """
+        total_epoch_duration: float = (epoch_stop - epoch_start)
+        training_duration: float = total_epoch_duration * training_data_portion
+        test_duration: float = total_epoch_duration - training_duration
+
+        ## new method:
+        # I'd like to randomly choose a test_start_t period from any time during the interval.
+
+        # TRAINING data split mode:
+        if debug_override_training_start_t is not None:
+            print(f'debug_override_training_start_t: {debug_override_training_start_t} provided, so not generating random number.')
+            training_start_t = debug_override_training_start_t
+        else:
+            training_start_t = np.random.uniform(epoch_start, epoch_stop)
+        
+        training_end_t = (training_start_t + training_duration)
+        
+        if debug_print:
+            print(f'training_start_t: {training_start_t}, training_end_t: {training_end_t}') # , training_wrap_duration: {training_wrap_duration}
+
+        if training_end_t > epoch_stop:
+            # Wrap around if training_end_t is beyond the period (wrap required):
+            # CASE: [train[0], test[0], train[1]] - train[1] = (train
+            # Calculate how much time should wrap to the beginning
+            wrap_duration = training_end_t - epoch_stop
+            
+            # Define the training periods
+            train_period_1 = (training_start_t, epoch_stop, *additional_lap_columns) # training spans to the end of the lap
+            train_period_2 = (epoch_start, (epoch_start + wrap_duration), *additional_lap_columns) ## new period is crated for training at start of lap
+            
+            # Return both training periods
+            train_outputs = [train_period_1, train_period_2]
+        else:
+            # all other cases have only one train interval (train[0])
+            train_outputs = [(training_start_t, training_end_t, *additional_lap_columns)]
+
+
+        train_outputs.sort(key=lambda i: (i[0], i[1])) # sort by low first, then by high if the low keys tie
+        return train_outputs
+
+    @classmethod
+    def split_epochs_into_training_and_test(cls, epochs_df: pd.DataFrame, training_data_portion: float=5.0/6.0, group_column_name: str='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], debug_print: bool = False):
+        """ Splits laps into separate training and test sections
+        
+        Usage:
+
+            from neuropy.core.epoch import EpochHelpers
+
+            ### Get the laps to train on
+            training_data_portion: float = 5.0/6.0
+            test_data_portion: float = 1.0 - training_data_portion # test data portion is 1/6 of the total duration
+
+            print(f'training_data_portion: {training_data_portion}, test_data_portion: {test_data_portion}')
+
+            laps_df: pd.DataFrame = deepcopy(global_any_laps_epochs_obj.to_dataframe())
+
+            laps_training_df, laps_test_df = EpochHelpers.split_epochs_into_training_and_test(laps_df=laps_df, training_data_portion=training_data_portion, debug_print=False)
+
+            laps_df
+            laps_training_df
+            laps_test_df 
+
+        """
+        from neuropy.core.epoch import Epoch, ensure_dataframe
+
+        # BEGIN FUNCTION BODY ________________________________________________________________________________________________ #
+
+        # Randomly sample a portion of each lap. Draw a random period of duration (duration[i] * training_data_portion) from the lap.
+        train_rows = []
+        test_rows = []
+
+        for epoch_id, group in epochs_df.groupby(group_column_name):
+            lap_start = group['start'].min()
+            lap_stop = group['stop'].max()
+            curr_lap_duration: float = lap_stop - lap_start
+            if debug_print:
+                print(f'lap_id: {epoch_id} - group: {group}')
+            curr_additional_lap_column_values = [group[a_col].to_numpy()[0] for a_col in additional_epoch_identity_column_names]
+            if debug_print:
+                print(f'\tcurr_additional_lap_column_values: {curr_additional_lap_column_values}')
+            # Get the random training start and stop times for the lap.
+            # Define your period as an interval
+            curr_lap_period = P.closed(lap_start, lap_stop)
+            epoch_start_stop_tuple_list = cls.sample_random_period_from_epoch(lap_start, lap_stop, training_data_portion, *curr_additional_lap_column_values)
+
+            a_combined_intervals = P.empty()
+            for an_epoch_start_stop_tuple in epoch_start_stop_tuple_list:
+                a_combined_intervals = a_combined_intervals.union(P.closed(an_epoch_start_stop_tuple[0], an_epoch_start_stop_tuple[1]))
+                train_rows.append(an_epoch_start_stop_tuple)
+            
+            # Calculate the difference between the period and the combined interval
+            complement_intervals = curr_lap_period.difference(a_combined_intervals)
+            _temp_test_epochs_df = EpochsAccessor.from_PortionInterval(complement_intervals)
+            _temp_test_epochs_df[additional_epoch_identity_column_names] = curr_additional_lap_column_values ## add in the additional columns
+            test_rows.append(_temp_test_epochs_df)
+
+            ## VALIDATE:
+            a_train_durations = [(an_epoch_start_stop_tuple[1]-an_epoch_start_stop_tuple[0]) for an_epoch_start_stop_tuple in epoch_start_stop_tuple_list]
+            all_train_durations: float = np.sum(a_train_durations)
+            all_test_durations: float = _temp_test_epochs_df['duration'].sum()
+            assert np.isclose(curr_lap_duration, (all_train_durations+all_test_durations)), f"(all_train_durations: {all_train_durations} + all_test_durations: {all_test_durations}) should equal curr_lap_duration: {curr_lap_duration}, but instead it equals {(all_train_durations+all_test_durations)}"
+
+
+        ## INPUTS: laps_df, laps_df
+
+        # train_rows
+        # Convert to DataFrame and reset indices
+        epochs_training_df = pd.DataFrame(train_rows, columns=['start', 'stop', *additional_epoch_identity_column_names])
+        epochs_training_df['duration'] = epochs_training_df['stop'] - epochs_training_df['start']
+
+
+        # Convert to DataFrame and reset indices
+        epochs_test_df = pd.concat(test_rows)
+        epochs_training_df.reset_index(drop=True, inplace=True)
+        epochs_test_df.reset_index(drop=True, inplace=True)
+
+        # assert np.shape(laps_test_df)[0] == np.shape(laps_df)[0], f"np.shape(laps_test_df)[0]: {np.shape(laps_test_df)[0]} != np.shape(laps_df)[0]: {np.shape(laps_df)[0]}"
+
+        ## OUTPUTS: epochs_training_df, epochs_test_df
+        return epochs_training_df, epochs_test_df
+
+    @classmethod
+    def subdivide_epochs(cls, df: pd.DataFrame, subdivide_bin_size: float, start_col='start', stop_col='stop') -> pd.DataFrame:
+        """ splits each epoch into equally sized chunks determined by subidivide_bin_size.
+        
+        # Example usage
+            from neuropy.core.epoch import EpochHelpers, ensure_dataframe
+
+            df: pd.DataFrame = ensure_dataframe(deepcopy(long_LR_epochs_obj)) 
+            df['epoch_type'] = 'lap'
+            df['interval_type_id'] = 666
+
+            subdivide_bin_size = 0.100  # Specify the size of each sub-epoch in seconds
+            subdivided_df: pd.DataFrame = EpochHelpers.subdivide_epochs(df, subdivide_bin_size)
+            print(subdivided_df)
+
+        """
+        sub_epochs = []
+
+        # extra_column_names = list(set(df.columns) - set([start_col, stop_col, 'label', 'duration', 'lap_id', 'lap_dir', 'epoch_t_bin_idx', 'epoch_num_t_bins']))
+        extra_column_names = list(set(df.columns) - set([start_col, stop_col, 'label', 'duration'])) # ['lap_id', 'lap_dir', 'epoch_t_bin_idx', 'epoch_num_t_bins']
+        # print(f'extra_column_names: {extra_column_names}')
+
+        for index, row in df.iterrows():
+            start = row[start_col]
+            stop = row[stop_col]
+            
+            duration = stop - start
+            num_bins: int = int(duration / subdivide_bin_size) + 1
+            
+            for i in range(num_bins):
+                sub_start = start + (i * subdivide_bin_size)
+                sub_stop = min(start + (i + 1) * subdivide_bin_size, stop)
+                sub_duration = sub_stop - sub_start
+                sub_epochs.append({
+                    start_col: sub_start,
+                    stop_col: sub_stop,
+                    'label': row['label'],
+                    'duration': sub_duration,
+                    # 'lap_id': row['lap_id'],
+                    # 'lap_dir': row['lap_dir'],
+                    # 'epoch_t_bin_idx': i,
+                    # 'epoch_num_t_bins': num_bins,
+                    **{k:row[k] for k in extra_column_names},
+                })
+        
+        sub_epochs_df = pd.DataFrame(sub_epochs)
+        return sub_epochs_df
 
 
 
@@ -957,7 +1050,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
                     try:
                         if hasattr(result_df, 'epochs') and hasattr(result_df.epochs, 'find_data_indicies_from_epoch_times'):
                             epoch_times = result_df[['start', 'stop']].to_numpy()
-                            indices = result_df.epochs.find_data_indicies_from_epoch_times(epoch_times, atol=self.__class__.EPSILON_GAP_SIZE_SEC*10)
+                            indices = EpochHelpers.find_data_indicies_from_epoch_times(modified_df, epoch_times, atol=self.__class__.EPSILON_GAP_SIZE_SEC*10)
                             # Copy extra columns from original dataframe where indices were found
                             for col in extra_columns:
                                 if len(indices) > 0:
@@ -1162,7 +1255,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
 
         """
         # find_data_indicies_from_epoch_times(a_df, np.squeeze(any_good_selected_epoch_times[:,0]), t_column_names=['ripple_start_t',])
-        return find_data_indicies_from_epoch_times(self._obj, epoch_times, t_column_names=t_column_names, atol=atol, debug_print=False)
+        return EpochHelpers.find_data_indicies_from_epoch_times(self._obj, epoch_times, t_column_names=t_column_names, atol=atol, debug_print=False)
     
 
     def find_epoch_times_to_data_indicies_map(self, epoch_times: NDArray, atol:float=1e-3, t_column_names=None) -> Dict[Union[float, Tuple[float, float]], Union[int, NDArray]]:
@@ -1174,7 +1267,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             epoch_time_to_index_map = deepcopy(dbgr.active_decoder_decoded_epochs_result).filter_epochs.epochs.find_epoch_times_to_data_indicies_map(epoch_times=[epoch_start_time, ])
         
         """
-        return find_epoch_times_to_data_indicies_map(self._obj, epoch_times, t_column_names=t_column_names, atol=atol, debug_print=False)
+        return EpochHelpers.find_epoch_times_to_data_indicies_map(self._obj, epoch_times, t_column_names=t_column_names, atol=atol, debug_print=False)
     
 
             
@@ -1334,7 +1427,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         else:
             epochs_df: pd.DataFrame = self.get_valid_df()        
 
-        return split_epochs_into_training_and_test(epochs_df=epochs_df, training_data_portion=training_data_portion, group_column_name=group_column_name, additional_epoch_identity_column_names=additional_epoch_identity_column_names, debug_print=debug_print)
+        return EpochHelpers.split_epochs_into_training_and_test(epochs_df=epochs_df, training_data_portion=training_data_portion, group_column_name=group_column_name, additional_epoch_identity_column_names=additional_epoch_identity_column_names, debug_print=debug_print)
 
 
     
@@ -2291,50 +2384,3 @@ def ensure_Epoch(epochs: Union[Epoch, pd.DataFrame], metadata=None) -> Epoch:
         
         return epochs
     
-
-def subdivide_epochs(df: pd.DataFrame, subdivide_bin_size: float, start_col='start', stop_col='stop') -> pd.DataFrame:
-    """ splits each epoch into equally sized chunks determined by subidivide_bin_size.
-    
-    # Example usage
-        from neuropy.core.epoch import subdivide_epochs, ensure_dataframe
-
-        df: pd.DataFrame = ensure_dataframe(deepcopy(long_LR_epochs_obj)) 
-        df['epoch_type'] = 'lap'
-        df['interval_type_id'] = 666
-
-        subdivide_bin_size = 0.100  # Specify the size of each sub-epoch in seconds
-        subdivided_df: pd.DataFrame = subdivide_epochs(df, subdivide_bin_size)
-        print(subdivided_df)
-
-    """
-    sub_epochs = []
-
-    # extra_column_names = list(set(df.columns) - set([start_col, stop_col, 'label', 'duration', 'lap_id', 'lap_dir', 'epoch_t_bin_idx', 'epoch_num_t_bins']))
-    extra_column_names = list(set(df.columns) - set([start_col, stop_col, 'label', 'duration'])) # ['lap_id', 'lap_dir', 'epoch_t_bin_idx', 'epoch_num_t_bins']
-    # print(f'extra_column_names: {extra_column_names}')
-
-    for index, row in df.iterrows():
-        start = row[start_col]
-        stop = row[stop_col]
-        
-        duration = stop - start
-        num_bins: int = int(duration / subdivide_bin_size) + 1
-        
-        for i in range(num_bins):
-            sub_start = start + (i * subdivide_bin_size)
-            sub_stop = min(start + (i + 1) * subdivide_bin_size, stop)
-            sub_duration = sub_stop - sub_start
-            sub_epochs.append({
-                start_col: sub_start,
-                stop_col: sub_stop,
-                'label': row['label'],
-                'duration': sub_duration,
-                # 'lap_id': row['lap_id'],
-                # 'lap_dir': row['lap_dir'],
-                # 'epoch_t_bin_idx': i,
-                # 'epoch_num_t_bins': num_bins,
-                **{k:row[k] for k in extra_column_names},
-            })
-    
-    sub_epochs_df = pd.DataFrame(sub_epochs)
-    return sub_epochs_df
