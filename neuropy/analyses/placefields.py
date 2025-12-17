@@ -1816,15 +1816,18 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         else:
             raise ValueError(f'unexpected ndim: {ndim}, max support is for ndim==3')
 
+
+        position_srate = lhs.position_srate
+        
         for rhs in remaining_decoder_list:
             if (not np.isclose(lhs.position_srate, rhs.position_srate, 0.01)):
                 print(f'WARN: (not np.isclose(lhs.position_srate: {lhs.position_srate}, rhs.position_srate: {rhs.position_srate}, 0.01))... This used to be an assert, but it was caused too often by gaps/discontinuities/outliers so the median will be used.')
                 # assert np.isclose(lhs.position_srate, rhs.position_srate, 0.01) ## so the mean here is very sensitive to gaps/discontinuities/outliers. The Median works much better.
                 assert np.isclose((1.0/np.median(np.diff(lhs.position.time))), (1.0/np.median(np.diff(rhs.position.time))), 0.01)
                 position_srate: float = (1.0/np.median(np.diff(lhs.position.time))) ## new, more outlier tolerant way
-            else:
-                ## they're close as defined by the mean, so just use the lhs
-                position_srate = lhs.position_srate
+            # else:
+            #     ## they're close as defined by the mean, so just use the lhs
+            #     position_srate = lhs.position_srate
 
         stacked_results_dict = {a_value_key:np.stack([v[a_value_key] for v in list(at_least_one_decoder_all_results_dict.values())], axis=-1) for a_value_key in ['tuning_curves', 'unsmoothed_tuning_maps', 'spikes_maps']}
         stacked_occupancy = np.stack([v.occupancy for k, v in directional_1D_decoder_dict.items()], axis=-1) # .shape: (62, 2)
