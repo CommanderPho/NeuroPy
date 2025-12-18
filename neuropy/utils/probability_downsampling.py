@@ -421,9 +421,12 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
         return downsampler, fig, (ax1, ax2)
 
 
-# Example Usage: 2D Gaussian PDF
-if __name__ == "__main__":
 
+
+# ==================================================================================================================================================================================================================================================================================== #
+# Testing/Evaluation                                                                                                                                                                                                                                                                   #
+# ==================================================================================================================================================================================================================================================================================== #
+def _test1():
     import matplotlib.pyplot as plt
 
     # Example: 2D Gaussian
@@ -468,3 +471,50 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()  # Wait until the plot windows are closed before exiting
+
+
+# def _test2():
+
+#     from neuropy.utils.probability_downsampling import RigorousPDFDownsampler
+
+#     p_x_given_n = decoding_locality_measures.p_x_given_n ## np.shape(p_x_given_n) # (62, 62, 2, 151732)
+#     fine_pdf = p_x_given_n
+
+#     ## before downsampling
+#     fine_norm_sum = np.nansum(fine_pdf, axis=(0, 1, 2))
+#     fine_norm_sum # array([1, 1, 1, ..., 1, 1, 1]) -- summing each t_step over all position bins yields 1 because that's how a probability density function over space should be normalized.
+
+#     ## Perform downsampling:
+#     downsampler.bins
+#         # (array([4.27832, 6.50776, 8.73721, 10.9667, 13.1961, 15.4255, 17.655, 19.8844, 22.1139, 24.3433, 26.5728, 28.8022, 31.0316, 33.2611, 35.4905, 37.72, 39.9494, 42.1789, 44.4083, 46.6377, 48.8672, 51.0966, 53.3261, 55.5555, 57.785, 60.0144, 62.2438, 64.4733, 66.7027, 68.9322, 71.1616, 73.3911, 75.6205, 77.8499, 80.0794, 82.3088, 84.5383, 86.7677, 88.9972, 91.2266, 93.456, 95.6855, 97.9149, 100.144, 102.374, 104.603, 106.833, 109.062, 111.292, 113.521, 115.75, 117.98, 120.209, 122.439, 124.668, 126.898, 129.127, 131.357, 133.586, 135.815, 138.045, 140.274]),
+#         #  array([1.99629, 3.45248, 4.90867, 6.36486, 7.82104, 9.27723, 10.7334, 12.1896, 13.6458, 15.102, 16.5582, 18.0144, 19.4705, 20.9267, 22.3829, 23.8391, 25.2953, 26.7515, 28.2077, 29.6639, 31.12, 32.5762, 34.0324, 35.4886, 36.9448, 38.401, 39.8572, 41.3134, 42.7695, 44.2257, 45.6819, 47.1381, 48.5943, 50.0505, 51.5067, 52.9628, 54.419, 55.8752, 57.3314, 58.7876, 60.2438, 61.7, 63.1562, 64.6123, 66.0685, 67.5247, 68.9809, 70.4371, 71.8933, 73.3495, 74.8057, 76.2618, 77.718, 79.1742, 80.6304, 82.0866, 83.5428, 84.999, 86.4552, 87.9113, 89.3675, 90.8237]),
+#         #  array([0, 1]),
+#         #  array([0.125, 0.375, 0.625, ..., 37932.4, 37932.6, 37932.9]))
+#     coarse_bins
+#         # (array([8.47996, 19.1127, 29.7454, 40.3781, 51.0109, 61.6436, 72.2763, 82.9091, 93.5418, 104.175, 114.807, 125.44, 136.073]),
+#         #  array([4.74065, 11.6855, 18.6304, 25.5753, 32.5202, 39.4651, 46.41, 53.3549, 60.2998, 67.2447, 74.1896, 81.1345, 88.0794]),
+#         #  array([0, 1]),
+#         #  array([0.125, 0.375, 0.625, ..., 37932.4, 37932.6, 37932.9]))
+#     # downsampler = RigorousPDFDownsampler(fine_pdf, bins=(decoding_locality_measures.xbin_centers, decoding_locality_measures.ybin_centers, None, decoding_locality_measures.time_window_centers)) ## Warning: Input total mass = 123148.967784 (should be ~1)
+#     downsampler = RigorousPDFDownsampler(fine_pdf, spatial_axes=(0, 1, 2)) ## Warning: Input total mass = 123148.967784 (should be ~1)
+#     assert np.allclose(fine_norm_sum, 1)
+#     rx = 5
+#     ry = 5
+#     print(f'(rx: {rx}, ry: {ry})')
+#     coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(rx, ry), axes=(0, 1)) ## 1m for ## np.shape(p_x_given_n) # (62, 62, 2, 151732)
+#     np.shape(coarse_pdf) # (13, 13, 2, 151732)
+
+#     ## after downsampling
+#     coarse_norm_sum = np.nansum(coarse_pdf, axis=(0, 1, 2))
+#     # np.shape(norm_sum)
+#     coarse_norm_sum # array([3.57004e-07, 3.57004e-07, 3.57004e-07, ..., 3.57004e-07, 3.57004e-07, 3.57004e-07]) -- !! unfortunately after downsampling, the sum over all position bins for each time bin do NOT sum to 1.0, meaning they aren't valid PDF functions. Why is this? Is there a normalization error in `RigorousPDFDownsampler` or am I missing something conceptually?
+#     np.shape(coarse_pdf)
+#     assert np.allclose(coarse_norm_sum, 1)
+
+
+
+# Example Usage: 2D Gaussian PDF
+if __name__ == "__main__":
+    _test1()
+
+
