@@ -16,7 +16,7 @@ root_project_folder = tests_folder.parent
 src_folder = root_project_folder.joinpath('src')
 sys.path.insert(0, str(src_folder))
 
-from neuropy.utils.probability_downsampling import RigorousPDFDownsampler
+from neuropy.utils.probability_downsampling import RigorousPDFDownsampler  # type: ignore[import]
 
 
 class TestRigorousPDFDownsampler(unittest.TestCase):
@@ -70,7 +70,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
     def test_mass_conservation_integer_factor(self):
         """Test mass conservation with integer downsampling factor."""
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         input_mass = np.sum(self.fine_pdf) * self.dx_f * self.dy_f
@@ -83,7 +83,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
     def test_mass_conservation_non_integer_factor(self):
         """Test mass conservation with non-integer downsampling factor."""
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(4.2, 3.8), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(4.2, 3.8), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         input_mass = np.sum(self.fine_pdf) * self.dx_f * self.dy_f
@@ -95,7 +95,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
     def test_mass_conservation_asymmetric(self):
         """Test mass conservation with asymmetric downsampling (rx != ry)."""
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(3.0, 5.0), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(3.0, 5.0), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         input_mass = np.sum(self.fine_pdf) * self.dx_f * self.dy_f
@@ -107,7 +107,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
     def test_mass_conservation_uniform_pdf(self):
         """Test mass conservation with uniform PDF."""
         downsampler = RigorousPDFDownsampler(self.uniform_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(2.5, 2.5), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(2.5, 2.5), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         input_mass = np.sum(self.uniform_pdf) * self.dx_f * self.dy_f
@@ -136,7 +136,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
     def test_downsample_different_factors(self):
         """Test downsampling with different rx and ry."""
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(3.0, 5.0), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(3.0, 5.0), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         expected_n0 = int(np.ceil(self.fine_pdf.shape[0] / 3.0))
@@ -149,7 +149,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
     def test_downsample_large_factor(self):
         """Test downsampling with large factor."""
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(10.0, 10.0), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(10.0, 10.0), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         # Should still preserve mass
@@ -163,7 +163,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
     def test_downsample_small_factor(self):
         """Test downsampling with small factor (close to 1.0)."""
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(1.1, 1.1), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(1.1, 1.1), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         # Should still preserve mass
@@ -182,7 +182,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
         small_pdf /= np.sum(small_pdf) * self.dx_f * self.dy_f
         
         downsampler = RigorousPDFDownsampler(small_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(2.0, 2.0), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(2.0, 2.0), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         output_mass = np.sum(coarse_pdf) * dx_c * dy_c
@@ -194,7 +194,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
         rectangular_pdf /= np.sum(rectangular_pdf) * self.dx_f * self.dy_f
         
         downsampler = RigorousPDFDownsampler(rectangular_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(3.0, 2.0), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(3.0, 2.0), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         output_mass = np.sum(coarse_pdf) * dx_c * dy_c
@@ -212,7 +212,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
         delta_pdf /= np.sum(delta_pdf) * self.dx_f * self.dy_f
         
         downsampler = RigorousPDFDownsampler(delta_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         output_mass = np.sum(coarse_pdf) * dx_c * dy_c
@@ -232,7 +232,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
         test_pdf /= np.sum(test_pdf) * self.dx_f * self.dy_f
         
         downsampler = RigorousPDFDownsampler(test_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(5.0, 5.0), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(5.0, 5.0), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         # Calculate mass in each region (approximate, since boundaries shift)
@@ -249,7 +249,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
     def test_output_non_negative(self):
         """Test that output PDF is non-negative."""
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1))
         
         self.assertTrue(np.all(coarse_pdf >= 0), msg="All output values should be non-negative")
 
@@ -257,7 +257,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
     def test_output_remains_normalized_fast(self):
         """Test that output PDF is non-negative."""
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1), method='fast')
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1), method='fast')
         dx_c, dy_c = coarse_bin_sizes
         normalized_sum = np.sum(coarse_pdf) * dx_c * dy_c
 
@@ -270,7 +270,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
         dy_f = 1.0
 
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(dx_f, dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1), method='fast')
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1), method='fast')
         dx_c, dy_c = coarse_bin_sizes
         normalized_sum = np.sum(coarse_pdf) * dx_c * dy_c
 
@@ -283,7 +283,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
         rx, ry = 4.2, 3.8
 
-        coarse_pdf, _ = downsampler.downsample(factors=(rx, ry), axes=(0, 1))
+        coarse_pdf, _, _ = downsampler.downsample(factors=(rx, ry), axes=(0, 1))
 
         expected_Nx_c = int(np.ceil(self.fine_pdf.shape[0] / rx))
         expected_Ny_c = int(np.ceil(self.fine_pdf.shape[1] / ry))
@@ -293,7 +293,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
     def test_output_spacing_consistency(self):
         """Test that output spacings are consistent with grid dimensions."""
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1))
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(4.0, 4.0), axes=(0, 1))
         dx_c, dy_c = coarse_bin_sizes
         
         # Total domain size should be preserved
@@ -318,7 +318,7 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
         downsampler = RigorousPDFDownsampler(pdf3d, bin_sizes=(dx, dy, dt))
         factors = (3.0, 4.0)
         axes = (0, -2)  # first and second dimensions
-        coarse_pdf, coarse_bin_sizes = downsampler.downsample(factors=factors, axes=axes)
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=factors, axes=axes)
 
         expected_nx = int(np.ceil(n_x / factors[0]))
         expected_ny = int(np.ceil(n_y / factors[1]))
@@ -332,10 +332,11 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
         factors = (2.0, 3.0)
 
-        coarse_auto, bins_auto = downsampler.downsample(factors=factors)
-        coarse_explicit, bins_explicit = downsampler.downsample(factors=factors, axes=(0, 1))
+        coarse_auto, binsizes_auto, bins_auto = downsampler.downsample(factors=factors)
+        coarse_explicit, binsizes_explicit, bins_explicit = downsampler.downsample(factors=factors, axes=(0, 1))
 
         self.assertEqual(coarse_auto.shape, coarse_explicit.shape)
+        self.assertTrue(np.allclose(binsizes_auto, binsizes_explicit))
         self.assertTrue(np.allclose(bins_auto, bins_explicit))
         self.assertTrue(np.allclose(coarse_auto, coarse_explicit))
 
@@ -344,12 +345,33 @@ class TestRigorousPDFDownsampler(unittest.TestCase):
         downsampler = RigorousPDFDownsampler(self.fine_pdf, bin_sizes=(self.dx_f, self.dy_f))
         factor = 2.5
 
-        coarse_pdf, coarse_bins = downsampler.downsample(factors=factor)
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=factor)
 
         expected_n0 = int(np.ceil(self.fine_pdf.shape[0] / factor))
         self.assertEqual(coarse_pdf.shape[0], expected_n0)
         self.assertEqual(coarse_pdf.shape[1], self.fine_pdf.shape[1])
-        self.assertAlmostEqual(coarse_bins[1], self.dy_f)
+        self.assertAlmostEqual(coarse_bin_sizes[1], self.dy_f)
+
+    def test_init_with_bins_and_none_axis(self):
+        """Test initialization using bins with a None axis and inferred bin_sizes."""
+        n_x, n_y, n_t = 20, 30, 2
+        x_bins = np.linspace(0.0, 10.0, n_x)
+        y_bins = np.linspace(-5.0, 5.0, n_y)
+        t_bins = np.linspace(0.0, 1.0, n_t)
+
+        pdf3d = np.ones((n_x, n_y, n_t))
+        dx_f = x_bins[1] - x_bins[0]
+        dy_f = y_bins[1] - y_bins[0]
+        dt_f = t_bins[1] - t_bins[0]
+        pdf3d /= np.sum(pdf3d) * dx_f * dy_f * dt_f
+
+        downsampler = RigorousPDFDownsampler(pdf3d, bins=(x_bins, y_bins, None))
+        self.assertEqual(downsampler.ndim, 3)
+        self.assertTrue(np.allclose(downsampler._bin_sizes_arr, np.array([dx_f, dy_f, 1.0])))
+
+        coarse_pdf, coarse_bin_sizes, coarse_bins = downsampler.downsample(factors=(2.0, 3.0), axes=(0, 1))
+        self.assertEqual(len(coarse_bins), 3)
+        self.assertEqual(coarse_pdf.shape[2], n_t)
 
 
 if __name__ == '__main__':
