@@ -542,6 +542,35 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         return new_non_pbe_endcaps_epochs
     
 
+    @classmethod
+    def compute_non_running_epochs(cls, session, max_run_speed: float = 10.0, save_on_compute=False):
+        """ computes the low-speed non-running epochs and adds them to the session if they don't already exist there
+
+        Usage:
+
+            a_sess = curr_active_pipeline.sess
+            max_run_speed: float = 10.0
+            non_running_epochs_df = compute_and_add_non_running_epochs(a_sess=a_sess, max_run_speed=max_run_speed)
+            non_running_epochs_df
+
+        """
+        extant_non_running_epochs_df = getattr(session, 'non_running_epochs', None)
+        if (extant_non_running_epochs_df is not None):
+            print(f'already have extant_non_running_epochs_df: {extant_non_running_epochs_df}.\n\tskipping compute and loading previous...')
+            non_running_epochs_df: pd.DataFrame = ensure_dataframe(session.non_running_epochs)
+            epochs_obj = ensure_Epoch(deepcopy(non_running_epochs_df))
+
+        else:
+            print(f'recomputing non_running_epochs_df...')
+            non_running_epochs_df: pd.DataFrame = session.position.compute_speed_info().position.detect_general_non_running_epochs(max_run_speed = max_run_speed)
+            print('assigning to `a_sess.non_running_epochs`...')
+            epochs_obj = ensure_Epoch(deepcopy(non_running_epochs_df), metadata={'max_run_speed': max_run_speed})
+            session.non_running_epochs = epochs_obj
+            print(f'\tassigned.')
+
+        print(f'done.')
+        return epochs_obj
+
 
 
 
