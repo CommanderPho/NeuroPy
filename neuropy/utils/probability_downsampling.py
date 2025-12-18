@@ -39,11 +39,13 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
     fine_pdf: np.ndarray = field()
     bin_sizes: Optional[ArrayLike] = field(default=None)
     bins: Optional[Sequence[Optional[ArrayLike]]] = field(default=None)
+    spatial_axes: Optional[Sequence[int]] = field(default=None)
 
     ndim: int = field(init=False)
     shape_f: Tuple[int, ...] = field(init=False)
     _bin_sizes_arr: np.ndarray = field(init=False, repr=False)
     _fine_bins: Tuple[np.ndarray, ...] = field(init=False, repr=False)
+    _spatial_axes: Tuple[int, ...] = field(init=False, repr=False)
 
     def __attrs_post_init__(self):
         """Validates input and computes derived attributes."""
@@ -57,8 +59,8 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
         if self.bin_sizes is None and self.bins is None:
             # raise ValueError("Either bin_sizes or bins must be provided.")
             print(f'WARNING: no bin_sizes or bins were provided, so using constant spacings')
-            # self.bin_sizes = [1.0 for v in self.shape_f] # all bins are size == 1.0
-            self.bin_sizes = [(1.0/float(v)) for v in self.shape_f] # all bins are size == 1.0/size(dim)
+            self.bin_sizes = [1.0 for v in self.shape_f] # all bins are size == 1.0
+            # self.bin_sizes = [(1.0/float(v)) for v in self.shape_f] # all bins are size == 1.0/size(dim)
             print(f'\tself.bin_sizes: {self.bin_sizes}')
 
         fine_bins_list = []
@@ -142,8 +144,26 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
 
         self._fine_bins = tuple(fine_bins_list)
 
-        # Verify input is roughly normalized (tolerance for numerics)
-        total_mass = np.sum(self.fine_pdf) * float(np.prod(self._bin_sizes_arr))
+        # Normalize and store spatial axes (dimensions to integrate over for mass checks/renorm)
+        if self.spatial_axes is None:
+            spatial_axes_norm = list(range(self.ndim))
+        else:
+            spatial_axes_norm = []
+            for ax in self.spatial_axes:
+                ax_i = int(ax)
+                if ax_i < 0:
+                    ax_i += self.ndim
+                if ax_i < 0 or ax_i >= self.ndim:
+                    raise ValueError(f"spatial_axes entry {ax} is out of bounds for ndim={self.ndim}.")
+                spatial_axes_norm.append(ax_i)
+            if len(set(spatial_axes_norm)) != len(spatial_axes_norm):
+                raise ValueError(f"spatial_axes must be unique, got {self.spatial_axes}.")
+        # Store as a sorted tuple for stable indexing
+        self._spatial_axes = tuple(sorted(spatial_axes_norm))
+
+        # Verify input is roughly normalized over the spatial dimensions
+        spatial_bin_sizes = self._bin_sizes_arr[list(self._spatial_axes)]
+        total_mass = np.sum(self.fine_pdf) * float(np.prod(spatial_bin_sizes))
         if not np.isclose(total_mass, 1.0, rtol=1e-6):
             print(f"Warning: Input total mass = {total_mass:.6f} (should be ~1)")
 
@@ -288,8 +308,9 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
             if new_bin_centers is not None:
                 coarse_bins[ax] = new_bin_centers
 
-        # Optional small renormalization for numerical robustness
-        total_mass = float(np.sum(coarse_pdf) * np.prod(coarse_bin_sizes))
+        # Optional small renormalization for numerical robustness, using only spatial axes
+        spatial_bin_sizes = coarse_bin_sizes[list(self._spatial_axes)]
+        total_mass = float(np.sum(coarse_pdf) * np.prod(spatial_bin_sizes))
         if total_mass > 0.0 and not np.isclose(total_mass, 1.0, rtol=1e-10):
             coarse_pdf = coarse_pdf / total_mass
 
