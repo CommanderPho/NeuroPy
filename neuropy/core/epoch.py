@@ -1393,6 +1393,41 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         other_epochs_Porition: P.Interval = other_epochs_df.epochs.to_PortionInterval()
         return EpochsAccessor.from_PortionInterval(epochs_Portion.difference(other_epochs_Porition))
         
+
+    def intersecting(self, other_epochs_df: pd.DataFrame, skip_get_non_overlapping:bool=False, enable_splitting_on_partial_intersect: bool=True) -> pd.DataFrame:
+        """ gets a copy of the epochs after intersecting with the epochs provided in `other_epochs_df`, getting only those portions which overlap `other_epochs_df`.
+        
+        Usage:
+            global_epoch_only_non_PBE_epoch_df: pd.DataFrame = global_epoch_only_df.epochs.intersecting(PBE_df)
+            global_epoch_only_non_PBE_epoch_df= global_epoch_only_non_PBE_epoch_df.epochs.modify_each_epoch_by(additive_factor=-0.008, final_output_minimum_epoch_duration=0.040)
+            global_epoch_only_non_PBE_epoch_df
+            
+        """
+        is_in_key: str = 'is_overlapping_intersecting_INTERNAL'
+        if not skip_get_non_overlapping:
+            epochs_df: pd.DataFrame = self.get_non_overlapping_df()
+        else:
+            epochs_df: pd.DataFrame = ensure_dataframe(self._obj)
+
+        other_epochs_df = ensure_dataframe(other_epochs_df)
+        
+        if enable_splitting_on_partial_intersect:
+            """ split continuously by intersection with the epochs in `other_epochs_df`. If only a fragment of an interval matches one in `other_epochs_df`, only the overlapping segment is included. """
+            epochs_Portion: P.Interval = epochs_df.epochs.to_PortionInterval()
+            other_epochs_Porition: P.Interval = other_epochs_df.epochs.to_PortionInterval()
+            return EpochsAccessor.from_PortionInterval(epochs_Portion.intersection(other_epochs_Porition))
+        
+        else:
+            """ does not split any existing epoch intervals, only chooses whether to include/exclude them in the resultant series based on whether they overlap (at all, even a little bit) with any epochs in `other_epochs_df` """
+            is_included: NDArray = EpochHelpers.find_epochs_overlapping_other_epochs(epochs_df=epochs_df, epochs_df_required_to_overlap=other_epochs_df)
+            # is_included: NDArray = EpochHelpers.find_epochs_overlapping_other_epochs(epochs_df=continuous_time_binned_computation_epochs_df, epochs_df_required_to_overlap=deepcopy(global_laps))
+            epochs_df[is_in_key] = is_included
+            return epochs_df[epochs_df[is_in_key]].drop(columns=[is_in_key], inplace=False)
+
+
+        
+
+
         
     def split_into_training_and_test(self, training_data_portion: float=5.0/6.0, group_column_name: str='label', additional_epoch_identity_column_names:List[str]=['label'], skip_get_non_overlapping:bool=False, debug_print: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Splits laps into separate training and test sections
