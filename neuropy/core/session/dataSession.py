@@ -569,7 +569,7 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
             non_running_epochs = DataSession.compute_non_running_epochs(a_sess)
 
             ## With instance:
-            non_running_epochs = a_sess.compute_non_running_epochs(max_run_speed=10.0)
+            non_running_epochs = a_sess.compute_non_running_epochs(a_sess, max_run_speed=10.0)
             non_running_epochs
 
         """
