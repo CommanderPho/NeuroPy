@@ -161,11 +161,20 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
         # Store as a sorted tuple for stable indexing
         self._spatial_axes = tuple(sorted(spatial_axes_norm))
 
-        # Verify input is roughly normalized over the spatial dimensions
-        spatial_bin_sizes = self._bin_sizes_arr[list(self._spatial_axes)]
-        total_mass = np.sum(self.fine_pdf) * float(np.prod(spatial_bin_sizes))
-        if not np.isclose(total_mass, 1.0, rtol=1e-6):
-            print(f"Warning: Input total mass = {total_mass:.6f} (should be ~1)")
+        # Verify input is roughly normalized.
+        # If spatial_axes is None, treat all axes as part of one global PDF (original behavior).
+        # If spatial_axes is provided, check normalization per non-spatial index by integrating over spatial_axes.
+        if self.spatial_axes is None:
+            spatial_bin_sizes = self._bin_sizes_arr
+            total_mass = np.sum(self.fine_pdf) * float(np.prod(spatial_bin_sizes))
+            if not np.isclose(total_mass, 1.0, rtol=1e-6):
+                print(f"Warning: Input total mass = {total_mass:.6f} (should be ~1)")
+        else:
+            spatial_bin_sizes = self._bin_sizes_arr[list(self._spatial_axes)]
+            total_mass = np.sum(self.fine_pdf, axis=tuple(self._spatial_axes)) * float(np.prod(spatial_bin_sizes))
+            if not np.allclose(total_mass, 1.0, rtol=1e-6):
+                max_dev = np.max(np.abs(total_mass - 1.0))
+                print(f"Warning: Max deviation from unit mass over spatial_axes = {max_dev:.6e}")
 
     # ---------------------------------------------------------------------- #
     # Core N-D downsampling
@@ -308,11 +317,41 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
             if new_bin_centers is not None:
                 coarse_bins[ax] = new_bin_centers
 
-        # Optional small renormalization for numerical robustness, using only spatial axes
-        spatial_bin_sizes = coarse_bin_sizes[list(self._spatial_axes)]
-        total_mass = float(np.sum(coarse_pdf) * np.prod(spatial_bin_sizes))
-        if total_mass > 0.0 and not np.isclose(total_mass, 1.0, rtol=1e-10):
-            coarse_pdf = coarse_pdf / total_mass
+        # Optional renormalization for numerical robustness.
+        # If spatial_axes is None, preserve original behavior and renormalize a single global PDF.
+        # If spatial_axes is provided, renormalize per non-spatial index so that each slice
+        # integrated over spatial_axes has unit mass.
+        if self.spatial_axes is None:
+            spatial_bin_sizes = coarse_bin_sizes
+            total_mass = float(np.sum(coarse_pdf) * np.prod(spatial_bin_sizes))
+            if total_mass > 0.0 and not np.isclose(total_mass, 1.0, rtol=1e-10):
+                coarse_pdf = coarse_pdf / total_mass
+        else:
+            spatial_axes_set = set(self._spatial_axes)
+            all_axes_set = set(range(coarse_pdf.ndim))
+            non_spatial_axes = sorted(all_axes_set - spatial_axes_set)
+
+            spatial_bin_sizes = coarse_bin_sizes[list(self._spatial_axes)]
+            spacing_prod = float(np.prod(spatial_bin_sizes))
+
+            if non_spatial_axes:
+                # Mass per non-spatial index
+                mass = np.sum(coarse_pdf, axis=tuple(self._spatial_axes)) * spacing_prod
+                # Broadcast mass back to full shape
+                reshape = [1] * coarse_pdf.ndim
+                for i, ax in enumerate(non_spatial_axes):
+                    reshape[ax] = mass.shape[i]
+                mass_broadcast = mass.reshape(reshape)
+
+                # Avoid division by zero; only renormalize where mass is positive
+                with np.errstate(invalid="ignore", divide="ignore"):
+                    mask = mass_broadcast > 0.0
+                    coarse_pdf = np.divide(coarse_pdf, mass_broadcast, out=coarse_pdf, where=mask)
+            else:
+                # All axes are spatial; fall back to global renormalization.
+                total_mass = float(np.sum(coarse_pdf) * spacing_prod)
+                if total_mass > 0.0 and not np.isclose(total_mass, 1.0, rtol=1e-10):
+                    coarse_pdf = coarse_pdf / total_mass
 
         coarse_bins_tuple = tuple(np.asarray(b, dtype=float) for b in coarse_bins)
 
