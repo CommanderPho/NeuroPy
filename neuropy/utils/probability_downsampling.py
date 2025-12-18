@@ -55,11 +55,15 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
 
         # Infer bin sizes and canonical fine bins from either bin_sizes or bins.
         if self.bin_sizes is None and self.bins is None:
-            raise ValueError("Either bin_sizes or bins must be provided.")
+            # raise ValueError("Either bin_sizes or bins must be provided.")
+            print(f'WARNING: no bin_sizes or bins were provided, so using constant spacings')
+            # self.bin_sizes = [1.0 for v in self.shape_f] # all bins are size == 1.0
+            self.bin_sizes = [(1.0/float(v)) for v in self.shape_f] # all bins are size == 1.0/size(dim)
+            print(f'\tself.bin_sizes: {self.bin_sizes}')
 
         fine_bins_list = []
 
-        if self.bins is not None and self.bin_sizes is None:
+        if (self.bins is not None) and (self.bin_sizes is None):
             # Derive bin_sizes from provided bins (with None -> index-based bins).
             if len(self.bins) != self.ndim:
                 raise ValueError(f"bins must have length {self.ndim}, got {len(self.bins)}.")
@@ -222,6 +226,7 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
         new_bin_centers = 0.5 * (coarse_edges[:-1] + coarse_edges[1:])
 
         return new_arr, dx_c, new_bin_centers
+
 
     def downsample(self, factors: Union[float, Sequence[float]], axes: Optional[Sequence[int]] = None, method: str = 'fast') -> Tuple[np.ndarray, np.ndarray, Tuple[np.ndarray, ...]]:
         """
