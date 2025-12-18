@@ -543,15 +543,34 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
     
 
     @classmethod
-    def compute_non_running_epochs(cls, session, max_run_speed: float = 10.0, save_on_compute=False):
-        """ computes the low-speed non-running epochs and adds them to the session if they don't already exist there
+    def compute_non_running_epochs(cls, session, max_run_speed: float = 10.0, minimum_epoch_duration: float = 0.20, merging_adjacent_max_separation_sec: float = 0.01, speed_col_name: str = 'speed_xy', active_parameters=None, save_on_compute=False, **additional_df_metdata) -> Epoch:
+        """computes the low-speed non-running epochs and adds them to the session if they don't already exist there
+
+        Args:
+            session: The DataSession object
+            max_run_speed: Maximum speed threshold (cm/s) to consider as "non-running". Default: 10.0
+            minimum_epoch_duration: Minimum duration (seconds) for an epoch to be included. Default: 0.5
+            merging_adjacent_max_separation_sec: Maximum separation (seconds) between adjacent epochs to merge them. Default: 0.01
+            speed_col_name: Name of the speed column in the position dataframe. Default: 'speed_xy'
+            active_parameters: Optional dict with filter parameters:
+                - require_intersecting_epoch: Epoch object that epochs must intersect with
+                - min_epoch_included_duration: Minimum epoch duration for filtering
+                - max_epoch_included_duration: Maximum epoch duration for filtering
+                - maximum_speed_thresh: Maximum speed threshold for filtering
+                - min_inclusion_fr_active_thresh: Minimum firing rate threshold
+                - min_num_unique_aclu_inclusions: Minimum number of unique active cells
+            save_on_compute: If True, save the epochs to a file. Default: False
+            **additional_df_metdata: Additional metadata to add to the epochs dataframe
 
         Usage:
+            from neuropy.core.session.dataSession import DataSession
 
-            a_sess = curr_active_pipeline.sess
-            max_run_speed: float = 10.0
-            non_running_epochs_df = compute_and_add_non_running_epochs(a_sess=a_sess, max_run_speed=max_run_speed)
-            non_running_epochs_df
+            # Simple: just compute with default 10.0 cm/s threshold
+            non_running_epochs = DataSession.compute_non_running_epochs(a_sess)
+
+            ## With instance:
+            non_running_epochs = a_sess.compute_non_running_epochs(max_run_speed=10.0)
+            non_running_epochs
 
         """
         extant_non_running_epochs_df = getattr(session, 'non_running_epochs', None)
@@ -559,14 +578,58 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
             print(f'already have extant_non_running_epochs_df: {extant_non_running_epochs_df}.\n\tskipping compute and loading previous...')
             non_running_epochs_df: pd.DataFrame = ensure_dataframe(session.non_running_epochs)
             epochs_obj = ensure_Epoch(deepcopy(non_running_epochs_df))
-
         else:
             print(f'recomputing non_running_epochs_df...')
-            non_running_epochs_df: pd.DataFrame = session.position.compute_speed_info().position.detect_general_non_running_epochs(max_run_speed = max_run_speed)
-            print('assigning to `a_sess.non_running_epochs`...')
-            epochs_obj = ensure_Epoch(deepcopy(non_running_epochs_df), metadata={'max_run_speed': max_run_speed})
-            session.non_running_epochs = epochs_obj
+            non_running_epochs_df: pd.DataFrame = session.position.compute_speed_info().position.detect_general_non_running_epochs(
+                max_run_speed=max_run_speed,
+                minimum_epoch_duration=minimum_epoch_duration,
+                merging_adjacent_max_separation_sec=merging_adjacent_max_separation_sec,
+                speed_col_name=speed_col_name
+            )
+            
+            # Extract filter parameters if provided
+            if active_parameters is None:
+                active_parameters = {}
+            extracted_filter_parameters = dict(
+                require_intersecting_epoch=active_parameters.pop('require_intersecting_epoch', None),
+                min_epoch_included_duration=active_parameters.pop('min_epoch_included_duration', None),
+                max_epoch_included_duration=active_parameters.pop('max_epoch_included_duration', None),
+                maximum_speed_thresh=active_parameters.pop('maximum_speed_thresh', None),
+                min_inclusion_fr_active_thresh=active_parameters.pop('min_inclusion_fr_active_thresh', None),
+                min_num_unique_aclu_inclusions=active_parameters.pop('min_num_unique_aclu_inclusions', None)
+            )
+            
+            # Build metadata dict
+            df_metadata = {'max_run_speed': max_run_speed, 'minimum_epoch_duration': minimum_epoch_duration}
+            df_metadata.update(**additional_df_metdata)
+            
+            # Create epochs object
+            epochs_obj = ensure_Epoch(deepcopy(non_running_epochs_df))
+            
+            # Add metadata to dataframe if provided
+            if len(df_metadata) > 0:
+                epochs_df = epochs_obj.to_dataframe()
+                epochs_df = epochs_df.epochs.adding_or_updating_metadata(**df_metadata)
+                epochs_obj = ensure_Epoch(epochs_df)
+            
+            # Apply filtering if filter parameters are provided
+            if any(v is not None for v in extracted_filter_parameters.values()):
+                epochs_obj = Epoch.filter_epochs(
+                    curr_epochs=epochs_obj,
+                    pos_df=session.position.to_dataframe(),
+                    spikes_df=session.spikes_df.copy(),
+                    **extracted_filter_parameters,
+                    debug_print=False
+                )
+            
+            print('assigning to `session.non_running_epochs`...')
+            session.non_running_epochs = deepcopy(epochs_obj)
             print(f'\tassigned.')
+
+        if save_on_compute:
+            epochs_obj.filename = session.filePrefix.with_suffix('.non_running.npy')
+            with ProgressMessagePrinter(epochs_obj.filename, action='Saving', contents_description='non_running epochs'):
+                epochs_obj.save()
 
         print(f'done.')
         return epochs_obj
