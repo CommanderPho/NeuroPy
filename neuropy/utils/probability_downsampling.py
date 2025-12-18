@@ -7,33 +7,36 @@ from neuropy.utils.mixins.AttrsClassHelpers import SimpleFieldSizesReprMixin
 ArrayLike = Union[np.ndarray, Sequence[float]]
 
 
+# TODO 2025-12-18 - TODO 🚧❗ `RigorousPDFDownsampler` is broken, it doesn't produce correctly normalized outputs and is excessively slow
 # @metadata_attributes(short_name=None, tags=['UNFINISHED', 'UNEVALUATED', 'AI'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-12-17 09:17', related_items=[])
 @define(slots=False, eq=False, repr=False)
 class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
     """
-    Mathematically rigorous N-D PDF downsampler using conservative coarse-graining.
+    High-performance N-D **discrete PMF** downsampler using conservative coarse-graining.
 
-    Preserves:
-    - Total integrated probability (≈ 1)
-    - Relative densities (ratios of integrated masses)
+    This class is designed for large arrays that represent **probability mass functions**
+    (PMFs), not continuous densities. Typical use case: a decoding posterior with shape
+    (n_x, n_y, n_cond, n_t), where one or more axes are *spatial* and the remaining
+    axes are *non-spatial* indices (e.g., time, condition, trial).
 
-    Handles:
-    - Arbitrary (non-integer) downsampling factors per axis
-    - Partial cell overlaps via cumulative integration and interpolation
-    - Uniform grids only (extension to non-uniform possible)
+    Semantics:
+    - `fine_pdf` contains **probability masses**, not densities.
+    - A set of `spatial_axes` defines which axes are integrated over when checking and
+      enforcing normalization.
+    - For each fixed index of the non-spatial axes, the sum over all spatial axes
+      should be 1.0 (up to numerical tolerance) both before and after downsampling.
 
-    Input:
-        fine_pdf: N-D array of densities with shape (n0, n1, ..., n_{D-1})
-        bin_sizes: Optional 1D sequence of length D giving grid spacing along each axis
-        bins: Optional sequence of 1D arrays giving bin centers per axis. If provided
-            (with or without bin_sizes), per-axis spacings are inferred from the median
-            of np.diff(bins[d]). If an entry is None, a default index-based grid
-            np.arange(shape_f[d]) is used and spacing 1.0 is assumed.
+    Geometry:
+    - `bins` and `bin_sizes` are treated as **optional metadata**.
+      They may be used to derive and return coarse bin centres and coarse bin sizes,
+      but they do *not* affect probability mass calculations or normalization.
 
-    Only the user-specified axes are downsampled; all other axes are treated as
-    independent and left unchanged. For example, a posterior with shape
-    (n_x, n_y, n_t) and axes=(0, 1), factors=(a, b) yields an output of shape
-    (ceil(n_x/a), ceil(n_y/b), n_t).
+    Downsampling:
+    - Only the user-specified axes are downsampled; all other axes are treated as
+      independent and left unchanged.
+    - Downsampling factors are assumed to be effectively integer (within tolerance)
+      and implemented as conservative **block sums** over fine indices.
+      Any leftover tail along a spatial axis is grouped into a final coarse bin.
     """
 
     fine_pdf: np.ndarray = field()
@@ -162,16 +165,15 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
         self._spatial_axes = tuple(sorted(spatial_axes_norm))
 
         # Verify input is roughly normalized.
-        # If spatial_axes is None, treat all axes as part of one global PDF (original behavior).
-        # If spatial_axes is provided, check normalization per non-spatial index by integrating over spatial_axes.
+        # If spatial_axes is None, treat the whole array as a single global PMF.
+        # If spatial_axes is provided, check normalization per non-spatial index
+        # by integrating (summing) over spatial_axes only.
         if self.spatial_axes is None:
-            spatial_bin_sizes = self._bin_sizes_arr
-            total_mass = np.sum(self.fine_pdf) * float(np.prod(spatial_bin_sizes))
+            total_mass = np.sum(self.fine_pdf)
             if not np.isclose(total_mass, 1.0, rtol=1e-6):
                 print(f"Warning: Input total mass = {total_mass:.6f} (should be ~1)")
         else:
-            spatial_bin_sizes = self._bin_sizes_arr[list(self._spatial_axes)]
-            total_mass = np.sum(self.fine_pdf, axis=tuple(self._spatial_axes)) * float(np.prod(spatial_bin_sizes))
+            total_mass = np.sum(self.fine_pdf, axis=tuple(self._spatial_axes))
             if not np.allclose(total_mass, 1.0, rtol=1e-6):
                 max_dev = np.max(np.abs(total_mass - 1.0))
                 print(f"Warning: Max deviation from unit mass over spatial_axes = {max_dev:.6e}")
@@ -180,25 +182,26 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
     # Core N-D downsampling
     # ---------------------------------------------------------------------- #
 
-    def _downsample_along_axis(self, arr: np.ndarray, axis: int, factor: float, spacing: float, bin_centers: Optional[np.ndarray] = None) -> Tuple[np.ndarray, float, Optional[np.ndarray]]:
+    def _downsample_along_axis(self, arr: np.ndarray, axis: int, factor: float, bin_centers: Optional[np.ndarray] = None) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         """
-        Downsample an array of densities along a single axis using rigorous
-        integration via cumulative sums and interpolation.
+        Downsample an array of **discrete probabilities** along a single axis
+        using conservative block summation.
 
         Args:
-            arr: Input density array.
+            arr: Input probability mass array.
             axis: Axis index to downsample.
-            factor: Downsampling factor (>1 for downsampling).
-            spacing: Bin spacing along the given axis.
+            factor: Downsampling factor (>1 for downsampling). Must be effectively
+                an integer (within a small tolerance).
 
         Returns:
-            new_arr: Density array downsampled along the given axis.
-            new_spacing: New spacing along that axis.
-            new_bin_centers: Coarse bin centers along that axis (or None if bin_centers is None).
+            new_arr: Array downsampled along the given axis by conservative
+                summation of fine bins.
+            new_bin_centers: Coarse bin centers along that axis (or None if
+                bin_centers is None).
         """
         if factor <= 1.0:
             # No effective downsampling; return input unchanged
-            return arr, spacing, bin_centers
+            return arr, bin_centers
 
         axis = int(axis)
         if axis < 0:
@@ -206,55 +209,66 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
         if axis < 0 or axis >= arr.ndim:
             raise ValueError(f"axis={axis} is out of bounds for array with ndim={arr.ndim}")
 
+        # Require effectively integer factors for block summation
+        factor_int = int(round(factor))
+        if factor_int < 1 or not np.isclose(factor_int, factor, rtol=1e-6, atol=1e-8):
+            raise ValueError(f"Downsampling factor must be an integer > 1 for discrete PMF mode, got {factor}.")
+
         # Move target axis to the last dimension for easier handling
         arr_moved = np.moveaxis(arr, axis, -1)
         *leading_shape, N_f = arr_moved.shape
-        leading_size = int(np.prod(leading_shape)) if leading_shape else 1
 
-        # Compute coarse grid parameters
-        N_c = int(np.ceil(N_f / factor))
-        total_length = N_f * spacing
-        dx_c = total_length / N_c
+        # Number of full blocks and remainder along the axis
+        blocks = N_f // factor_int
+        rem = N_f % factor_int
 
-        # Determine physical edges of the fine and coarse grids. If bin_centers
-        # are provided, align edges with them; otherwise assume origin 0.
-        if bin_centers is not None and bin_centers.size > 0:
-            diffs_centers = np.diff(bin_centers) if bin_centers.size > 1 else np.array([spacing])
-            spacing_from_centers = float(np.median(diffs_centers))
-            if np.isfinite(spacing_from_centers) and spacing_from_centers > 0:
-                spacing = spacing_from_centers
-            start_edge = float(bin_centers[0] - 0.5 * spacing)
+        # Head: full blocks that can be reshaped
+        if blocks > 0:
+            head = arr_moved[..., : blocks * factor_int]
+            new_shape = tuple(leading_shape) + (blocks, factor_int)
+            head = head.reshape(new_shape)
+            head_sum = head.sum(axis=-1)
         else:
-            start_edge = 0.0
+            head_sum = None
 
-        fine_edges = start_edge + np.arange(N_f + 1, dtype=float) * spacing
-        coarse_edges = start_edge + np.arange(N_c + 1, dtype=float) * dx_c
+        # Tail: any remaining elements are grouped into one final coarse bin
+        if rem > 0:
+            tail = arr_moved[..., blocks * factor_int :]
+            tail_sum = tail.sum(axis=-1, keepdims=False)  # (...,)
+            if head_sum is not None:
+                coarse_last = np.concatenate([head_sum, tail_sum[..., np.newaxis]], axis=-1)
+            else:
+                coarse_last = tail_sum[..., np.newaxis]
+        else:
+            coarse_last = head_sum if head_sum is not None else arr_moved
 
-        # Flatten all non-axis dimensions into one for efficient looping
-        arr_flat = arr_moved.reshape(leading_size, N_f)
-
-        # Mass along the axis: density * spacing
-        fine_mass = arr_flat * spacing  # shape (leading_size, N_f)
-        cum_mass = np.insert(np.cumsum(fine_mass, axis=1), 0, 0.0, axis=1)  # (leading_size, N_f+1)
-
-        interp = np.empty((leading_size, N_c + 1), dtype=float)
-        for i in range(leading_size):
-            interp[i, :] = np.interp(coarse_edges, fine_edges, cum_mass[i, :])
-
-        masses = np.diff(interp, axis=1)  # (leading_size, N_c)
-
-        # Convert back to densities along the axis
-        densities_flat = masses / dx_c
-        new_shape = tuple(leading_shape) + (N_c,)
-        new_arr_moved = densities_flat.reshape(new_shape)
+        new_arr_moved = coarse_last
 
         # Restore original axis order
         new_arr = np.moveaxis(new_arr_moved, -1, axis)
 
-        # Coarse bin centers are midpoints of the coarse edges.
-        new_bin_centers = 0.5 * (coarse_edges[:-1] + coarse_edges[1:])
+        # Coarse bin centers: block-average of fine bin centers, if provided
+        new_bin_centers = None
+        if bin_centers is not None:
+            centers = np.asarray(bin_centers, dtype=float)
+            if centers.ndim != 1 or centers.shape[0] != N_f:
+                raise ValueError(f"bin_centers must be 1D with length {N_f}, got shape {centers.shape}.")
 
-        return new_arr, dx_c, new_bin_centers
+            if blocks > 0:
+                head_c = centers[: blocks * factor_int].reshape(blocks, factor_int).mean(axis=-1)
+            else:
+                head_c = None
+
+            if rem > 0:
+                tail_c = centers[blocks * factor_int :].mean(keepdims=False)
+                if head_c is not None:
+                    new_bin_centers = np.concatenate([head_c, np.asarray([tail_c])], axis=0)
+                else:
+                    new_bin_centers = np.asarray([tail_c], dtype=float)
+            else:
+                new_bin_centers = head_c if head_c is not None else centers
+
+        return new_arr, new_bin_centers
 
 
     def downsample(self, factors: Union[float, Sequence[float]], axes: Optional[Sequence[int]] = None, method: str = 'fast') -> Tuple[np.ndarray, np.ndarray, Tuple[np.ndarray, ...]]:
@@ -308,22 +322,28 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
         coarse_bin_sizes = self._bin_sizes_arr.astype(float).copy()
         coarse_bins = [np.asarray(b, dtype=float) for b in self._fine_bins]
 
-        # Apply downsampling along each requested axis
+        # Apply downsampling along each requested axis using discrete block sums
         for ax, factor in zip(norm_axes, factors_seq):
-            coarse_pdf, new_spacing, new_bin_centers = self._downsample_along_axis(
-                coarse_pdf, ax, factor, coarse_bin_sizes[ax], coarse_bins[ax]
+            coarse_pdf, new_bin_centers = self._downsample_along_axis(
+                coarse_pdf, ax, factor, coarse_bins[ax]
             )
-            coarse_bin_sizes[ax] = new_spacing
+            # Update bin metadata for this axis
+            if new_bin_centers is not None:
+                coarse_bins[ax] = new_bin_centers
+                if new_bin_centers.size > 1:
+                    diffs = np.diff(new_bin_centers)
+                    coarse_bin_sizes[ax] = float(np.median(diffs))
+                else:
+                    coarse_bin_sizes[ax] = 1.0
             if new_bin_centers is not None:
                 coarse_bins[ax] = new_bin_centers
 
         # Optional renormalization for numerical robustness.
-        # If spatial_axes is None, preserve original behavior and renormalize a single global PDF.
-        # If spatial_axes is provided, renormalize per non-spatial index so that each slice
-        # integrated over spatial_axes has unit mass.
+        # If spatial_axes is None, treat the whole array as a single PMF.
+        # If spatial_axes is provided, renormalize per non-spatial index so that
+        # each slice integrated (summed) over spatial_axes has unit mass.
         if self.spatial_axes is None:
-            spatial_bin_sizes = coarse_bin_sizes
-            total_mass = float(np.sum(coarse_pdf) * np.prod(spatial_bin_sizes))
+            total_mass = float(np.sum(coarse_pdf))
             if total_mass > 0.0 and not np.isclose(total_mass, 1.0, rtol=1e-10):
                 coarse_pdf = coarse_pdf / total_mass
         else:
@@ -331,12 +351,9 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
             all_axes_set = set(range(coarse_pdf.ndim))
             non_spatial_axes = sorted(all_axes_set - spatial_axes_set)
 
-            spatial_bin_sizes = coarse_bin_sizes[list(self._spatial_axes)]
-            spacing_prod = float(np.prod(spatial_bin_sizes))
-
             if non_spatial_axes:
                 # Mass per non-spatial index
-                mass = np.sum(coarse_pdf, axis=tuple(self._spatial_axes)) * spacing_prod
+                mass = np.sum(coarse_pdf, axis=tuple(self._spatial_axes))
                 # Broadcast mass back to full shape
                 reshape = [1] * coarse_pdf.ndim
                 for i, ax in enumerate(non_spatial_axes):
@@ -349,7 +366,7 @@ class RigorousPDFDownsampler(SimpleFieldSizesReprMixin):
                     coarse_pdf = np.divide(coarse_pdf, mass_broadcast, out=coarse_pdf, where=mask)
             else:
                 # All axes are spatial; fall back to global renormalization.
-                total_mass = float(np.sum(coarse_pdf) * spacing_prod)
+                total_mass = float(np.sum(coarse_pdf))
                 if total_mass > 0.0 and not np.isclose(total_mass, 1.0, rtol=1e-10):
                     coarse_pdf = coarse_pdf / total_mass
 
