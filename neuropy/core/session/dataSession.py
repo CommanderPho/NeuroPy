@@ -543,7 +543,7 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
     
 
     @classmethod
-    def compute_non_running_epochs(cls, session, max_run_speed: float = 10.0, minimum_epoch_duration: float = 0.20, merging_adjacent_max_separation_sec: float = 0.01, speed_col_name: str = 'speed_xy', active_parameters=None, save_on_compute=False, **additional_df_metdata) -> Epoch:
+    def perform_compute_non_running_epochs(cls, session, max_run_speed: float = 10.0, minimum_epoch_duration: float = 0.20, merging_adjacent_max_separation_sec: float = 0.01, speed_col_name: str = 'speed_xy', active_parameters=None, save_on_compute=False, **additional_df_metdata) -> Epoch:
         """computes the low-speed non-running epochs and adds them to the session if they don't already exist there
 
         Args:
@@ -566,10 +566,10 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
             from neuropy.core.session.dataSession import DataSession
 
             # Simple: just compute with default 10.0 cm/s threshold
-            non_running_epochs = DataSession.compute_non_running_epochs(a_sess)
+            non_running_epochs = DataSession.perform_compute_non_running_epochs(a_sess)
 
             ## With instance:
-            non_running_epochs = a_sess.compute_non_running_epochs(a_sess, max_run_speed=10.0)
+            non_running_epochs = a_sess.compute_non_running_epochs(max_run_speed=10.0)
             non_running_epochs
 
         """
@@ -623,7 +623,8 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
                 )
             
             print('assigning to `session.non_running_epochs`...')
-            session.non_running_epochs = deepcopy(epochs_obj)
+            setattr(session, 'non_running_epochs', deepcopy(epochs_obj))
+            # session.non_running_epochs = deepcopy(epochs_obj)
             print(f'\tassigned.')
 
         if save_on_compute:
@@ -635,7 +636,9 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         return epochs_obj
 
 
-
+    def compute_non_running_epochs(self, **kwargs):
+        """ ensures self.non_running_epochs exists """
+        return self.perform_compute_non_running_epochs(session=self, **kwargs)
 
 
     @staticmethod
@@ -782,6 +785,31 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         # compute estimates and assign them as the session's .replay value
         a_session.replay = a_session.estimate_replay_epochs(**(default_replay_estimation_parameters | kwargs)).to_dataframe()
         return a_session.replay
+
+
+
+    def find_epoch_attributes(self):
+        """ Returns a dict of all "Epoch" type member properties of the instance. Returns things like "PBEs", "replays", etc
+        usage:
+            properties = curr_active_pipeline.sess.find_epoch_attributes()
+            properties
+        """
+        properties = {}
+        
+        for attr_name in dir(self):
+            try:
+                # Safely attempt to get the attribute value
+                a_prop = getattr(self, attr_name)
+                
+                # Check for the types you're interested in
+                if isinstance(a_prop, (Epoch, pd.DataFrame)):
+                    properties[attr_name] = a_prop
+            except (AttributeError, Exception):
+                # Skip properties that are broken or raise errors when accessed
+                continue
+                
+        return properties
+
 
     # ConcatenationInitializable protocol:
     @classmethod
