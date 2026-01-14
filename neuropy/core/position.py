@@ -481,7 +481,129 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             # compute the higher_order_derivatives if not already done upon first access
             self.df = self.compute_higher_order_derivatives()   
         return self.df['acceleration_y'].to_numpy()
-    
+
+
+    # @function_attributes(short_name=None, tags=['BCPA', 'change-point-detection', 'segment'], input_requires=[], output_provides=[], uses=[], used_by=['cls.segment_trajectories], creation_date='2026-01-14 09:27', related_items=[])
+    @classmethod
+    def calculate_persistence_velocity(cls, pos_df: pd.DataFrame, t_col_name: str = 't', overwrite_existing:bool=True) -> pd.DataFrame:
+        """ Calculate Persistence Velocity (Behavioral Metric)
+        Assumes dataframe has 'x', 'y', and 'time' columns.
+        Uses smoothed columns and existing computed columns (velocity_x_smooth, velocity_y_smooth, speed_xy, dt) if available.
+        Returns dataframe with Persistence Velocity (Vp).
+        """
+        # Track original columns to identify any temporary columns we might create
+        original_columns = set(pos_df.columns)
+        
+        if overwrite_existing or ('Vp' not in pos_df):
+            # Use existing computed velocity columns if available, otherwise calculate from position
+            if 'velocity_x_smooth' in pos_df.columns and 'velocity_y_smooth' in pos_df.columns:
+                # Use existing smoothed velocity components
+                velocity_x = pos_df['velocity_x_smooth']
+                velocity_y = pos_df['velocity_y_smooth']
+                
+                # Calculate speed from existing components or use speed_xy if available
+                if 'speed_xy' in pos_df.columns:
+                    velocity = pos_df['speed_xy']
+                else:
+                    velocity = np.hypot(velocity_x, velocity_y)
+                
+                # Heading (theta) from velocity components
+                theta = np.arctan2(velocity_y, velocity_x)
+            else:
+                # Fallback: calculate from position columns (use smoothed if available)
+                x_col = 'x_smooth' if 'x_smooth' in pos_df.columns else 'x'
+                y_col = 'y_smooth' if 'y_smooth' in pos_df.columns else 'y'
+                
+                # Calculate step lengths
+                dx = pos_df[x_col].diff()
+                dy = pos_df[y_col].diff()
+                
+                # Use existing dt if available, otherwise calculate
+                if 'dt' in pos_df.columns:
+                    dt = pos_df['dt']
+                else:
+                    dt = pos_df[t_col_name].diff()
+                
+                # Velocity
+                velocity = np.sqrt(dx**2 + dy**2) / dt
+                
+                # Heading (theta)
+                theta = np.arctan2(dy, dx)
+            
+            # Turning angle (difference in heading)
+            # Ensure theta is a Series for .diff() method (np.arctan2 on Series returns Series, but type checker may not infer this)
+            turning_angle = pd.Series(theta, index=pos_df.index).diff()
+            
+            # Persistence Velocity = Velocity * cos(Turning Angle)
+            # This measures how much of the movement is "directed" vs "tortuous"
+            pos_df['Vp'] = velocity * np.cos(turning_angle.fillna(0))
+        
+        # Drop any temporary columns that were created (columns that weren't in original set, except 'Vp')
+        new_columns = set(pos_df.columns) - original_columns
+        temp_columns_to_drop = [col for col in new_columns if col != 'Vp']
+        if temp_columns_to_drop:
+            pos_df = pos_df.drop(columns=temp_columns_to_drop)
+        
+        return pos_df.dropna()
+
+
+    # @function_attributes(short_name=None, tags=['BCPA', 'change-point-detection', 'segment'], input_requires=[], output_provides=[], uses=['cls.calculate_persistence_velocity'], used_by=[], creation_date='2026-01-14 09:27', related_items=[])
+    @classmethod
+    def perform_segment_trajectories(cls, pos_df: pd.DataFrame, plot_result: bool=False, **kwargs):
+        """ BCPA: (Behavioral Change Point Analysis by Gurarie et al.).
+        1. Preprocessing: Decomposing movement data into Persistence Velocity (continuous movement) and Turning Velocity.
+        2. Analysis: Running a structural change point detection algorithm on those time series.
+
+        """
+        import ruptures as rpt
+        # --- 2. Change Point Detection (The "Analysis" part) ---
+        # Load your data (x, y, time)
+        # df = pd.read_csv('animal_track.csv')
+        # data = calculate_persistence_velocity(df)
+        pos_df = cls.calculate_persistence_velocity(pos_df=pos_df, **kwargs)
+        assert 'Vp' in pos_df.columns
+        # Signal to analyze (Persistence Velocity)
+        signal = pos_df['Vp'].values
+
+        # PELT is a common algorithm for unknown number of change points
+        # 'rbf' cost function is non-parametric and robust for behavioral data
+        model = rpt.Pelt(model="rbf").fit(signal)
+        result = model.predict(pen=10) # 'pen' is the penalty (sensitivity)
+
+        if plot_result:
+            import matplotlib.pyplot as plt
+            # --- 3. Visualization ---
+            rpt.display(signal, result)
+            plt.title("Behavioral Change Points (Persistence Velocity)")
+            plt.show()
+        
+        # Assign segment indices based on change points
+        # result contains the indices where segments end (excluding the final index)
+        # Convert to segment indices: each row gets assigned to segment 0, 1, 2, etc.
+        change_points = np.array(result[:-1]) if len(result) > 1 else np.array([])  # Exclude last index (end of data)
+        if len(change_points) > 0:
+            # Use searchsorted to find which segment each index belongs to
+            segment_idx = np.searchsorted(change_points, np.arange(len(pos_df)), side='right')
+        else:
+            # No change points detected, all data is one segment
+            segment_idx = np.zeros(len(pos_df), dtype=int)
+        
+        pos_df['segment_idx'] = segment_idx
+        
+        return pos_df
+
+
+    # @function_attributes(short_name=None, tags=['segment, 'BCPA'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2026-01-14 09:32', related_items=[])
+    def segment_trajectories(self, plot_result: bool=False, **kwargs) -> pd.DataFrame:
+        """ BCPA: (Behavioral Change Point Analysis by Gurarie et al.).
+        Instance method version that operates on self.df.
+        Internally uses: `cls.perform_segment_trajectories(...)`
+        
+        Returns:
+            pd.DataFrame: The updated dataframe with 'segment_idx' column added.
+        """
+        self.df = self.perform_segment_trajectories(pos_df=self.df, plot_result=plot_result, **kwargs)
+        return self.df
 
     # ==================================================================================================================== #
     # Position Discretization/Binning                                                                                      #
