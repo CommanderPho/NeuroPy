@@ -366,12 +366,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         self.df['approx_head_dir_degrees'] = ((np.rad2deg(np.arctan2(self.df['velocity_y_smooth'], self.df['velocity_x_smooth'])) + 360) % 360) # arctan2 is required to get the angle right
         self.df = self.df.dropna(axis='index', subset=['approx_head_dir_degrees'])
         
-        if n_dir_angular_bins is not None:
-            angle_dir_bin_edges = np.linspace(0, 360, (n_dir_angular_bins + 1))
-            n_dir_angular_bins: int = len(angle_dir_bin_edges) - 1
-            # Use pd.cut with the explicit bin edges
-            self.df['head_dir_angle_binned'] = pd.cut(self.df['approx_head_dir_degrees'], bins=angle_dir_bin_edges, labels=False, include_lowest=True)
-            self.df = self.df.dropna(axis='index', subset=['head_dir_angle_binned'])
+        self.df = self.bin_segment_direction_angles(self.df, n_dir_angular_bins=n_dir_angular_bins, angle_degrees_col_name='approx_head_dir_degrees', output_col_name='head_dir_angle_binned')
 
         return self.df
 
@@ -495,6 +490,9 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         # Track original columns to identify any temporary columns we might create
         original_columns = set(pos_df.columns)
         
+        # Small epsilon to prevent division by zero (using machine epsilon for float64)
+        eps = np.finfo(np.float64).eps * 10  # Small but not too small to avoid numerical issues
+        
         if overwrite_existing or ('Vp' not in pos_df):
             # Use existing computed velocity columns if available, otherwise calculate from position
             if 'velocity_x_smooth' in pos_df.columns and 'velocity_y_smooth' in pos_df.columns:
@@ -521,14 +519,24 @@ class PositionComputedDataMixin(PositionSlicedMixin):
                 
                 # Use existing dt if available, otherwise calculate
                 if 'dt' in pos_df.columns:
-                    dt = pos_df['dt']
+                    dt = pos_df['dt'].copy()
                 else:
                     dt = pos_df[t_col_name].diff()
                 
-                # Velocity
-                velocity = np.sqrt(dx**2 + dy**2) / dt
+                # Replace zeros and negative values in dt with epsilon to prevent division by zero
+                # Also handle NaN values (first row from diff()) by keeping them as NaN
+                dt_safe = dt.copy()
+                # Replace zeros and negative/very small values with epsilon, but keep NaN values as NaN
+                dt_safe = dt_safe.where((dt_safe > eps) | dt_safe.isna(), eps)
                 
-                # Heading (theta)
+                # Calculate distance moved
+                distance = np.sqrt(dx**2 + dy**2)
+                
+                # Velocity with safe division (NaN in dt will produce NaN in velocity, which is correct)
+                velocity = distance / dt_safe
+                
+                # Heading (theta) - handle case where both dx and dy are zero (or very small)
+                # Use epsilon to prevent atan2(0, 0) which is undefined but atan2 handles it gracefully
                 theta = np.arctan2(dy, dx)
             
             # Turning angle (difference in heading)
@@ -537,27 +545,74 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             
             # Persistence Velocity = Velocity * cos(Turning Angle)
             # This measures how much of the movement is "directed" vs "tortuous"
+            # Fill NaN in turning_angle (first row) with 0, which is correct (no previous angle to compare)
             pos_df['Vp'] = velocity * np.cos(turning_angle.fillna(0))
         
-        # Drop any temporary columns that were created (columns that weren't in original set, except 'Vp')
-        new_columns = set(pos_df.columns) - original_columns
-        temp_columns_to_drop = [col for col in new_columns if col != 'Vp']
-        if temp_columns_to_drop:
-            pos_df = pos_df.drop(columns=temp_columns_to_drop)
+        # # Drop any temporary columns that were created (columns that weren't in original set, except 'Vp')
+        # new_columns = set(pos_df.columns) - original_columns
+        # temp_columns_to_drop = [col for col in new_columns if col != 'Vp']
+        # if temp_columns_to_drop:
+        #     pos_df = pos_df.drop(columns=temp_columns_to_drop)
         
         return pos_df #pos_df.dropna(subset=['Vp'], inplace=False)
+
+    @classmethod
+    def angular_diff_deg(cls, a, b):
+        """ correct (circular) mean giving the minimum angle subtending two other angles in degrees """
+        return np.abs((a - b + 180.0) % 360.0 - 180.0)
+
+
+    @classmethod
+    def circular_mean_deg(cls, angle_rad: NDArray) -> NDArray:
+        """Returns the mean of angles (in radians), in degrees, handling wrapping.
+
+        segment_angles = pos_df.groupby('segment_idx')['Vp_rad'].agg(lambda x: np.angle(np.mean(np.exp(1j * x.dropna())))) # drop NaNs per segment
+        
+        segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_deg)
+        segment_R = pos_df.groupby('segment_idx')['Vp_rad'].agg(lambda x: np.abs(np.mean(np.exp(1j * x.dropna())))) # R = 1 → perfectly aligned, R → 0 → very scattered
+
+        """
+        return np.mod(np.rad2deg(np.angle(np.mean(np.exp(1j * angle_rad.dropna())))), 360)
+
+
+    @classmethod
+    def circular_mean_scatteredness_R(cls, angle_rad: NDArray) -> NDArray:
+        """Returns the scatteredness of the angles R: R = 1 → perfectly aligned, R → 0 → very scattered
+        segment_R = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_scatteredness_R)
+        """
+        return np.abs(np.mean(np.exp(1j * angle_rad.dropna()))) # R = 1 → perfectly aligned, R → 0 → very scattered
+
 
 
 
     @classmethod
-    def circular_mean_deg(cls, angle_rad: float) -> float:
-        """Returns the mean of angles (in radians), in degrees, handling wrapping."""
-        return np.mod(np.rad2deg(np.angle(np.mean(np.exp(1j * angle_rad)))), 360)
+    def bin_segment_direction_angles(cls, pos_df: pd.DataFrame, n_dir_angular_bins: Optional[int] = 8, angle_degrees_col_name: str = 'segment_Vp_deg', output_col_name: str = 'segment_dir_angle_binned') -> pd.DataFrame:
+        """Bins segment direction angles into angular bins.
+        
+        Args:
+            pos_df: Position dataframe with angle column specified by angle_degrees_col_name
+            n_dir_angular_bins: Number of angular bins to create. If None, returns pos_df unchanged.
+            angle_degrees_col_name: Name of the column containing angle values in degrees. Defaults to 'segment_Vp_deg'.
+            output_col_name: Name of the output column to create. Defaults to 'segment_dir_angle_binned'.
+            
+        Returns:
+            pd.DataFrame: The dataframe with output column added and NaN rows dropped.
+        """
+        if n_dir_angular_bins is not None:
+            angle_dir_bin_edges = np.linspace(0, 360, (n_dir_angular_bins + 1))
+            n_dir_angular_bins: int = len(angle_dir_bin_edges) - 1
+            # Use pd.cut with the explicit bin edges
+            pos_df[output_col_name] = pd.cut(pos_df[angle_degrees_col_name], bins=angle_dir_bin_edges, labels=False, include_lowest=True)
+            # Only drop NaN rows if there are valid rows remaining (prevent empty dataframe)
+            if pos_df[output_col_name].notna().any():
+                pos_df = pos_df.dropna(axis='index', subset=[output_col_name])
+            # Otherwise, keep the dataframe even if all values are NaN (preserve structure)
+        return pos_df
 
 
     # @function_attributes(short_name=None, tags=['BCPA', 'change-point-detection', 'segment'], input_requires=[], output_provides=[], uses=['cls.calculate_persistence_velocity'], used_by=[], creation_date='2026-01-14 09:27', related_items=[])
     @classmethod
-    def perform_segment_trajectories(cls, pos_df: pd.DataFrame, plot_result: bool=False, min_signal_length: int=4, pen: float=10.0, n_dir_angular_bins: int = 8, overwrite_existing:bool=True, **kwargs):
+    def perform_segment_trajectories(cls, pos_df: pd.DataFrame, should_plot_result: bool=False, min_signal_length: int=4, pen: float=10.0, n_dir_angular_bins: int = 8, overwrite_existing:bool=True, **kwargs):
         """ BCPA: (Behavioral Change Point Analysis by Gurarie et al.).
         1. Preprocessing: Decomposing movement data into Persistence Velocity (continuous movement) and Turning Velocity.
         2. Analysis: Running a structural change point detection algorithm on those time series.
@@ -571,113 +626,127 @@ class PositionComputedDataMixin(PositionSlicedMixin):
 
         Returns:
             pd.DataFrame: The dataframe with ['segment_idx', 'Vp', 'segment_Vp_deg', 'segment_dir_angle_binned', 'segment_Vp_scatteredness'] column added.
+
+
+        
         """
         if (not overwrite_existing) and np.all(np.isin(['segment_idx', 'Vp', 'segment_Vp_deg', 'segment_dir_angle_binned', 'segment_Vp_scatteredness'], pos_df.columns)):
             return pos_df ## return with no modifications
+        if len(pos_df) == 0:
+            return pos_df
 
-        import ruptures as rpt
+        initial_len: int = len(pos_df)
         # --- 2. Change Point Detection (The "Analysis" part) ---
         # Load your data (x, y, time)
         # df = pd.read_csv('animal_track.csv')
         # data = calculate_persistence_velocity(df)
         pos_df = cls.calculate_persistence_velocity(pos_df=pos_df, overwrite_existing=overwrite_existing, **kwargs)
+        assert len(pos_df) == initial_len, f"initial_len: {initial_len}, len(pos_df): {len(pos_df)}"
         assert 'Vp' in pos_df.columns
-        pos_df = pos_df.dropna(axis='index', subset=['Vp'], inplace=False)
+        # pos_df = pos_df.dropna(axis='index', subset=['Vp'], inplace=False)
+        assert len(pos_df) > 0
         # pos_df = pos_df.dropna(subset=['Vp'], inplace=False) ## drop any columns we can't use
         # Signal to analyze (Persistence Velocity)
         signal = pos_df['Vp'].values
+        
+        needs_segmentation: bool = True
 
         # Validate signal before segmentation
         if len(signal) < min_signal_length:
             # Signal too short for segmentation - assign all to single segment
             pos_df['segment_idx'] = np.zeros(len(pos_df), dtype=int)
-            return pos_df
+            needs_segmentation = False
         
         # Check if signal has variation (not constant)
         if np.std(signal) == 0 or np.isnan(np.std(signal)):
             # Constant signal - no change points possible
             pos_df['segment_idx'] = np.zeros(len(pos_df), dtype=int)
-            return pos_df
+            needs_segmentation = False
         
         # Check for invalid values
         if np.any(np.isnan(signal)) or np.any(np.isinf(signal)):
             # Remove invalid values and re-index
             valid_mask = ~(np.isnan(signal) | np.isinf(signal))
-            if np.sum(valid_mask) < min_signal_length:
+            num_valid = np.sum(valid_mask)
+            if num_valid < min_signal_length:
                 # Not enough valid points after filtering
                 pos_df['segment_idx'] = np.zeros(len(pos_df), dtype=int)
-                return pos_df
-            # Use only valid portion of signal
-            signal = signal[valid_mask]
-            pos_df = pos_df.iloc[valid_mask].reset_index(drop=True)
+                needs_segmentation = False
+            elif num_valid == 0:
+                # All values are invalid - keep original dataframe but mark all as single segment
+                pos_df['segment_idx'] = np.zeros(len(pos_df), dtype=int)
+                needs_segmentation = False
+            else:
+                # Only filter if we have enough valid points and need segmentation
+                if needs_segmentation:
+                    # Use only valid portion of signal for segmentation
+                    signal = signal[valid_mask]
+                    pos_df = pos_df.iloc[valid_mask].reset_index(drop=True)
+                # If not segmenting, keep all rows (invalid values will be handled elsewhere)
 
-        # PELT is a common algorithm for unknown number of change points
-        # 'rbf' cost function is non-parametric and robust for behavioral data
-        try:
-            model = rpt.Pelt(model="rbf").fit(signal)
-            result = model.predict(pen=pen) # 'pen' is the penalty (sensitivity)
-        except Exception as e:
-            # Handle ruptures exceptions (BadSegmentationParameters, etc.)
-            # Fallback: assign all data to single segment
-            import warnings
-            warnings.warn(f"Change point detection failed: {e}. Assigning all data to a single segment.", UserWarning)
-            pos_df['segment_idx'] = np.zeros(len(pos_df), dtype=int)
-            return pos_df
+        if needs_segmentation:
+            # PELT is a common algorithm for unknown number of change points
+            # 'rbf' cost function is non-parametric and robust for behavioral data
+            try:
+                import ruptures as rpt
+                
+                model = rpt.Pelt(model="rbf").fit(signal)
+                result = model.predict(pen=pen) # 'pen' is the penalty (sensitivity)
+                
+                if should_plot_result:
+                    import matplotlib.pyplot as plt
+                    # --- 3. Visualization ---
+                    rpt.display(signal, result)
+                    plt.title("Behavioral Change Points (Persistence Velocity)")
+                    plt.show()
+                
+                # Assign segment indices based on change points
+                # result contains the indices where segments end (excluding the final index)
+                # Convert to segment indices: each row gets assigned to segment 0, 1, 2, etc.
+                change_points = np.array(result[:-1]) if len(result) > 1 else np.array([])  # Exclude last index (end of data)
+                if len(change_points) > 0:
+                    # Use searchsorted to find which segment each index belongs to
+                    segment_idx = np.searchsorted(change_points, np.arange(len(pos_df)), side='right')
+                else:
+                    # No change points detected, all data is one segment
+                    segment_idx = np.zeros(len(pos_df), dtype=int)
+                
+                pos_df['segment_idx'] = segment_idx
+                
+            except Exception as e:
+                # Handle ruptures exceptions (BadSegmentationParameters, etc.)
+                # Fallback: assign all data to single segment
+                import warnings
+                warnings.warn(f"Change point detection failed: {e}. Assigning all data to a single segment.", UserWarning)
+                pos_df['segment_idx'] = np.zeros(len(pos_df), dtype=int)
+                needs_segmentation = False
 
-        if plot_result:
-            import matplotlib.pyplot as plt
-            # --- 3. Visualization ---
-            rpt.display(signal, result)
-            plt.title("Behavioral Change Points (Persistence Velocity)")
-            plt.show()
-        
-        # Assign segment indices based on change points
-        # result contains the indices where segments end (excluding the final index)
-        # Convert to segment indices: each row gets assigned to segment 0, 1, 2, etc.
-        change_points = np.array(result[:-1]) if len(result) > 1 else np.array([])  # Exclude last index (end of data)
-        if len(change_points) > 0:
-            # Use searchsorted to find which segment each index belongs to
-            segment_idx = np.searchsorted(change_points, np.arange(len(pos_df)), side='right')
-        else:
-            # No change points detected, all data is one segment
-            segment_idx = np.zeros(len(pos_df), dtype=int)
-        
-        pos_df['segment_idx'] = segment_idx
+
         
         ## compute the representative angle ("Vp" mean direction) for each segment and assign
         assert ('Vp' in pos_df.columns) and ('segment_idx' in pos_df.columns), f"pos_df.columns: {list(pos_df.columns)}"
 
         # For each segment_idx, compute the circular mean of angle Vp (in radians)
+        if len(pos_df) > 0:
+            # Convert Vp from degrees to radians (if not already radians)
+            # If Vp values can be > 2pi, assume they are in degrees and convert to radians
+            if np.nanmax(np.abs(pos_df['Vp'])) > (2 * np.pi + 1):
+                vp_rad = np.deg2rad(pos_df['Vp'])
+            else:
+                vp_rad = pos_df['Vp'].astype(np.float64)
+            pos_df['Vp_rad'] = vp_rad
 
-        # Convert Vp from degrees to radians (if not already radians)
-        # If Vp values can be > 2pi, assume they are in degrees and convert to radians
-        if np.nanmax(np.abs(pos_df['Vp'])) > (2 * np.pi + 1):
-            vp_rad = np.deg2rad(pos_df['Vp'])
-        else:
-            vp_rad = pos_df['Vp'].astype(np.float64)
-        pos_df['Vp_rad'] = vp_rad
+            # Compute the mean direction for each segment
+            segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_deg)
+            segment_R = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_scatteredness_R) # R = 1 → perfectly aligned, R → 0 → very scattered
 
-        # Compute the mean direction for each segment
-        # cls.circular_mean_deg
-        segment_angles = pos_df.groupby('segment_idx')['Vp_rad'].agg(lambda x: np.angle(np.mean(np.exp(1j * x.dropna())))) # drop NaNs per segment
-        segment_angles_deg = np.rad2deg(segment_angles) % 360
+            # Map back onto df
+            pos_df['segment_Vp_deg'] = pos_df['segment_idx'].map(segment_angles_deg)
+            pos_df['segment_Vp_scatteredness'] = pos_df['segment_idx'].map(segment_R)
+            pos_df = cls.bin_segment_direction_angles(pos_df, n_dir_angular_bins, angle_degrees_col_name='segment_Vp_deg')
 
-        segment_R = pos_df.groupby('segment_idx')['Vp_rad'].agg(lambda x: np.abs(np.mean(np.exp(1j * x.dropna())))) # R = 1 → perfectly aligned, R → 0 → very scattered
-
-        # Map back onto df
-        pos_df['segment_Vp_deg'] = pos_df['segment_idx'].map(segment_angles_deg)
-        pos_df['segment_Vp_scatteredness'] = pos_df['segment_idx'].map(segment_R)
-
-
-        if n_dir_angular_bins is not None:
-            angle_dir_bin_edges = np.linspace(0, 360, (n_dir_angular_bins + 1))
-            n_dir_angular_bins: int = len(angle_dir_bin_edges) - 1
-            # Use pd.cut with the explicit bin edges
-            pos_df['segment_dir_angle_binned'] = pd.cut(pos_df['segment_Vp_deg'], bins=angle_dir_bin_edges, labels=False, include_lowest=True)
-            pos_df = pos_df.dropna(axis='index', subset=['segment_dir_angle_binned'])
-
-        # Optionally, can drop the helper rad column
-        pos_df.drop(columns=['Vp_rad'], inplace=True)
+            # Optionally, can drop the helper rad column
+            pos_df.drop(columns=['Vp_rad'], inplace=True)
 
         return pos_df
 
@@ -691,7 +760,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         Returns:
             pd.DataFrame: The updated dataframe with 'segment_idx' column added.
         """
-        self.df = self.perform_segment_trajectories(pos_df=self.df, plot_result=plot_result, **kwargs)
+        self.df = self.perform_segment_trajectories(pos_df=self.df, should_plot_result=plot_result, **kwargs)
         return self.df
 
     # ==================================================================================================================== #
