@@ -1653,9 +1653,6 @@ epochs_df
         return self._obj
 
 
-
-
-
     def adding_or_updating_metadata(self, **metadata_update_kwargs) -> pd.DataFrame:
         """ updates the dataframe's `df.attrs` dictionary metadata, building it as a new dict if it doesn't yet exist
          
