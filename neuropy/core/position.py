@@ -347,7 +347,8 @@ class PositionComputedDataMixin(PositionSlicedMixin):
     @property
     def dim_optional_additional_columns(self) -> List[str]:
         """ returns the labels for the optional columns """
-        return ['normal_dir_unit_t', 'normal_dir_unit_x', 'approx_head_dir_degrees']
+        all_segment_transfer_col_names = ['segment_idx', 'Vp']
+        return ['normal_dir_unit_t', 'normal_dir_unit_x', 'approx_head_dir_degrees', *all_segment_transfer_col_names]
     
 
     def adding_approx_head_dir_columns(self, N:int=15, n_dir_angular_bins: int = 8) -> pd.DataFrame:
@@ -544,31 +545,84 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         if temp_columns_to_drop:
             pos_df = pos_df.drop(columns=temp_columns_to_drop)
         
-        return pos_df.dropna()
+        return pos_df #pos_df.dropna(subset=['Vp'], inplace=False)
+
+
+
+    @classmethod
+    def circular_mean_deg(cls, angle_rad: float) -> float:
+        """Returns the mean of angles (in radians), in degrees, handling wrapping."""
+        return np.mod(np.rad2deg(np.angle(np.mean(np.exp(1j * angle_rad)))), 360)
 
 
     # @function_attributes(short_name=None, tags=['BCPA', 'change-point-detection', 'segment'], input_requires=[], output_provides=[], uses=['cls.calculate_persistence_velocity'], used_by=[], creation_date='2026-01-14 09:27', related_items=[])
     @classmethod
-    def perform_segment_trajectories(cls, pos_df: pd.DataFrame, plot_result: bool=False, **kwargs):
+    def perform_segment_trajectories(cls, pos_df: pd.DataFrame, plot_result: bool=False, min_signal_length: int=4, pen: float=10.0, n_dir_angular_bins: int = 8, overwrite_existing:bool=True, **kwargs):
         """ BCPA: (Behavioral Change Point Analysis by Gurarie et al.).
         1. Preprocessing: Decomposing movement data into Persistence Velocity (continuous movement) and Turning Velocity.
         2. Analysis: Running a structural change point detection algorithm on those time series.
 
+        Args:
+            pos_df: Position dataframe with 'x', 'y', and time columns
+            plot_result: Whether to plot the change point detection results
+            min_signal_length: Minimum number of data points required for segmentation (default: 10)
+            pen: Penalty parameter for change point detection (default: 10.0). Higher values = fewer change points.
+            **kwargs: Additional arguments passed to calculate_persistence_velocity
+
+        Returns:
+            pd.DataFrame: The dataframe with ['segment_idx', 'Vp', 'segment_Vp_deg', 'segment_dir_angle_binned', 'segment_Vp_scatteredness'] column added.
         """
+        if (not overwrite_existing) and np.all(np.isin(['segment_idx', 'Vp', 'segment_Vp_deg', 'segment_dir_angle_binned', 'segment_Vp_scatteredness'], pos_df.columns)):
+            return pos_df ## return with no modifications
+
         import ruptures as rpt
         # --- 2. Change Point Detection (The "Analysis" part) ---
         # Load your data (x, y, time)
         # df = pd.read_csv('animal_track.csv')
         # data = calculate_persistence_velocity(df)
-        pos_df = cls.calculate_persistence_velocity(pos_df=pos_df, **kwargs)
+        pos_df = cls.calculate_persistence_velocity(pos_df=pos_df, overwrite_existing=overwrite_existing, **kwargs)
         assert 'Vp' in pos_df.columns
+        pos_df = pos_df.dropna(axis='index', subset=['Vp'], inplace=False)
+        # pos_df = pos_df.dropna(subset=['Vp'], inplace=False) ## drop any columns we can't use
         # Signal to analyze (Persistence Velocity)
         signal = pos_df['Vp'].values
 
+        # Validate signal before segmentation
+        if len(signal) < min_signal_length:
+            # Signal too short for segmentation - assign all to single segment
+            pos_df['segment_idx'] = np.zeros(len(pos_df), dtype=int)
+            return pos_df
+        
+        # Check if signal has variation (not constant)
+        if np.std(signal) == 0 or np.isnan(np.std(signal)):
+            # Constant signal - no change points possible
+            pos_df['segment_idx'] = np.zeros(len(pos_df), dtype=int)
+            return pos_df
+        
+        # Check for invalid values
+        if np.any(np.isnan(signal)) or np.any(np.isinf(signal)):
+            # Remove invalid values and re-index
+            valid_mask = ~(np.isnan(signal) | np.isinf(signal))
+            if np.sum(valid_mask) < min_signal_length:
+                # Not enough valid points after filtering
+                pos_df['segment_idx'] = np.zeros(len(pos_df), dtype=int)
+                return pos_df
+            # Use only valid portion of signal
+            signal = signal[valid_mask]
+            pos_df = pos_df.iloc[valid_mask].reset_index(drop=True)
+
         # PELT is a common algorithm for unknown number of change points
         # 'rbf' cost function is non-parametric and robust for behavioral data
-        model = rpt.Pelt(model="rbf").fit(signal)
-        result = model.predict(pen=10) # 'pen' is the penalty (sensitivity)
+        try:
+            model = rpt.Pelt(model="rbf").fit(signal)
+            result = model.predict(pen=pen) # 'pen' is the penalty (sensitivity)
+        except Exception as e:
+            # Handle ruptures exceptions (BadSegmentationParameters, etc.)
+            # Fallback: assign all data to single segment
+            import warnings
+            warnings.warn(f"Change point detection failed: {e}. Assigning all data to a single segment.", UserWarning)
+            pos_df['segment_idx'] = np.zeros(len(pos_df), dtype=int)
+            return pos_df
 
         if plot_result:
             import matplotlib.pyplot as plt
@@ -590,11 +644,46 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         
         pos_df['segment_idx'] = segment_idx
         
+        ## compute the representative angle ("Vp" mean direction) for each segment and assign
+        assert ('Vp' in pos_df.columns) and ('segment_idx' in pos_df.columns), f"pos_df.columns: {list(pos_df.columns)}"
+
+        # For each segment_idx, compute the circular mean of angle Vp (in radians)
+
+        # Convert Vp from degrees to radians (if not already radians)
+        # If Vp values can be > 2pi, assume they are in degrees and convert to radians
+        if np.nanmax(np.abs(pos_df['Vp'])) > (2 * np.pi + 1):
+            vp_rad = np.deg2rad(pos_df['Vp'])
+        else:
+            vp_rad = pos_df['Vp'].astype(np.float64)
+        pos_df['Vp_rad'] = vp_rad
+
+        # Compute the mean direction for each segment
+        # cls.circular_mean_deg
+        segment_angles = pos_df.groupby('segment_idx')['Vp_rad'].agg(lambda x: np.angle(np.mean(np.exp(1j * x.dropna())))) # drop NaNs per segment
+        segment_angles_deg = np.rad2deg(segment_angles) % 360
+
+        segment_R = pos_df.groupby('segment_idx')['Vp_rad'].agg(lambda x: np.abs(np.mean(np.exp(1j * x.dropna())))) # R = 1 → perfectly aligned, R → 0 → very scattered
+
+        # Map back onto df
+        pos_df['segment_Vp_deg'] = pos_df['segment_idx'].map(segment_angles_deg)
+        pos_df['segment_Vp_scatteredness'] = pos_df['segment_idx'].map(segment_R)
+
+
+        if n_dir_angular_bins is not None:
+            angle_dir_bin_edges = np.linspace(0, 360, (n_dir_angular_bins + 1))
+            n_dir_angular_bins: int = len(angle_dir_bin_edges) - 1
+            # Use pd.cut with the explicit bin edges
+            pos_df['segment_dir_angle_binned'] = pd.cut(pos_df['segment_Vp_deg'], bins=angle_dir_bin_edges, labels=False, include_lowest=True)
+            pos_df = pos_df.dropna(axis='index', subset=['segment_dir_angle_binned'])
+
+        # Optionally, can drop the helper rad column
+        pos_df.drop(columns=['Vp_rad'], inplace=True)
+
         return pos_df
 
 
     # @function_attributes(short_name=None, tags=['segment, 'BCPA'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2026-01-14 09:32', related_items=[])
-    def segment_trajectories(self, plot_result: bool=False, **kwargs) -> pd.DataFrame:
+    def adding_segmented_trajectories_columns(self, plot_result: bool=False, **kwargs) -> pd.DataFrame:
         """ BCPA: (Behavioral Change Point Analysis by Gurarie et al.).
         Instance method version that operates on self.df.
         Internally uses: `cls.perform_segment_trajectories(...)`
