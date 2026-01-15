@@ -654,7 +654,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
 
     # @function_attributes(short_name=None, tags=['BCPA', 'change-point-detection', 'segment'], input_requires=[], output_provides=[], uses=['cls.calculate_persistence_velocity'], used_by=[], creation_date='2026-01-14 09:27', related_items=[])
     @classmethod
-    def perform_segment_trajectories(cls, pos_df: pd.DataFrame, should_plot_result: bool=False, min_signal_length: int=4, pen: float=10.0, n_dir_angular_bins: int = 8, overwrite_existing:bool=True, disable_segmentation: bool = False, **kwargs):
+    def perform_segment_trajectories(cls, pos_df: pd.DataFrame, should_plot_result: bool=False, min_signal_length: int=4, pen: float=10.0, n_dir_angular_bins: int = 8, overwrite_existing:bool=True, disable_segmentation: bool = True, **kwargs):
         """ BCPA: (Behavioral Change Point Analysis by Gurarie et al.).
         1. Preprocessing: Decomposing movement data into Persistence Velocity (continuous movement) and Turning Velocity.
         2. Analysis: Running a structural change point detection algorithm on those time series.
@@ -666,7 +666,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             pen: Penalty parameter for change point detection. Defaults to 10.0. Higher values = fewer change points.
             n_dir_angular_bins: Number of angular bins for direction binning. Defaults to 8.
             overwrite_existing: If False and all required columns exist, return dataframe unchanged. Defaults to True.
-            disable_segmentation: If True, skip change point detection and treat all rows as a single segment. Defaults to False.
+            disable_segmentation: If True, skip change point detection and treat all rows as a single segment. Defaults to True.
             **kwargs: Additional arguments passed to calculate_persistence_velocity
 
         Returns:
@@ -772,7 +772,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
 
 
     # @function_attributes(short_name=None, tags=['segment, 'BCPA'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2026-01-14 09:32', related_items=[])
-    def adding_segmented_trajectories_columns(self, plot_result: bool=False, disable_segmentation: bool = False, **kwargs) -> pd.DataFrame:
+    def adding_segmented_trajectories_columns(self, plot_result: bool=False, disable_segmentation: bool = True, **kwargs) -> pd.DataFrame:
         """ BCPA: (Behavioral Change Point Analysis by Gurarie et al.).
         Instance method version that operates on self.df.
         Internally uses: `cls.perform_segment_trajectories(...)`
