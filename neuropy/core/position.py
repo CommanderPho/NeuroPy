@@ -610,6 +610,48 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         return pos_df
 
 
+    @classmethod
+    def compute_segment_representative_angles(cls, pos_df: pd.DataFrame, n_dir_angular_bins: int = 8) -> pd.DataFrame:
+        """Compute the representative angle ("Vp" mean direction) for each segment and assign to dataframe.
+        
+        Args:
+            pos_df: Position dataframe with 'Vp' column. If 'segment_idx' column is missing, all rows will be treated as segment 0.
+            n_dir_angular_bins: Number of angular bins for direction binning. Defaults to 8.
+            
+        Returns:
+            pd.DataFrame: The dataframe with 'segment_Vp_deg', 'segment_Vp_scatteredness', and binned direction columns added.
+        """
+        assert 'Vp' in pos_df.columns, f"pos_df.columns: {list(pos_df.columns)}"
+
+        # If segment_idx doesn't exist, create it with all zeros (treat all rows as one segment)
+        if 'segment_idx' not in pos_df.columns:
+            pos_df['segment_idx'] = 0
+
+        # For each segment_idx, compute the circular mean of angle Vp (in radians)
+        if len(pos_df) > 0:
+            # Convert Vp from degrees to radians (if not already radians)
+            # If Vp values can be > 2pi, assume they are in degrees and convert to radians
+            if np.nanmax(np.abs(pos_df['Vp'])) > (2 * np.pi + 1):
+                vp_rad = np.deg2rad(pos_df['Vp'])
+            else:
+                vp_rad = pos_df['Vp'].astype(np.float64)
+            pos_df['Vp_rad'] = vp_rad
+
+            # Compute the mean direction for each segment
+            segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_deg)
+            segment_R = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_scatteredness_R) # R = 1 → perfectly aligned, R → 0 → very scattered
+
+            # Map back onto df
+            pos_df['segment_Vp_deg'] = pos_df['segment_idx'].map(segment_angles_deg)
+            pos_df['segment_Vp_scatteredness'] = pos_df['segment_idx'].map(segment_R)
+            pos_df = cls.bin_segment_direction_angles(pos_df, n_dir_angular_bins, angle_degrees_col_name='segment_Vp_deg')
+
+            # Optionally, can drop the helper rad column
+            pos_df.drop(columns=['Vp_rad'], inplace=True)
+
+        return pos_df
+
+
     # @function_attributes(short_name=None, tags=['BCPA', 'change-point-detection', 'segment'], input_requires=[], output_provides=[], uses=['cls.calculate_persistence_velocity'], used_by=[], creation_date='2026-01-14 09:27', related_items=[])
     @classmethod
     def perform_segment_trajectories(cls, pos_df: pd.DataFrame, should_plot_result: bool=False, min_signal_length: int=4, pen: float=10.0, n_dir_angular_bins: int = 8, overwrite_existing:bool=True, disable_segmentation: bool = False, **kwargs):
@@ -619,16 +661,17 @@ class PositionComputedDataMixin(PositionSlicedMixin):
 
         Args:
             pos_df: Position dataframe with 'x', 'y', and time columns
-            plot_result: Whether to plot the change point detection results
-            min_signal_length: Minimum number of data points required for segmentation (default: 10)
-            pen: Penalty parameter for change point detection (default: 10.0). Higher values = fewer change points.
+            should_plot_result: Whether to plot the change point detection results. Defaults to False.
+            min_signal_length: Minimum number of data points required for segmentation. Defaults to 4.
+            pen: Penalty parameter for change point detection. Defaults to 10.0. Higher values = fewer change points.
+            n_dir_angular_bins: Number of angular bins for direction binning. Defaults to 8.
+            overwrite_existing: If False and all required columns exist, return dataframe unchanged. Defaults to True.
+            disable_segmentation: If True, skip change point detection and treat all rows as a single segment. Defaults to False.
             **kwargs: Additional arguments passed to calculate_persistence_velocity
 
         Returns:
             pd.DataFrame: The dataframe with ['segment_idx', 'Vp', 'segment_Vp_deg', 'segment_dir_angle_binned', 'segment_Vp_scatteredness'] column added.
 
-
-        
         """
         if (not overwrite_existing) and np.all(np.isin(['segment_idx', 'Vp', 'segment_Vp_deg', 'segment_dir_angle_binned', 'segment_Vp_scatteredness'], pos_df.columns)):
             return pos_df ## return with no modifications
@@ -636,16 +679,12 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             return pos_df
 
         initial_len: int = len(pos_df)
-        # --- 2. Change Point Detection (The "Analysis" part) ---
-        # Load your data (x, y, time)
-        # df = pd.read_csv('animal_track.csv')
-        # data = calculate_persistence_velocity(df)
+        # Calculate persistence velocity (Vp) - the direction of movement
         pos_df = cls.calculate_persistence_velocity(pos_df=pos_df, overwrite_existing=overwrite_existing, **kwargs)
         assert len(pos_df) == initial_len, f"initial_len: {initial_len}, len(pos_df): {len(pos_df)}"
         assert 'Vp' in pos_df.columns
-        # pos_df = pos_df.dropna(axis='index', subset=['Vp'], inplace=False)
         assert len(pos_df) > 0
-        # pos_df = pos_df.dropna(subset=['Vp'], inplace=False) ## drop any columns we can't use
+        
         # Signal to analyze (Persistence Velocity)
         signal = pos_df['Vp'].values
         
@@ -726,32 +765,8 @@ class PositionComputedDataMixin(PositionSlicedMixin):
                 pos_df['segment_idx'] = np.zeros(len(pos_df), dtype=int)
                 needs_segmentation = False
 
-
-        
-        ## compute the representative angle ("Vp" mean direction) for each segment and assign
-        assert ('Vp' in pos_df.columns) and ('segment_idx' in pos_df.columns), f"pos_df.columns: {list(pos_df.columns)}"
-
-        # For each segment_idx, compute the circular mean of angle Vp (in radians)
-        if len(pos_df) > 0:
-            # Convert Vp from degrees to radians (if not already radians)
-            # If Vp values can be > 2pi, assume they are in degrees and convert to radians
-            if np.nanmax(np.abs(pos_df['Vp'])) > (2 * np.pi + 1):
-                vp_rad = np.deg2rad(pos_df['Vp'])
-            else:
-                vp_rad = pos_df['Vp'].astype(np.float64)
-            pos_df['Vp_rad'] = vp_rad
-
-            # Compute the mean direction for each segment
-            segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_deg)
-            segment_R = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_scatteredness_R) # R = 1 → perfectly aligned, R → 0 → very scattered
-
-            # Map back onto df
-            pos_df['segment_Vp_deg'] = pos_df['segment_idx'].map(segment_angles_deg)
-            pos_df['segment_Vp_scatteredness'] = pos_df['segment_idx'].map(segment_R)
-            pos_df = cls.bin_segment_direction_angles(pos_df, n_dir_angular_bins, angle_degrees_col_name='segment_Vp_deg')
-
-            # Optionally, can drop the helper rad column
-            pos_df.drop(columns=['Vp_rad'], inplace=True)
+        # Compute representative angles for each segment
+        pos_df = cls.compute_segment_representative_angles(pos_df, n_dir_angular_bins)
 
         return pos_df
 
@@ -767,6 +782,79 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         """
         self.df = self.perform_segment_trajectories(pos_df=self.df, should_plot_result=plot_result, disable_segmentation=disable_segmentation, **kwargs)
         return self.df
+
+
+
+
+    @classmethod
+    def perform_add_representitive_trajectories_angles_columns(cls, pos_df: pd.DataFrame, n_dir_angular_bins: int = 8, overwrite_existing:bool=True, **kwargs) -> pd.DataFrame:
+        """Add representative trajectory angle columns without performing segmentation.
+        
+        Computes persistence velocity (Vp) and representative angles for each segment. Unlike 
+        `perform_segment_trajectories`, this function does NOT perform change point detection 
+        or segmentation. If 'segment_idx' column is missing, all rows are treated as a single 
+        segment (segment 0).
+        
+        Internally uses: `cls.calculate_persistence_velocity(...)` and `cls.compute_segment_representative_angles(...)`
+        
+        Args:
+            pos_df: Position dataframe with 'x', 'y', and time columns
+            n_dir_angular_bins: Number of angular bins for direction binning. Defaults to 8.
+            overwrite_existing: If False and all required columns exist, return dataframe unchanged. Defaults to True.
+            **kwargs: Additional arguments passed to `calculate_persistence_velocity`
+        
+        Returns:
+            pd.DataFrame: The updated dataframe with columns added:
+                - 'Vp': Persistence velocity (direction of movement)
+                - 'segment_Vp_deg': Mean direction angle in degrees for each segment
+                - 'segment_Vp_scatteredness': Scatteredness measure (R) for each segment (1 = aligned, 0 = scattered)
+                - 'segment_dir_angle_binned': Binned direction angle
+                - 'segment_idx': Segment index (created as all zeros if missing)
+        """
+        if (not overwrite_existing) and np.all(np.isin(['Vp', 'segment_Vp_deg', 'segment_dir_angle_binned', 'segment_Vp_scatteredness'], pos_df.columns)):
+            return pos_df ## return with no modifications
+        if len(pos_df) == 0:
+            return pos_df
+
+        initial_len: int = len(pos_df)
+        # Calculate persistence velocity (Vp) - the direction of movement
+        pos_df = cls.calculate_persistence_velocity(pos_df=pos_df, overwrite_existing=overwrite_existing, **kwargs)
+        assert len(pos_df) == initial_len, f"initial_len: {initial_len}, len(pos_df): {len(pos_df)}"
+        assert 'Vp' in pos_df.columns
+        assert len(pos_df) > 0
+        
+        # Compute representative angles for each segment (creates segment_idx if missing)
+        pos_df = cls.compute_segment_representative_angles(pos_df, n_dir_angular_bins=n_dir_angular_bins)
+        return pos_df
+
+    # @function_attributes(short_name=None, tags=['trajectory_angles', 'angle', 'direction'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2026-01-15 15:22', related_items=[])
+    def adding_representitive_trajectories_angles_columns(self, n_dir_angular_bins: int = 8, overwrite_existing:bool=True, **kwargs) -> pd.DataFrame:
+        """Add representative trajectory angle columns without performing segmentation.
+        
+        Instance method version that operates on self.df. Computes persistence velocity (Vp) 
+        and representative angles for each segment. Unlike `adding_segmented_trajectories_columns`, 
+        this function does NOT perform change point detection or segmentation. If 'segment_idx' 
+        column is missing, all rows are treated as a single segment (segment 0).
+        
+        Internally uses: `cls.perform_add_representitive_trajectories_angles_columns(...)`
+        
+        Args:
+            n_dir_angular_bins: Number of angular bins for direction binning. Defaults to 8.
+            overwrite_existing: If False and all required columns exist, return dataframe unchanged. Defaults to True.
+            **kwargs: Additional arguments passed to `calculate_persistence_velocity`
+        
+        Returns:
+            pd.DataFrame: The updated dataframe with columns added:
+                - 'Vp': Persistence velocity (direction of movement)
+                - 'segment_Vp_deg': Mean direction angle in degrees for each segment
+                - 'segment_Vp_scatteredness': Scatteredness measure (R) for each segment (1 = aligned, 0 = scattered)
+                - 'segment_dir_angle_binned': Binned direction angle
+                - 'segment_idx': Segment index (created as all zeros if missing)
+        """
+        self.df = self.perform_add_representitive_trajectories_angles_columns(pos_df=self.df, n_dir_angular_bins=n_dir_angular_bins, overwrite_existing=overwrite_existing, **kwargs)
+        return self.df
+
+
 
     # ==================================================================================================================== #
     # Position Discretization/Binning                                                                                      #
