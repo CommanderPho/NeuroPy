@@ -1842,7 +1842,13 @@ class NeuroPyDataframeAccessor:
         falling_edges_clamped = np.clip(falling_edges, 0, max_valid_idx)
         
         # (rising_edges, falling_edges)
-        satisfied_epochs_df: pd.DataFrame = pd.DataFrame(dict(zip(['start', 'stop'], [np.squeeze(self._df[time_col_name].iloc[idxs].to_numpy()) for idxs in (rising_edges_clamped, falling_edges_clamped)])))
+        # Ensure arrays remain 1D (np.squeeze can turn 1-element arrays into scalars)
+        start_times = self._df[time_col_name].iloc[rising_edges_clamped].to_numpy()
+        stop_times = self._df[time_col_name].iloc[falling_edges_clamped].to_numpy()
+        # Ensure 1D arrays (handle case where single element might become scalar)
+        start_times = np.atleast_1d(start_times)
+        stop_times = np.atleast_1d(stop_times)
+        satisfied_epochs_df: pd.DataFrame = pd.DataFrame(dict(zip(['start', 'stop'], [start_times, stop_times])))
         assert len(rising_edges) == len(satisfied_epochs_df)
         assert len(falling_edges) == len(satisfied_epochs_df)
         
