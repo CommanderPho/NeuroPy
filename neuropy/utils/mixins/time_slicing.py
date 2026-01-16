@@ -556,3 +556,80 @@ def add_PBE_identity(spk_df, pbe_epoch_df, no_interval_fill_value=np.nan, overla
     """
     spk_df = add_epochs_id_identity(spk_df, epochs_df=pbe_epoch_df, epoch_id_key_name='PBE_id', epoch_label_column_name=None, override_time_variable_name='t_seconds', no_interval_fill_value=no_interval_fill_value, overlap_behavior=overlap_behavior) # uses new add_epochs_id_identity method which is general
     return spk_df
+
+
+
+
+
+def _subfn_custom_merge_sequential_t_bins_to_epochs(a_df: pd.DataFrame, dt_max: float):
+    """ captures nothing 
+    
+    from neuropy.utils.mixins.time_slicing import _subfn_custom_merge_sequential_t_bins_to_epochs
+    
+    """
+    # max_merge_duration = (pos_t_bin_sample_size_sec * 1.25)
+
+    a_df['sequence_id'] = (a_df['t'].diff() > dt_max).cumsum()
+    # Performed 5 aggregations grouped on column: 'sequence_id'
+    a_df = a_df.groupby(['sequence_id']).agg(start_first=('start', 'first'), stop_last=('stop', 'last'), t_count=('t', 'count'), t_idxmin=('t', 'idxmin'), t_idxmax=('t', 'idxmax')).reset_index().rename(columns={'start_first': 'start', 'stop_last': 'stop', 't_idxmin': 'start_pos_idx', 't_idxmax': 'stop_pos_idx'})
+    a_df['duration'] = a_df['stop'] - a_df['start']
+    return a_df
+
+
+
+def convert_time_point_sampled_df_to_time_bin_epoched_df(a_time_point_like_df: pd.DataFrame, time_col_name: str = 't', EPSILON_GAP_SIZE_SEC: float = 1e-9) -> pd.DataFrame:
+    """ converts a uniformly sampled time-point-like dataframe (such as position, spikes, etc) to an epoch-like ('start', 'stop')-df by constructing epochs between each time point.
+    
+    EPSILON_GAP_SIZE_SEC: float = 1e-9 :: time (in seconds) to subtract from start time so the produced epochs don't techinically overlap.
+    
+    
+    Usage:
+    
+        from neuropy.utils.mixins.time_slicing import convert_time_point_sampled_df_to_time_bin_epoched_df
+    
+    """
+
+    
+
+    # ==================================================================================================================================================================================================================================================================================== #
+    # BEGIN FUNCTION BODY                                                                                                                                                                                                                                                                  #
+    # ==================================================================================================================================================================================================================================================================================== #
+    if len(a_time_point_like_df) < 1:
+        print(f'warn: empty df!')
+        return pd.DataFrame({}), {}
+
+    assert time_col_name in a_time_point_like_df, f"time_col_name: {time_col_name} not in df.columns: {list(a_time_point_like_df.columns)}"
+
+
+    a_time_point_like_df = deepcopy(a_time_point_like_df)
+    pos_t_bin_sample_size_sec: float = np.nanmin(np.abs(np.diff(a_time_point_like_df[time_col_name]))) # 0.008333336005307501
+    assert pos_t_bin_sample_size_sec > EPSILON_GAP_SIZE_SEC
+    
+    a_time_point_like_df['start'] = a_time_point_like_df[time_col_name] ## starts == 't'
+    a_time_point_like_df['stop'] = a_time_point_like_df['start'].shift(-1) # + a_matching_positions_epochs_df['dt']
+    a_time_point_like_df = a_time_point_like_df.iloc[:-1] ## drop the last row with the NaN
+    a_time_point_like_df['stop'] = a_time_point_like_df['stop'] - EPSILON_GAP_SIZE_SEC
+
+    a_time_point_like_df['duration'] = a_time_point_like_df['stop'] - a_time_point_like_df['start']
+    a_time_point_like_df['label'] = a_time_point_like_df.index.astype(int)
+    
+    return a_time_point_like_df
+
+    # dt_max: float = (pos_t_bin_sample_size_sec * 2.5)
+    # new_pos_epochs: pd.DataFrame = _subfn_custom_merge_sequential_t_bins_to_epochs(a_df = a_matching_positions_epochs_df, dt_max = dt_max)
+    # new_pos_epochs['label'] = new_pos_epochs['sequence_id'].astype(int)
+
+    # a_curr_matching_positions_df = deepcopy(a_matching_positions_epochs_df)
+    # # a_curr_matching_positions_df['label'] = a_curr_matching_positions_df['label'].astype(int)
+    # # new_pos_epochs['label'] = new_pos_epochs['label'].astype(int)
+    # return a_curr_matching_positions_df
+
+
+    # a_curr_matching_positions_df = a_curr_matching_positions_df.time_point_event.adding_epochs_identity_column(epochs_df=new_pos_epochs, epoch_id_key_name=col_name, override_time_variable_name='t', epoch_label_column_name='label', no_interval_fill_value=-1, should_replace_existing_column=True, drop_non_epoch_events=True, overlap_behavior=OverlappingIntervalsFallbackBehavior.FALLBACK_TO_SLOW_SEARCH)
+    # ## Segment trajectories    
+    # a_curr_matching_positions_df= a_curr_matching_positions_df.position.adding_segmented_trajectories_columns() ## add to original df
+    # curr_matching_positions_df_dict: Dict[types.epoch_index, pd.DataFrame] = a_curr_matching_positions_df.pho.partition_df_dict(col_name)
+
+    # return new_pos_epochs, curr_matching_positions_df_dict
+
+
