@@ -3193,6 +3193,7 @@ dependencies = [
     { name = "pingouin" },
     { name = "portion" },
     { name = "python-benedict" },
+    { name = "rdp" },
     { name = "scikit-learn", version = "1.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "scikit-posthocs" },
@@ -3243,6 +3244,7 @@ requires-dist = [
     { name = "pingouin", specifier = ">=0.5.3,<0.6" },
     { name = "portion", git = "https://github.com/CommanderPho/portion.git" },
     { name = "python-benedict", specifier = ">=0.28.3,<0.29" },
+    { name = "rdp", specifier = ">=0.8" },
     { name = "scikit-learn", specifier = ">=1.2.1,<2" },
     { name = "scikit-posthocs", specifier = ">=0.7.0,<0.8" },
     { name = "scipy", specifier = "~=1.6" },
@@ -4585,6 +4587,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/70/01/392eba83c8e47b946
 wheels = [
     { url = "https://files.pythonhosted.org/packages/69/76/37c0ccd5ab968a6a438f9c623aeecc84c202ab2fabc6a8fd927580c15b5a/QtPy-2.4.3-py3-none-any.whl", hash = "sha256:72095afe13673e017946cc258b8d5da43314197b741ed2890e563cf384b51aa1", size = 95045, upload-time = "2025-02-11T15:09:24.162Z" },
 ]
+
+[[package]]
+name = "rdp"
+version = "0.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/67/42/80a54cc4387256335c32b48bd42db80967ab5f40d6ffcd8167b3dd988c11/rdp-0.8.tar.gz", hash = "sha256:19ec92f0803587891a00b439441e5e23fc9410500983f02941e4cf9ac3113e4b", size = 4382, upload-time = "2016-12-19T01:34:07.454Z" }
 
 [[package]]
 name = "requests"

@@ -4,6 +4,7 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.manifold import Isomap
 from scipy.ndimage import gaussian_filter1d
+from rdp import rdp ## used by `simplify_position_trajectory`
 
 from .. import core
 from neuropy.utils.mathutil import contiguous_regions, threshPeriods, compute_grid_bin_bounds, map_value
@@ -392,4 +393,103 @@ def compute_position_grid_size(*any_1d_series, num_bins:tuple):
         out_bin_grid_step_size[i] = xbin_info.step
 
     return out_bin_grid_step_size, out_bins, out_bins_info
+
+
+# @function_attributes(short_name=None, tags=['downsample', 'trajectory', 'path', 'subsample', 'efficiency', 'position'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2026-01-21 06:48', related_items=[])
+def simplify_position_trajectory(position_df: pd.DataFrame, epsilon: float = 0.5, algorithm: str = "rdp", algo: str = "iter") -> pd.Series:
+    """Simplify position trajectories using line simplification algorithms to reduce plotted points while preserving path features.
+    
+    Uses the Ramer-Douglas-Peucker (RDP) algorithm by default to downsample position trajectories
+    while maintaining the essential shape of the path. Returns a boolean mask that can be used to
+    filter the original dataframe to the simplified trajectory. Supports both 2D (x, y) and 3D (x, y, z) positions.
+    
+    Parameters
+    ----------
+    position_df : pd.DataFrame
+        DataFrame with ['x', 'y'] columns (required) and optionally ['z'] column for 3D positions.
+        The function automatically detects if 'z' is present and processes 3D coordinates accordingly.
+    epsilon : float, optional
+        Simplification tolerance. Higher values result in more aggressive simplification (fewer points retained).
+        Default is 0.5.
+    algorithm : str, optional
+        Algorithm choice. Currently only "rdp" is supported. Default is "rdp".
+    algo : str, optional
+        For RDP algorithm, use "iter" (iterative) to enable return_mask support. Default is "iter".
+    
+    Returns
+    -------
+    pd.Series
+        Boolean mask of the same length as position_df. True indicates the point is kept in the
+        simplified trajectory, False indicates it should be filtered out.
+        The mask preserves the original dataframe index for proper filtering with `.loc[mask]`.
+    
+    Examples
+    --------
+    >>> position_df = ...  # DataFrame with ['x', 'y'] columns
+    >>> mask = simplify_position_trajectory(position_df, epsilon=0.5)
+    >>> simplified_df = position_df.loc[mask]
+    
+    >>> position_df_3d = ...  # DataFrame with ['x', 'y', 'z'] columns
+    >>> mask = simplify_position_trajectory(position_df_3d, epsilon=0.5)
+    >>> simplified_df = position_df_3d.loc[mask]
+    """
+    # Validate input
+    if not isinstance(position_df, pd.DataFrame):
+        raise TypeError(f"position_df must be a pandas DataFrame, got {type(position_df)}")
+    
+    required_columns = ['x', 'y']
+    missing_columns = [col for col in required_columns if col not in position_df.columns]
+    if missing_columns:
+        raise ValueError(f"position_df must contain columns {required_columns}, missing: {missing_columns}")
+    
+    # Determine if 3D coordinates are present
+    has_z = 'z' in position_df.columns
+    coord_columns = ['x', 'y', 'z'] if has_z else ['x', 'y']
+    
+    # Handle edge cases
+    if len(position_df) == 0:
+        return pd.Series([], dtype=bool, index=position_df.index)
+    
+    if len(position_df) < 3:
+        # RDP requires at least 3 points. For < 3 points, return all True
+        return pd.Series([True] * len(position_df), dtype=bool, index=position_df.index)
+    
+    # Extract coordinates and handle NaN values
+    xyz_pos = position_df[coord_columns].to_numpy()
+    
+    # Check for NaN values
+    nan_mask = np.isnan(xyz_pos).any(axis=1)
+    if nan_mask.all():
+        # All points are NaN
+        return pd.Series([False] * len(position_df), dtype=bool, index=position_df.index)
+    
+    # Filter out NaN points for RDP processing
+    valid_mask = ~nan_mask
+    valid_xyz = xyz_pos[valid_mask]
+    
+    if len(valid_xyz) < 3:
+        # After filtering NaNs, we have < 3 valid points
+        result_mask = pd.Series([False] * len(position_df), dtype=bool, index=position_df.index)
+        result_mask[valid_mask] = True  # Keep the valid points
+        return result_mask
+    
+    # Apply RDP algorithm
+    if algorithm.lower() == "rdp":
+        if algo != "iter":
+            raise ValueError(f"algo must be 'iter' to enable return_mask support, got '{algo}'")
+        
+        # RDP with return_mask=True returns a boolean mask
+        # RDP automatically handles 2D (n, 2) or 3D (n, 3) coordinate arrays
+        rdp_mask = rdp(valid_xyz, epsilon=epsilon, algo=algo, return_mask=True)
+        
+        # Create full mask with same length as original dataframe
+        result_mask = pd.Series([False] * len(position_df), dtype=bool, index=position_df.index)
+        # Map the RDP mask back to the original positions (only for valid points)
+        valid_indices = position_df.index[valid_mask]
+        result_mask.loc[valid_indices] = rdp_mask
+        
+        return result_mask
+    else:
+        raise ValueError(f"Unsupported algorithm: '{algorithm}'. Currently only 'rdp' is supported.")
+
 

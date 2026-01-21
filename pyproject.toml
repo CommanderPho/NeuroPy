@@ -42,6 +42,7 @@ dependencies = [
     "dvc[all]>=3.63.0",
     "numba>=0.56.4,<0.57",
     "hmmlearn>=0.3.3",
+    "rdp>=0.8",
 ]
 
 [project.optional-dependencies]
