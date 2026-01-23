@@ -1217,7 +1217,8 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
 
                 if non_na.nunique(dropna=False) != 1:
                     raise ValueError(
-                        f"Merge strategy 'require_same' violated for column '{values.name}': "
+                        f"Merge strategy 'require_same' violated for column '{values.name}': \n"
+                        f"unique={np.unique(list(values)).tolist()}\n"
                         f"values={list(values)}"
                     )
 
