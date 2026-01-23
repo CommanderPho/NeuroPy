@@ -1,6 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
-from typing import Optional, List, Dict, Tuple, Union
+from typing import Optional, List, Dict, Tuple, Union, Callable, Any
 from importlib import metadata
 import warnings
 from warnings import warn
@@ -1099,9 +1099,26 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         else:
             return active_filter_epochs[active_filter_epochs['duration'] >= minimum_duration]
 
-    def merge_adjacent_epochs_within(self, max_merge_duration: float) -> pd.DataFrame:
+
+    def merge_adjacent_epochs_within(self, max_merge_duration: float, omit_unspecified_column_merge_rules: bool=True, **column_merge_rules) -> pd.DataFrame:
         """Merge consecutive epochs whose separation is less than or equal to ``max_separation``.
 
+        
+        omit_unspecified_column_merge_rules: bool = True, if True, only columns explicitly specified in `column_merge_rules` are used, no values are inferred, otherwise, values are intellegently inferred.
+        
+        
+            column_merge_rules : dict[str, str | callable], optional
+        Per-column merge policy. Values may be:
+            - predefined string strategies ('first','last','mean','sum','min',
+              'max','concat','unique_concat','list','set','any','all')
+            - callable: f(pd.Series) -> scalar
+            
+            
+            - 'require_same' : return the value only if all values in the merge block
+                 are identical (NaNs count as equal); otherwise raise.
+
+                 
+            
         Rules:
         - Epochs are treated in start-time order.
         - If the gap (next.start - current.stop) <= max_separation (+ small numeric tolerance), they are merged.
@@ -1111,8 +1128,110 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             - 'concat': concatenate unique labels with '+' in encounter order
 
         Returns a new dataframe with columns ['start','stop','label','duration'].
+        
         Does not modify in place.
         """
+        # ---------------------------
+        # Merge strategy resolution
+        # ---------------------------
+        
+        def _subfn_resolve_strategy(values: pd.Series, col: str, omit_unspecified_column_merge_rules: bool):
+            """ Resolve merge strategy for a column.
+            captures: column_merge_rules 
+
+            Order of precedence:
+            1. Explicit user rule
+            2. Known column defaults
+            3. Dtype-based smart defaults
+            4. Fallback: 'omit'
+            """
+            # 1. Explicit override
+            if column_merge_rules and col in column_merge_rules:
+                return column_merge_rules[col]
+
+            # 2. Known semantic columns
+            if col == 'start':
+                return 'min'
+            if col == 'stop':
+                return 'max'
+            if col == 'label':
+                return 'concat'
+            
+            if not omit_unspecified_column_merge_rules:
+                # Infer smart Dtype-based defaults
+                if pd.api.types.is_bool_dtype(values):
+                    return 'any'
+                if pd.api.types.is_numeric_dtype(values):
+                    return 'mean'
+                if pd.api.types.is_object_dtype(values):
+                    return 'first'
+
+            # 4. Explicit fallback to omitting
+            return 'omit'
+
+
+        def _subfn_apply_strategy(values: pd.Series, strategy: Union[Callable, str]):
+            """ applys the strategy to the particular column 
+            """
+            if callable(strategy):
+                return strategy(values)
+            
+            if strategy in {'mean', 'sum', 'min', 'max'}:
+                if not pd.api.types.is_numeric_dtype(values):
+                    raise TypeError(f"Merge strategy '{strategy}' requires numeric dtype for column '{values.name}'")
+            elif strategy in {'any', 'all'}:
+                if not pd.api.types.is_bool_dtype(values):
+                    raise TypeError(f"Merge strategy '{strategy}' requires boolean dtype for column '{values.name}'")
+                
+            if strategy == 'first':
+                return values.iloc[0]
+            if strategy == 'last':
+                return values.iloc[-1]
+            if strategy == 'mean':
+                return values.mean()
+            if strategy == 'sum':
+                return values.sum()
+            if strategy == 'min':
+                return values.min()
+            if strategy == 'max':
+                return values.max()
+            if strategy == 'concat':
+                return '+'.join(map(str, values))
+            if strategy == 'unique_concat':
+                return '+'.join(dict.fromkeys(map(str, values)))
+            if strategy == 'list':
+                return list(values)
+            if strategy == 'set':
+                return set(values)
+            if strategy == 'any':
+                return values.any()
+            if strategy == 'all':
+                return values.all()
+
+            if strategy == 'require_same':
+                # Treat NaNs as equal
+                if values.isna().all():
+                    return values.iloc[0]
+
+                non_na = values.dropna()
+
+                if non_na.nunique(dropna=False) != 1:
+                    raise ValueError(
+                        f"Merge strategy 'require_same' violated for column '{values.name}': "
+                        f"values={list(values)}"
+                    )
+
+                return non_na.iloc[0]
+
+
+
+            raise ValueError(f"Unknown merge strategy: {strategy}")
+
+
+        # ==================================================================================================================================================================================================================================================================================== #
+        # BEGIN FUNCTION BODY                                                                                                                                                                                                                                                                  #
+        # ==================================================================================================================================================================================================================================================================================== #
+
         assert max_merge_duration is not None and max_merge_duration >= 0.0, f"max_separation must be >= 0.0, got {max_merge_duration}"
 
         # Quick return for trivial sizes
@@ -1122,35 +1241,71 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
                 result_df.attrs = deepcopy(self._obj.attrs)
             return result_df
 
-
         #TODO 2025-10-21 09:31: - [ ] ChatGPT-5 Implementation:
         df = self.get_valid_df().sort_values('start').reset_index(drop=True)
-        merged = []
-        current_start = df.iloc[0]['start']
-        current_stop = df.iloc[0]['stop']
-        current_label = df.iloc[0]['label']
+        
+        # ---------------------------
+        # Merge runs
+        # ---------------------------
+        merged_rows = []
+        run_start_idx = 0
 
         for i in range(1, len(df)):
-            next_start = df.iloc[i]['start']
-            next_stop = df.iloc[i]['stop']
-            next_label = df.iloc[i]['label']
-            gap = next_start - current_stop
+            gap = df.loc[i, 'start'] - df.loc[i - 1, 'stop']
+            if gap > max_merge_duration:
+                merged_rows.append((run_start_idx, i - 1))
+                run_start_idx = i
 
-            if gap <= max_merge_duration:
-                # Merge with current run
-                current_stop = max(current_stop, next_stop)
-                current_label = f"{current_label}+{next_label}"
-            else:
-                # Push the previous run
-                merged.append((current_start, current_stop, current_label))
-                current_start, current_stop, current_label = next_start, next_stop, next_label
+        merged_rows.append((run_start_idx, len(df) - 1))
 
-        merged.append((current_start, current_stop, current_label))
+        # ---------------------------
+        # Build merged dataframe
+        # ---------------------------
+        merged_records = []
+        for start_idx, stop_idx in merged_rows:
+            block = df.iloc[start_idx:stop_idx + 1]
+            record = {}
+            for col in df.columns:
+                strategy = _subfn_resolve_strategy(block[col], col, omit_unspecified_column_merge_rules=omit_unspecified_column_merge_rules)
+                if strategy == 'omit':
+                    continue
+                record[col] = _subfn_apply_strategy(block[col], strategy)
 
-        merged_df = pd.DataFrame(merged, columns=['start', 'stop', 'label'])
+            merged_records.append(record)
+
+        merged_df = pd.DataFrame.from_records(merged_records)
         merged_df['duration'] = merged_df['stop'] - merged_df['start']
-        # merged_df['label'] = merged_df.index.astype('str')
-        merged_df['label'] = merged_df['label'].astype('str')
+
+        # ==================================================================================================================================================================================================================================================================================== #
+        # Pho pre-2026-01-23 logic                                                                                                                                                                                                                                                             #
+        # ==================================================================================================================================================================================================================================================================================== #
+        # merged = []
+        # current_start = df.iloc[0]['start']
+        # current_stop = df.iloc[0]['stop']
+        # current_label = df.iloc[0]['label']
+
+        # for i in range(1, len(df)):
+        #     next_start = df.iloc[i]['start']
+        #     next_stop = df.iloc[i]['stop']
+        #     next_label = df.iloc[i]['label']
+        #     gap = next_start - current_stop
+
+        #     if gap <= max_merge_duration:
+        #         # Merge with current run
+        #         current_stop = max(current_stop, next_stop)
+        #         current_label = f"{current_label}+{next_label}"
+        #     else:
+        #         # Push the previous run
+        #         merged.append((current_start, current_stop, current_label))
+        #         current_start, current_stop, current_label = next_start, next_stop, next_label
+
+        # merged.append((current_start, current_stop, current_label))
+
+        # merged_df = pd.DataFrame(merged, columns=['start', 'stop', 'label'])
+        # merged_df['duration'] = merged_df['stop'] - merged_df['start']
+        # # merged_df['label'] = merged_df.index.astype('str')
+        # merged_df['label'] = merged_df['label'].astype('str')
+        
 
         if hasattr(self._obj, 'attrs') and self._obj.attrs is not None:
             merged_df.attrs = deepcopy(self._obj.attrs)
