@@ -2,7 +2,7 @@ import types
 from collections import namedtuple
 from enum import Enum, IntEnum, auto, unique
 from itertools import islice
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Any, Dict
 import numpy as np
 import nptyping as ND
 from nptyping import NDArray
@@ -247,7 +247,7 @@ def build_shuffled_ids(neuron_ids, num_shuffles: int = 1000, seed:Optional[int]=
 # ==================================================================================================================== #
 # Dictionary Helpers                                                                                                   #
 # ==================================================================================================================== #
-def split_list_of_dicts(list_of_dicts: list) -> dict:
+def split_list_of_dicts(list_of_dicts: List[Dict[Any, Any]]) -> Dict[Any, List[Any]]:
     """ Converts of a list<dict> (a list of dictionaries) where each element dictionary has the same keys to a dictionary of equal-length lists.
     
     Input:
