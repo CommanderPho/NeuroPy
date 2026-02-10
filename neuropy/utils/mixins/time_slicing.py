@@ -444,6 +444,12 @@ def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoc
         # np.shape(spk_times_arr): (16318817,), p.shape(pbe_start_stop_arr): (10960, 2), p.shape(pbe_identity_label): (10960,)
         spike_pbe_identity_arr # Elapsed Time (seconds) = 90.92654037475586, 93.46184754371643, 90.16610431671143 
     """
+    if (len(spk_df) == 0):
+        ## empty spk_df
+        # list(spk_df.columns)
+        spike_epoch_identity_arr = np.array([], dtype=object)
+        return spike_epoch_identity_arr
+    
     # spk_times_arr = spk_df.t_seconds.to_numpy()
     active_time_variable_name: str = (override_time_variable_name or spk_df.spikes.time_variable_name) # by default use spk_df.spikes.time_variable_name, but an optional override can be provided (to ensure compatibility with PBEs)
     spk_times_arr = spk_df[active_time_variable_name].to_numpy()
@@ -453,7 +459,8 @@ def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoc
     else:
         assert epoch_label_column_name in provided_epochs_df.columns, f"if epoch_label_column_name is specified (not None) than the column {epoch_label_column_name} must exist in the provided_epochs_df, but provided_epochs_df.columns: {list(provided_epochs_df.columns)}!"
         curr_epoch_identity_labels = provided_epochs_df[epoch_label_column_name].to_numpy()
-    if (isinstance(no_interval_fill_value, str) or isinstance(curr_epoch_identity_labels[0], str)):
+        
+    if isinstance(no_interval_fill_value, str) or ((len(curr_epoch_identity_labels) > 0) and isinstance(curr_epoch_identity_labels[0], str)):
         # Stable encoding
         unique_labels, period_identity_label_codes = np.unique(curr_epoch_identity_labels, return_inverse=True)
         _bak_no_interval_fill_value = deepcopy(no_interval_fill_value)
@@ -539,7 +546,13 @@ def add_epochs_id_identity(spk_df, epochs_df, epoch_id_key_name='temp_epoch_id',
         # np.shape(spk_times_arr): (16318817,), p.shape(pbe_start_stop_arr): (10960, 2), p.shape(pbe_identity_label): (10960,)
         spike_pbe_identity_arr # Elapsed Time (seconds) = 90.92654037475586, 93.46184754371643, 90.16610431671143 , 89.04321789741516
     """
-    
+    if (len(spk_df) == 0):
+        ## empty spk_df
+        # list(spk_df.columns)
+        # spike_epoch_identity_arr = np.array([], dtype=object)
+        spk_df[epoch_id_key_name] = pd.Series(dtype="object")
+        return spk_df
+
     spike_epoch_identity_arr = _compute_spike_arbitrary_provided_epoch_ids(spk_df, epochs_df, epoch_label_column_name=epoch_label_column_name, override_time_variable_name=override_time_variable_name, no_interval_fill_value=no_interval_fill_value, overlap_behavior=overlap_behavior)
     spk_df[epoch_id_key_name] = spike_epoch_identity_arr
     return spk_df
