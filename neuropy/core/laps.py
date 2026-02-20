@@ -704,6 +704,12 @@ class LapsAccessor(EpochsAccessor):
 
 # TODO: implement: NeuronUnitSlicableObjectProtocol, StartStopTimesMixin, TimeSlicableObjectProtocol
 class Laps(Epoch):
+    """ 
+    Usage:
+
+        from neuropy.core.laps import Laps, LapsAccessor
+
+    """
     # epoch column labels: ["start", "stop", "label"]
     df_all_fieldnames = ['lap_id','maze_id','start_spike_index', 'end_spike_index', 'start_t', 'end_t', 'start_t_seconds', 'end_t_seconds', 'duration_seconds']
     
