@@ -10,6 +10,7 @@
         "johnw42.pathslasher",
 		"grimmer.vscode-back-forward-button",
 		"ionide.discoverpanel",
-		"kawamataryo.copy-python-dotted-path"
+		"kawamataryo.copy-python-dotted-path",
+		"meta.pyrefly"
 	]
 }

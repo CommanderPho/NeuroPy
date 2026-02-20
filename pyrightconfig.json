@@ -3,7 +3,7 @@
     "neuropy"
   ],  
   "exclude":  [
-    "**/__pycache__", "**/.classpath", "**/.factorypath", "**/.ipynb_checkpoints", "**/CVS", "**.svn", "**/dist", "**/.virtual_documents", "**/.idea", "**/*.asv", "**/.git", "**/.spyproject", "**/.project", "**/node_modules", "**/.dvc", "**/build", "**/.settings", "**/.vscode", "**/.hg",
+    "**/__pycache__", "**/.classpath", "**/.factorypath", "**/.ipynb_checkpoints", "**/CVS", "**/.svn", "**/dist", "**/.virtual_documents", "**/.idea", "**/*.asv", "**/.git", "**/.spyproject", "**/.project", "**/node_modules", "**/.dvc", "**/build", "**/.settings", "**/.vscode", "**/.hg",
   ],
   "ignore":  [
     "src/oldstuff", "**/docs_sphinx", "**/.venv",

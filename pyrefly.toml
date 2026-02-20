@@ -1,0 +1,28 @@
+project-includes = ["neuropy"]
+project-excludes = [
+    "**/__pycache__",
+    "**/.classpath",
+    "**/.factorypath",
+    "**/.ipynb_checkpoints",
+    "**/CVS",
+    "**/.svn",
+    "**/dist",
+    "**/.virtual_documents",
+    "**/.idea",
+    "**/*.asv",
+    "**/.git",
+    "**/.spyproject",
+    "**/.project",
+    "**/node_modules",
+    "**/.dvc",
+    "**/build",
+    "**/.settings",
+    "**/.vscode",
+    "**/.hg",
+]
+python-version = "3.9.0"
+infer-with-first-use = false
+
+[errors]
+untyped-import = "ignore"
+missing-import = "error"
