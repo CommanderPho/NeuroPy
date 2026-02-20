@@ -1,3 +1,11 @@
+ 
+from __future__ import annotations # prevents having to specify types for typehinting as strings
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    ## typehinting only imports here
+    from neuropy.core.position import Position
+
 from copy import deepcopy
 import numpy as np
 import pandas as pd
@@ -14,9 +22,10 @@ from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epoch
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta
 from neuropy.utils.result_context import IdentifyingContext
 from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
-
-
 from neuropy.utils.position_util import ShapelyMaze, ShapelyMazeCollection
+from shapely import box ## used by `build_Bapun_Day4OpenField_laps_from_reward_zones`
+# from shapely.geometry import LineString, Point 
+
 
 # linearization_method: str = 'umap'
 
@@ -102,7 +111,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['roam', 'sprinkle'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=20.0, merging_adjacent_max_separation_sec=6.0,),
+                lap_estimation_parameters=dict(custom_lap_estimation_fn=cls.build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=20.0, merging_adjacent_max_separation_sec=6.0,),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatU', session_name= 'RatUDay5OpenfieldSD'): HardcodedProcessingParameters(
@@ -112,7 +121,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 # non_global_activity_session_names=['maze', 'sprinkle'],
                 non_global_activity_session_names=['roam', 'sprinkle'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                lap_estimation_parameters=dict(custom_lap_estimation_fn=cls.build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),      
             IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day4Openfield'): HardcodedProcessingParameters(
@@ -123,14 +132,14 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 # non_global_activity_session_names=['maze', 'sprinkle'],
                 non_global_activity_session_names=['maze'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                lap_estimation_parameters=dict(custom_lap_estimation_fn=cls.build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                lap_estimation_parameters=dict(custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='shapely', all_session_mazes=Day5TwoNovel_all_session_mazes),
             ),
             ## Fallback defaults:
@@ -138,7 +147,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0,),
+                lap_estimation_parameters=dict(custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0,),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),									
         }
@@ -473,4 +482,148 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         return session, loaded_file_record_list
     
     
-    
+
+    @function_attributes(short_name=None, tags=['laps', 'shapely', 'segmentation', 'trajectories', 'position', 'Day4OpenField'], input_requires=[], output_provides=[], uses=['shapely'], used_by=[], creation_date='2026-02-20 06:56', related_items=[])
+    @classmethod
+    def _perform_build_Bapun_Day4OpenField_laps_from_reward_zones(cls, pos: Position, bapun_Day4OpenField_reward_zones: Dict=None):
+        """ builds correct laps (transitions between the two reward zones on the open field maze for the 'roam' experiment
+
+        Usage:
+
+            curr_session = curr_active_pipeline.filtered_sessions['roam']
+            pos: Position = curr_session.position
+            laps_obj, pos = build_Bapun_Day4OpenField_laps_from_reward_zones(pos=pos)
+            ## Update the current session
+            curr_session.position = pos
+            curr_session.laps = laps_obj
+            ## get the output dataframe:
+            pos_df: pd.DataFrame = pos.to_dataframe()
+            pos_df
+
+        """
+        from shapely import box
+        from shapely.geometry import LineString, Point
+
+        ## Define the two reward zones
+        zone1 = bapun_Day4OpenField_reward_zones.get('zone1', box(-np.inf, 0.0, -60.0, 40.0)) # box(minx, miny, maxx, maxy, ccw=True)
+        zone2 = bapun_Day4OpenField_reward_zones.get('zone2', box(80.0, 0.0, np.inf, 40.0)) # box(minx, miny, maxx, maxy, ccw=True)
+
+        pos_df: pd.DataFrame = pos.to_dataframe()
+
+        points = pos_df.apply(lambda row: Point(row['x'], row['y']), axis=1)
+        pos_df['zone_id'] = -1 ## initialize column
+        is_zone1 = [p.within(zone1) for p in points]
+        is_zone2 = [p.within(zone2) for p in points]
+
+        pos_df.loc[is_zone1, 'zone_id'] = 1
+        pos_df.loc[is_zone2, 'zone_id'] = 2
+
+        # changes = pos_df['zone_id'].diff()
+        pos_df['zone_id_prev_next'] = list(
+            zip(
+                pos_df['zone_id'].shift(1),
+                pos_df['zone_id'].shift(-1)
+            )
+        )
+        # np.unique(pos_df['zone_id_prev_next']) # [(nan, -1.0), (-1.0, -1.0), (-1.0, 1.0), (-1.0, 2.0), (-1.0, nan), (-1.0, -1.0), (-1.0, 1.0), (-1.0, 2.0), (1.0, -1.0), (1.0, 1.0), (2.0, -1.0), (2.0, 2.0)]
+        pos._data['zone_id'] = pos_df['zone_id']
+        # pos._data['zone_id_prev_next'] = curr_position_df['zone_id_prev_next'] ## this one we don't need to add, it's just for building laps/transitions
+        
+        # ## Define Zone Enter/Exit times:
+        # enter_zone1_times = (pos_df['zone_id_prev_next'] == (-1.0, 1.0))
+        # exit_zone1_times = (pos_df['zone_id_prev_next'] == (1.0, -1.0))
+
+        # enter_zone2_times = (pos_df['zone_id_prev_next'] == (-1.0, 2.0))
+        # exit_zone2_times = (pos_df['zone_id_prev_next'] == (2.0, -1.0))
+
+        new_lap_epochs_df = []
+        last_zone1_exit = None
+        last_zone2_exit = None
+        last_successful_zone_id = None
+
+        lap_dir_to_lap_dir_integer_mapping = {'L': 0.0, 'R': 1.0}
+        for a_row in pos_df.itertuples():
+            if a_row.zone_id_prev_next == (-1.0, 1.0):
+                ## zone_1_enter
+                if (last_successful_zone_id is not None) and (last_successful_zone_id != 1.0) and (last_zone2_exit is not None): ## last condition assumes only 2 zones
+                    ## this ends a successful leftward lap
+                    new_lap_epochs_df.append({'lap_dir': lap_dir_to_lap_dir_integer_mapping['L'], 'start': last_zone2_exit, 'stop': a_row.t})
+                last_successful_zone_id = 1.0
+            elif a_row.zone_id_prev_next == (1.0, -1.0):
+                ## zone_1_exit
+                last_successful_zone_id = 1.0
+                last_zone1_exit = a_row.t
+            elif a_row.zone_id_prev_next == (-1.0, 2.0):
+                ## zone_2_enter
+                if (last_successful_zone_id is not None) and (last_successful_zone_id != 2.0) and (last_zone1_exit is not None): ## last condition assumes only 2 zones
+                    ## this ends a successful rightward lap
+                    new_lap_epochs_df.append({'lap_dir': lap_dir_to_lap_dir_integer_mapping['R'], 'start': last_zone1_exit, 'stop': a_row.t})
+                last_successful_zone_id = 2.0
+            elif a_row.zone_id_prev_next == (2.0, -1.0):
+                ## zone_2_exit
+                last_successful_zone_id = 2.0
+                last_zone2_exit = a_row.t
+            else:
+                ## catches all self-transitions
+                pass
+
+        ## Build the dataframe:
+        new_lap_epochs_df = pd.DataFrame.from_records(new_lap_epochs_df)
+        new_lap_epochs_df['duration'] = new_lap_epochs_df['stop'] - new_lap_epochs_df['start']
+        new_lap_epochs_df['label'] = new_lap_epochs_df.index.astype(int)
+        new_lap_epochs_df['lap_id'] = new_lap_epochs_df.index.astype(int)
+        # new_lap_epochs_df
+
+        new_laps_obj: Laps = Laps(new_lap_epochs_df)
+        new_lap_epochs_df = new_laps_obj.to_dataframe()
+        # new_laps_obj
+
+        pos_df = pos_df.position.adding_lap_info(laps_df=new_lap_epochs_df, inplace=False)
+        ## OUTPUTS: new_laps_obj, pos_df 
+        ## UPDATES: pos_df -- added lap, lap_dir
+
+        # update:
+        pos._data['lap'] = pos_df['lap']
+        pos._data['lap_dir'] = pos_df['lap_dir']
+        
+        if 'lap_dir_1D' in pos._data:
+            pos._data['lap_dir_1D'] = pos_df['lap_dir']
+            
+        if 'lap_dir_2D' in pos._data:
+            pos._data['lap_dir_2D'] = pos_df['lap_dir']
+        
+        return new_laps_obj, pos
+
+
+    @classmethod
+    def build_Bapun_Day4OpenField_laps_from_reward_zones(cls, session, bapun_Day4OpenField_reward_zones: Dict=None):
+        """ builds correct laps (transitions between the two reward zones on the open field maze for the 'roam' experiment
+        
+        session = curr_active_pipeline.filtered_sessions['roam']
+                
+        """            
+        from neuropy.core import Laps
+
+        if bapun_Day4OpenField_reward_zones is None:
+            xmin: float = -85.75619321393464
+            xmax: float = 112.57838773103435
+            ymin: float = -96.44772761274268
+            ymax: float = 98.6220528078153
+            bapun_Day4OpenField_grid_bin_bounds = box(xmin, ymin, xmax, ymax)
+
+            bapun_Day4OpenField_reward_zones = dict(    ## Define the two reward zones
+                zone1 = box(xmin, 0.0, -60.0, 40.0),  # box(minx, miny, maxx, maxy, ccw=True)
+                zone2 = box(80.0, 0.0, xmax, 40.0), # box(minx, miny, maxx, maxy, ccw=True)
+            )
+
+
+        pos: Position = session.position
+        laps_obj, pos = self._perform_build_Bapun_Day4OpenField_laps_from_reward_zones(pos=pos, bapun_Day4OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+        ## Update the current session
+        session.position = pos
+        session.laps = laps_obj
+        ## get the output dataframe:
+        pos_df: pd.DataFrame = pos.to_dataframe()
+        pos_df
+
+        return session
