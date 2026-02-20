@@ -1581,10 +1581,6 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             return epochs_df[epochs_df[is_in_key]].drop(columns=[is_in_key], inplace=False)
 
 
-        
-
-
-        
     def split_into_training_and_test(self, training_data_portion: float=5.0/6.0, group_column_name: str='label', additional_epoch_identity_column_names:List[str]=['label'], skip_get_non_overlapping:bool=False, debug_print: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Splits laps into separate training and test sections
         
@@ -1619,7 +1615,6 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             epochs_df: pd.DataFrame = self.get_valid_df()        
 
         return EpochHelpers.split_epochs_into_training_and_test(epochs_df=epochs_df, training_data_portion=training_data_portion, group_column_name=group_column_name, additional_epoch_identity_column_names=additional_epoch_identity_column_names, debug_print=debug_print)
-
 
     
     # Column Adding/Updating Methods _____________________________________________________________________________________ #
