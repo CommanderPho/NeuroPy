@@ -483,7 +483,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
     
     
 
-    @function_attributes(short_name=None, tags=['laps', 'shapely', 'segmentation', 'trajectories', 'position', 'Day4OpenField'], input_requires=[], output_provides=[], uses=['shapely'], used_by=[], creation_date='2026-02-20 06:56', related_items=[])
+    # @function_attributes(short_name=None, tags=['laps', 'shapely', 'segmentation', 'trajectories', 'position', 'Day4OpenField'], input_requires=[], output_provides=[], uses=['shapely'], used_by=[], creation_date='2026-02-20 06:56', related_items=[])
     @classmethod
     def _perform_build_Bapun_Day4OpenField_laps_from_reward_zones(cls, pos: Position, bapun_Day4OpenField_reward_zones: Dict=None):
         """ builds correct laps (transitions between the two reward zones on the open field maze for the 'roam' experiment
