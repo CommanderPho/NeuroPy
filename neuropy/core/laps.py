@@ -396,6 +396,9 @@ class LapsAccessor(EpochsAccessor):
             if a_bak_Col not in laps_df.columns:
                 laps_df[a_bak_Col] = deepcopy(laps_df[a_col])
 
+        if 'lap' not in laps_df:
+            laps_df['lap'] = laps_df['lap_id'].astype(int)
+
         laps_df['lap_dir'] = laps_df['lap'].astype(int).map(lambda a_lap: lap_dir_1D_dict.get(a_lap, 0))
         laps_df['is_LR_dir'] = deepcopy(laps_df['lap_dir']).astype(bool)
         
