@@ -572,6 +572,13 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         new_lap_epochs_df['duration'] = new_lap_epochs_df['stop'] - new_lap_epochs_df['start']
         new_lap_epochs_df['label'] = new_lap_epochs_df.index.astype(int)
         new_lap_epochs_df['lap_id'] = new_lap_epochs_df.index.astype(int)
+
+        if 'is_LR_dir' not in new_lap_epochs_df.columns:
+            new_lap_epochs_df['is_LR_dir'] = (new_lap_epochs_df['lap_dir'] == 0)
+
+        if 'lap' not in new_lap_epochs_df.columns:
+            new_lap_epochs_df['lap'] = new_lap_epochs_df['lap_id'].astype(int)
+
         # new_lap_epochs_df
 
         new_laps_obj: Laps = Laps(new_lap_epochs_df)
