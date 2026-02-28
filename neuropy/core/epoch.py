@@ -118,6 +118,7 @@ class EpochHelpers:
         df[out_col] = pd.Series(level_by_index)
         return df
 
+
     @classmethod
     def find_data_indicies_from_epoch_times(cls, a_df: pd.DataFrame, epoch_times: NDArray, t_column_names=None, atol:float=1e-3, not_found_action='skip_index', debug_print=False) -> NDArray:
         """ returns the matching data indicies corresponding to the epoch [start, stop] times 
@@ -558,6 +559,7 @@ class EpochHelpers:
         
         return epoch_time_to_index_map
 
+
     @classmethod
     def find_epochs_overlapping_other_epochs(cls, epochs_df: pd.DataFrame, epochs_df_required_to_overlap: pd.DataFrame):
         """ 
@@ -583,6 +585,7 @@ class EpochHelpers:
         continuous_time_binned_computation_epochs_portion_intervals: List[P.Interval] = [P.closedopen(a_row.start, a_row.stop) for a_row in epochs_df[['start', 'stop']].itertuples()]
         is_included: NDArray = np.array([an_interval.overlaps(epochs_df_required_to_overlap_portion) for an_interval in continuous_time_binned_computation_epochs_portion_intervals])
         return is_included
+
 
     @classmethod
     def sample_random_period_from_epoch(cls, epoch_start: float, epoch_stop: float, training_data_portion: float, *additional_lap_columns, debug_print=False, debug_override_training_start_t=None):
@@ -627,6 +630,7 @@ class EpochHelpers:
 
         train_outputs.sort(key=lambda i: (i[0], i[1])) # sort by low first, then by high if the low keys tie
         return train_outputs
+
 
     @classmethod
     def split_epochs_into_training_and_test(cls, epochs_df: pd.DataFrame, training_data_portion: float=5.0/6.0, group_column_name: str='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], debug_print: bool = False):
@@ -709,6 +713,7 @@ class EpochHelpers:
         ## OUTPUTS: epochs_training_df, epochs_test_df
         return epochs_training_df, epochs_test_df
 
+
     @classmethod
     def subdivide_epochs(cls, df: pd.DataFrame, subdivide_bin_size: float, start_col='start', stop_col='stop') -> pd.DataFrame:
         """ splits each epoch into equally sized chunks determined by subidivide_bin_size.
@@ -756,6 +761,40 @@ class EpochHelpers:
         
         sub_epochs_df = pd.DataFrame(sub_epochs)
         return sub_epochs_df
+
+
+    @classmethod
+    def init_epochs_df_from_time_bin_edges(cls, time_bin_edges: NDArray, EPSILON_GAP_SIZE_SEC: Optional[float] = None) -> pd.DataFrame:
+        """ converts a series of sequential time_bin_edges (time_window_edges) representing the edges of adjacent time windows to an epoch-like ('start', 'stop')-df by constructing epochs between each time point.
+        
+        EPSILON_GAP_SIZE_SEC: float = 1e-9 :: time (in seconds) to subtract from start time so the produced epochs don't techinically overlap.
+                
+        Usage:
+        
+            from neuropy.core.epoch import EpochHelpers, ensure_dataframe
+        
+            pos_df, time_windows = pos_df.time_point_event.adding_fixed_length_chunk_columns(subdivide_bin_size=5.0)
+            subdivided_epochs_df: pd.DataFrame = EpochHelpers.init_epochs_df_from_time_bin_edges(time_bin_edges=time_windows)
+            subdivided_epochs_df
+
+        """
+        if len(time_bin_edges) < 1:
+            print(f'warn: empty time_bin_edges!')
+            return pd.DataFrame({})
+
+        # assert time_col_name in subdivided_epochs_df, f"time_col_name: {time_col_name} not in df.columns: {list(subdivided_epochs_df.columns)}"
+        subdivided_epochs_df: pd.DataFrame = pd.DataFrame({'start': time_bin_edges[:-1], 'stop': time_bin_edges[1:]})
+        subdivided_epochs_df['duration'] = subdivided_epochs_df['stop'] - subdivided_epochs_df['start']
+        subdivided_epochs_df['label'] = subdivided_epochs_df.index.astype('uint64') #['stop'] - subdivided_epochs_df['start']
+        
+        if (EPSILON_GAP_SIZE_SEC is not None):
+            ## ensure all the gaps are greater than the gap size if we';re going to use it.
+            min_epoch_duration: float = np.nanmin(np.abs(subdivided_epochs_df['duration'].to_numpy())) # 0.008333336005307501
+            assert min_epoch_duration > EPSILON_GAP_SIZE_SEC, f"min_epoch_duration: {min_epoch_duration} must be > EPSILON_GAP_SIZE_SEC: {EPSILON_GAP_SIZE_SEC} if EPSILON_GAP_SIZE_SEC is provided, but it is not."
+            subdivided_epochs_df['stop'] = subdivided_epochs_df['stop'] - EPSILON_GAP_SIZE_SEC ## subtract off the EPSILON_GAP_SIZE_SEC if not None
+            subdivided_epochs_df['duration'] = subdivided_epochs_df['stop'] - subdivided_epochs_df['start'] ## update duration 
+
+        return subdivided_epochs_df
 
 
 
@@ -825,6 +864,25 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         # Optional: check for and remove overlaps
         self._obj = self.renaming_synonym_columns_if_needed(self._obj, required_columns_synonym_dict=self._time_column_name_synonyms, fail_on_missing_columns=True)  #@IgnoreException 
         
+
+
+    @classmethod
+    def init_from_time_bin_edges(cls, time_bin_edges: NDArray, EPSILON_GAP_SIZE_SEC: Optional[float] = None) -> pd.DataFrame:
+        """ converts a series of sequential time_bin_edges (time_window_edges) representing the edges of adjacent time windows to an epoch-like ('start', 'stop')-df by constructing epochs between each time point.
+        
+        EPSILON_GAP_SIZE_SEC: float = 1e-9 :: time (in seconds) to subtract from start time so the produced epochs don't techinically overlap.
+                
+        Usage:
+        
+            from neuropy.core.epoch import EpochsAccessor
+        
+            pos_df, time_windows = pos_df.time_point_event.adding_fixed_length_chunk_columns(subdivide_bin_size=5.0)
+            subdivided_epochs_df: pd.DataFrame = EpochsAccessor.init_epochs_df_from_time_bin_edges(time_bin_edges=time_windows)
+            subdivided_epochs_df
+
+        """
+        return EpochHelpers.init_epochs_df_from_time_bin_edges(time_bin_edges=time_bin_edges, EPSILON_GAP_SIZE_SEC=EPSILON_GAP_SIZE_SEC)
+
 
     @classmethod
     def _validate(cls, obj):
