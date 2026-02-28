@@ -405,6 +405,56 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
     
     
 
+    def adding_fixed_length_chunk_columns(self, subdivide_bin_size: float, t_start: Optional[float]=None, t_end: Optional[float]=None,
+            split_column_name: str = 'subdiv_interval_id', interval_start_t_col_name: str='subdiv_interval_start_t', interval_stop_t_col_name: str='subdiv_interval_stop_t', override_time_variable_name: Optional[str]=None) -> pd.DataFrame:
+        """ adds columns to indicate where each time point belongs in a series of fixed-duration (given by `subdivide_bin_size`, in seconds) time windows.
+
+        subdivide_bin_size: subidivision bin size in seconds
+        t_start: an optional overriden start of the time window series, otherwise the earliest time will be used.
+        t_end: an optional overriden end of the series, otherwise the latest time from the series will be used.
+
+        Usage:
+            from neuropy.utils.mixins.time_slicing import TimePointEventAccessor
+
+            pos_df, subdivided_time_windows, subdivided_epochs_df = pos_df.time_point_event.adding_fixed_length_chunk_columns(subdivide_bin_size=5.0)
+
+        """
+        from neuropy.core.epoch import EpochHelpers
+
+        if override_time_variable_name is None:
+            override_time_variable_name = self.time_variable_name # 't_rel_seconds'
+
+        timestamps = self._obj[override_time_variable_name].copy()
+        # full_duration: float = np.ptp(timestamps)
+
+        if t_start is None: 
+            t_start = np.nanmin(timestamps)
+
+        if t_end is None:
+            t_end = np.nanmax(timestamps)
+
+        assert t_start <= t_end, f"t_start: {t_start} must be <= t_end: {t_end}"
+        full_duration: float = t_end - t_start
+        num_steps: int = int(np.ceil(full_duration / subdivide_bin_size))
+        ## build the time windows first to return
+        # time_windows = np.arange(start=t_start, stop=t_end, step=subdivide_bin_size)
+        time_windows = np.linspace(start=t_start, stop=t_end, num=num_steps, endpoint=True)
+
+        ## build an Epochs-style return
+        subdivided_epochs_df: pd.DataFrame = EpochHelpers.init_epochs_df_from_time_bin_edges(time_bin_edges=time_windows)
+                
+        ## add the columns to self df:
+        self._obj[split_column_name] = (self._obj[override_time_variable_name] // subdivide_bin_size).astype('int64')
+        self._obj[interval_start_t_col_name] = self._obj[split_column_name] * subdivide_bin_size
+        self._obj[interval_stop_t_col_name]  = self._obj[interval_start_t_col_name] + subdivide_bin_size
+
+        return self._obj, time_windows, subdivided_epochs_df
+
+
+
+
+
+
 def _compute_time_point_event_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoch_label_column_name=None, no_interval_fill_value=np.nan, override_time_variable_name=None, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL, debug_print=False):
     """ Computes the appropriate IDs from provided_epochs_df for each spikes to be added as an identities column to spikes_df
     
