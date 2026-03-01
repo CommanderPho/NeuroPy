@@ -5,6 +5,7 @@ if TYPE_CHECKING:
     ## typehinting only imports here
     from neuropy.utils.mixins.binning_helpers import BinningInfo # for add_binned_time_column
 
+import math
 from copy import deepcopy
 from typing import Optional
 import numpy as np
@@ -406,7 +407,8 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
     
 
     def adding_fixed_length_chunk_columns(self, subdivide_bin_size: float, t_start: Optional[float]=None, t_end: Optional[float]=None,
-            split_column_name: str = 'subdiv_interval_id', interval_start_t_col_name: str='subdiv_interval_start_t', interval_stop_t_col_name: str='subdiv_interval_stop_t', override_time_variable_name: Optional[str]=None) -> pd.DataFrame:
+                split_column_name: str = 'subdiv_interval_id', interval_start_t_col_name: str='subdiv_interval_start_t', interval_stop_t_col_name: str='subdiv_interval_stop_t',
+                override_time_variable_name: Optional[str]=None, override_rel_time_variable_name: Optional[str]=None) -> pd.DataFrame:
         """ adds columns to indicate where each time point belongs in a series of fixed-duration (given by `subdivide_bin_size`, in seconds) time windows.
 
         subdivide_bin_size: subidivision bin size in seconds
@@ -434,17 +436,26 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
             t_end = np.nanmax(timestamps)
 
         assert t_start <= t_end, f"t_start: {t_start} must be <= t_end: {t_end}"
+        ## add a relative time column
+        if override_rel_time_variable_name is None:
+            override_rel_time_variable_name = f"{override_time_variable_name}_rel"
+
+        if override_rel_time_variable_name not in self._obj.columns:
+            ## add the relative time column:
+            self._obj[override_rel_time_variable_name] = self._obj[override_time_variable_name] - t_start
+
+
         full_duration: float = t_end - t_start
-        num_steps: int = int(np.ceil(full_duration / subdivide_bin_size))
+        num_steps: int = int(math.ceil(full_duration / subdivide_bin_size))
+        
         ## build the time windows first to return
-        # time_windows = np.arange(start=t_start, stop=t_end, step=subdivide_bin_size)
-        time_windows = np.linspace(start=t_start, stop=t_end, num=num_steps, endpoint=True)
+        time_windows = t_start + (np.arange(num_steps + 1) * subdivide_bin_size)
 
         ## build an Epochs-style return
         subdivided_epochs_df: pd.DataFrame = EpochHelpers.init_epochs_df_from_time_bin_edges(time_bin_edges=time_windows)
                 
         ## add the columns to self df:
-        self._obj[split_column_name] = (self._obj[override_time_variable_name] // subdivide_bin_size).astype('int64')
+        self._obj[split_column_name] = (self._obj[override_rel_time_variable_name] // subdivide_bin_size).astype('int64')
         self._obj[interval_start_t_col_name] = self._obj[split_column_name] * subdivide_bin_size
         self._obj[interval_stop_t_col_name]  = self._obj[interval_start_t_col_name] + subdivide_bin_size
 
