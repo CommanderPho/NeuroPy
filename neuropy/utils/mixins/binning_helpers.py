@@ -399,6 +399,7 @@ def compute_spanning_bins(variable_values, num_bins:int=None, bin_size:float=Non
         BinningInfo: information about how the binning was performed
         
     Usage:
+        from neuropy.utils.mixins.binning_helpers import compute_spanning_bins
         ## Binning with Fixed Number of Bins:    
         xbin_edges, xbin_edges_binning_info = compute_spanning_bins(pos_df.x.to_numpy(), bin_size=active_config.computation_config.grid_bin[0]) # bin_size mode
         print(xbin_edges_binning_info)
