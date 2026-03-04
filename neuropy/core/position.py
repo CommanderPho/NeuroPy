@@ -1268,6 +1268,17 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
     def to_dataframe(self):
         return self._df.copy()
 
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+
+    def __setstate__(self, state):
+        if '_df' not in state and '_data' in state:
+            state['_df'] = state.pop('_data')
+        self.__dict__.update(state)
+
     def speed_in_epochs(self, epochs: Epoch):
         assert isinstance(epochs, Epoch), "epochs must be neuropy.Epoch object"
         pass
