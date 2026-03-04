@@ -1420,4 +1420,11 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
 
 
 
+    def fixup_legacy(self):
+        """ replaces the legacy properties with the modern ones
+
+        """
+        state = self.__getstate__()
+        self.__setstate__(state)
+        return self
 
