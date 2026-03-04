@@ -857,7 +857,7 @@ class Laps(Epoch):
 
     @staticmethod
     def from_dict(d: dict):
-        return Laps((d.get('_df', None) or d.get('_df', None)), metadata = d.get('metadata', None))
+        return Laps((d.get('_data', None) or d.get('_df', None)), metadata = d.get('metadata', None))
         # return Laps(d['_df'], metadata = d.get('metadata', None))
         
     def to_dict(self):
@@ -869,11 +869,8 @@ class Laps(Epoch):
         return state
 
     def __setstate__(self, state):
-        # Restore instance attributes (i.e., _mapping and _keys_at_init).
-        # for backwards compatibility with pre-Epoch baseclass versions of Laps loaded from pickle
-        if '_df' not in state:
-            assert '_df' in state
-            state['_df'] = state.pop('_df', None)
+        if '_df' not in state and '_data' in state:
+            state['_df'] = state.pop('_data')
         self.__dict__.update(state)
             
     
