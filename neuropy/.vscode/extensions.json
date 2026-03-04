@@ -11,6 +11,7 @@
 		"grimmer.vscode-back-forward-button",
 		"ionide.discoverpanel",
 		"kawamataryo.copy-python-dotted-path",
-		"meta.pyrefly"
+		"meta.pyrefly",
+		"ast-grep.ast-grep-vscode"
 	]
 }
