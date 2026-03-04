@@ -70,12 +70,12 @@ class PositionDimDataMixin:
         """The df property."""
         raise NotImplementedError # must be overriden by implementor 
         # return self._obj # for PositionAccessor
-        # return self._data # for Position
+        # return self._df # for Position
     @df.setter
     def df(self, value):
         raise NotImplementedError # must be overriden by implementor 
         # self._obj = value # for PositionAccessor
-        # self._data = value # for Position
+        # self._df = value # for Position
     
     
     # Position
@@ -338,7 +338,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         """ computes and adds the linear position to this Position object """
         from neuropy.utils import position_util
         # out_linear_position_obj = position_util.linearize_position(self, method=method, **kwargs)
-        # self._data['lin_pos'] = out_linear_position_obj.to_dataframe()['lin_pos'] # add the `lin_pos` column to the pos_df
+        # self._df['lin_pos'] = out_linear_position_obj.to_dataframe()['lin_pos'] # add the `lin_pos` column to the pos_df
         self.df = position_util.linearize_position_df(self.df, method=method, **kwargs) # adds 'lin_pos' column to `self.df`
         return self
     
@@ -935,8 +935,8 @@ def adding_lap_info_to_position_df(position_df: pd.DataFrame, laps_df: pd.DataFr
         curr_position_df = adding_lap_info_to_position_df(position_df=curr_position_df, laps_df=curr_laps_df)
         
         # update:
-        self.position._data['lap'] = curr_position_df['lap']
-        self.position._data['lap_dir'] = curr_position_df['lap_dir']
+        self.position._df['lap'] = curr_position_df['lap']
+        self.position._df['lap_dir'] = curr_position_df['lap_dir']
         
     """
     assert laps_df_lap_id_col_name in laps_df, f"laps_df_lap_id_col_name: '{laps_df_lap_id_col_name}' is not in laps_df: {list(laps_df.columns)}"
@@ -1064,8 +1064,8 @@ class PositionAccessor(PositionDimDataMixin, PositionComputedDataMixin, TimeSlic
             curr_position_df = curr_position_df.position.adding_lap_info(laps_df=curr_laps_df, inplace=False)
             
             # update:
-            self.position._data['lap'] = curr_position_df['lap']
-            self.position._data['lap_dir'] = curr_position_df['lap_dir']
+            self.position._df['lap'] = curr_position_df['lap']
+            self.position._df['lap_dir'] = curr_position_df['lap_dir']
             
         """
         if inplace:
@@ -1157,13 +1157,13 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
             metadata (dict, optional): [description]. Defaults to None.
         """
         super().__init__(metadata=metadata)
-        self._data = pos_df # set to the laps dataframe
-        self._data = self._data.sort_values(by=[self.time_variable_name]) # sorts all values in ascending order
+        self._df = pos_df # set to the laps dataframe
+        self._df = self._df.sort_values(by=[self.time_variable_name]) # sorts all values in ascending order
         
     def time_slice_indicies(self, t_start, t_stop):
         t_start, t_stop = self.safe_start_stop_times(t_start, t_stop)
-        included_indicies = self._data[self.time_variable_name].between(t_start, t_stop, inclusive='both') # returns a boolean array indicating inclusion in teh current lap
-        return self._data.index[included_indicies]# note that this currently returns a Pandas.Series object. I could get the normal indicis by using included_indicies.to_numpy()
+        included_indicies = self._df[self.time_variable_name].between(t_start, t_stop, inclusive='both') # returns a boolean array indicating inclusion in teh current lap
+        return self._df.index[included_indicies]# note that this currently returns a Pandas.Series object. I could get the normal indicis by using included_indicies.to_numpy()
         
     @classmethod
     def init(cls, traces: np.ndarray, computed_traces: np.ndarray=None, t_start=0, sampling_rate=120, metadata=None, traces_rot=None):
@@ -1231,10 +1231,10 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
     # for PositionDimDataMixin
     @property
     def df(self):
-        return self._data # for Position
+        return self._df # for Position
     @df.setter
     def df(self, value):
-        self._data = value # for Position
+        self._df = value # for Position
 
     @property
     def sampling_rate(self):
@@ -1248,7 +1248,7 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
 
     def to_dict(self):
         data = {
-            "df": self._data,
+            "df": self._df,
             "metadata": self.metadata,
         }
         return data
@@ -1266,7 +1266,7 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
         
     
     def to_dataframe(self):
-        return self._data.copy()
+        return self._df.copy()
 
     def speed_in_epochs(self, epochs: Epoch):
         assert isinstance(epochs, Epoch), "epochs must be neuropy.Epoch object"
@@ -1275,7 +1275,7 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
     # for TimeSlicableObjectProtocol:
     def time_slice(self, t_start, t_stop):
         t_start, t_stop = self.safe_start_stop_times(t_start, t_stop)
-        included_df = deepcopy(self._data)
+        included_df = deepcopy(self._df)
         included_df = included_df[((included_df[self.time_variable_name] >= t_start) & (included_df[self.time_variable_name] <= t_stop))]
         return Position(included_df, metadata=deepcopy(self.metadata))
         
@@ -1301,7 +1301,7 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
             objList = list(objList.values()) ## convert to a list
 
         # objList = np.array(objList)
-        # concat_df = pd.concat([obj._data for obj in objList])
+        # concat_df = pd.concat([obj._df for obj in objList])
         # return cls(concat_df)
         merged_pos_df: pd.DataFrame = pd.concat([ensure_dataframe(p) for p in objList], ignore_index=True).drop_duplicates(subset=['t'], keep='first', inplace=False, ignore_index=True).sort_values(by='t', axis='index', ascending=True, inplace=False, ignore_index=True)
         merged_metadata = None
@@ -1350,9 +1350,9 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
 
         # update:
         if 'lap' in curr_position_df:
-            self._data['lap'] = curr_position_df['lap']
+            self._df['lap'] = curr_position_df['lap']
         if 'lap_dir' in curr_position_df:
-            self._data['lap_dir'] = curr_position_df['lap_dir']
+            self._df['lap_dir'] = curr_position_df['lap_dir']
 
 
     # HDFMixin Conformances ______________________________________________________________________________________________ #

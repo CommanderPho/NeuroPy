@@ -1188,7 +1188,7 @@ def plot_position_curves_figure(position_obj, include_velocity=True, include_acc
             ax1 = fig.add_subplot(gs[1])
         else:
             ax1 = axes_list[1]
-        ax1.plot(position_obj.time, position_obj._data['velocity_x_smooth'], 'k')
+        ax1.plot(position_obj.time, position_obj._df['velocity_x_smooth'], 'k')
         ax1.set_ylabel('Velocity_x')
         ax0.set_xticklabels([])
         out_axes_list.append(ax1)
@@ -1200,7 +1200,7 @@ def plot_position_curves_figure(position_obj, include_velocity=True, include_acc
             ax2 = fig.add_subplot(gs[2])
         else:
             ax2 = axes_list[2]
-        ax2.plot(position_obj.time, position_obj._data['acceleration_x'], 'k')
+        ax2.plot(position_obj.time, position_obj._df['acceleration_x'], 'k')
         ax2.set_ylabel('Higher Order Terms')
         ax1.set_xticklabels([])
         out_axes_list.append(ax2)

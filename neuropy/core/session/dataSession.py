@@ -656,7 +656,7 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
                 curr_active_epoch_timeslice_indicies, active_positions_curr_maze, linearized_positions_curr_maze = DataSession._perform_compute_session_linearized_position(session, epochLabelName=anEpochLabelName, method='isomap')
                 if debug_print:
                     print('\t curr_active_epoch_timeslice_indicies: {}\n \t np.shape(curr_active_epoch_timeslice_indicies): {}'.format(curr_active_epoch_timeslice_indicies, np.shape(curr_active_epoch_timeslice_indicies)))
-                session.position._data.loc[curr_active_epoch_timeslice_indicies, 'lin_pos'] = linearized_positions_curr_maze.linear_pos # TODO: should just be able to replace with `active_positions_curr_maze`
+                session.position._df.loc[curr_active_epoch_timeslice_indicies, 'lin_pos'] = linearized_positions_curr_maze.linear_pos # TODO: should just be able to replace with `active_positions_curr_maze`
                 
             except ValueError as e:
                 # A ValueError occurs when the positions are empty during a given epoch (which occurs during any non-maze Epoch, such as 'pre' or 'post'.
@@ -859,8 +859,8 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         curr_position_df = curr_position_df.position.adding_lap_info(laps_df=curr_laps_df, inplace=False)        
 
         # update:
-        self.position._data['lap'] = curr_position_df['lap']
-        self.position._data['lap_dir'] = curr_position_df['lap_dir']
+        self.position._df['lap'] = curr_position_df['lap']
+        self.position._df['lap_dir'] = curr_position_df['lap_dir']
         
         # lap_specific_position_dfs = [curr_position_df.groupby('lap').get_group(i)[['t','x','y','lin_pos']] for i in sess.laps.lap_id] # dataframes split for each ID:
         return curr_position_df
@@ -877,8 +877,8 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
             curr_position_df = DataSession.compute_laps_position_df(curr_position_df, curr_laps_df)
             
             # update:
-            self.position._data['lap'] = curr_position_df['lap']
-            self.position._data['lap_dir'] = curr_position_df['lap_dir']
+            self.position._df['lap'] = curr_position_df['lap']
+            self.position._df['lap_dir'] = curr_position_df['lap_dir']
             
         """
         from neuropy.core.position import adding_lap_info_to_position_df
@@ -898,7 +898,7 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         curr_spk_df = DataSession.compute_PBEs_spikes_df(self.spikes_df, curr_pbe_epoch_df) # column is added to the self.spikes_df, so the return value doesn't matter
         
         # update: Not needed because the dataframe is updated in the DataSession.compute_PBE_spikes_df function.
-        # self.neurons._data['PBE_id'] = curr_spk_df['PBE_id']
+        # self.neurons._df['PBE_id'] = curr_spk_df['PBE_id']
         # self.spikes_df['PBE_id'] = curr_spk_df['PBE_id']
         
         return self.spikes_df

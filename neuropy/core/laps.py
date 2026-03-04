@@ -723,14 +723,14 @@ class Laps(Epoch):
             metadata (dict, optional): [description]. Defaults to None.
         """
         super().__init__(laps, metadata=metadata)
-        # self._data = laps # set to the laps dataframe
+        # self._df = laps # set to the laps dataframe
         self._df = self._df.laps_accessor.update_computed_columns(replace_existing=False) ## DO NOT allow replacement of the good epochs with the bad ones.
         self._df = self._df.laps_accessor.filter_to_valid()
         self._df = self._df.sort_values(by=['start']) # sorts all values in ascending order
 
     @property
     def _data(self):
-        """ 2023-10-27 - a passthrough property for backwards compatibility. After adapting to a subclass of Epoch, the internal property is known as `self._df` not `self._data` """
+        """ 2023-10-27 - a passthrough property for backwards compatibility. After adapting to a subclass of Epoch, the internal property is known as `self._df` not `self._df` """
         return self._df
     @_data.setter
     def _data(self, value):
@@ -857,8 +857,8 @@ class Laps(Epoch):
 
     @staticmethod
     def from_dict(d: dict):
-        return Laps((d.get('_df', None) or d.get('_data', None)), metadata = d.get('metadata', None))
-        # return Laps(d['_data'], metadata = d.get('metadata', None))
+        return Laps((d.get('_df', None) or d.get('_df', None)), metadata = d.get('metadata', None))
+        # return Laps(d['_df'], metadata = d.get('metadata', None))
         
     def to_dict(self):
         return self.__dict__
@@ -872,8 +872,8 @@ class Laps(Epoch):
         # Restore instance attributes (i.e., _mapping and _keys_at_init).
         # for backwards compatibility with pre-Epoch baseclass versions of Laps loaded from pickle
         if '_df' not in state:
-            assert '_data' in state
-            state['_df'] = state.pop('_data', None)
+            assert '_df' in state
+            state['_df'] = state.pop('_df', None)
         self.__dict__.update(state)
             
     

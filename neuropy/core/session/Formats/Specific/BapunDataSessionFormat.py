@@ -555,8 +555,8 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             )
         )
         # np.unique(pos_df['zone_id_prev_next']) # [(nan, -1.0), (-1.0, -1.0), (-1.0, 1.0), (-1.0, 2.0), (-1.0, nan), (-1.0, -1.0), (-1.0, 1.0), (-1.0, 2.0), (1.0, -1.0), (1.0, 1.0), (2.0, -1.0), (2.0, 2.0)]
-        pos._data['zone_id'] = pos_df['zone_id']
-        # pos._data['zone_id_prev_next'] = curr_position_df['zone_id_prev_next'] ## this one we don't need to add, it's just for building laps/transitions
+        pos._df['zone_id'] = pos_df['zone_id']
+        # pos._df['zone_id_prev_next'] = curr_position_df['zone_id_prev_next'] ## this one we don't need to add, it's just for building laps/transitions
         
         # ## Define Zone Enter/Exit times:
         # enter_zone1_times = (pos_df['zone_id_prev_next'] == (-1.0, 1.0))
@@ -619,14 +619,14 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         ## UPDATES: pos_df -- added lap, lap_dir
 
         # update:
-        pos._data['lap'] = pos_df['lap']
-        pos._data['lap_dir'] = pos_df['lap_dir']
+        pos._df['lap'] = pos_df['lap']
+        pos._df['lap_dir'] = pos_df['lap_dir']
         
-        if 'lap_dir_1D' in pos._data:
-            pos._data['lap_dir_1D'] = pos_df['lap_dir']
+        if 'lap_dir_1D' in pos._df:
+            pos._df['lap_dir_1D'] = pos_df['lap_dir']
             
-        if 'lap_dir_2D' in pos._data:
-            pos._data['lap_dir_2D'] = pos_df['lap_dir']
+        if 'lap_dir_2D' in pos._df:
+            pos._df['lap_dir_2D'] = pos_df['lap_dir']
         
         return new_laps_obj, pos
 

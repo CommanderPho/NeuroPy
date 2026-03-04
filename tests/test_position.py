@@ -167,7 +167,7 @@ class TestPositionMethods(NumpyTestCase):
         read_position = Position.read_hdf(self.hdf_test_file, 'pos')
 
         # Check that the data matches the original
-        pd.testing.assert_frame_equal(read_position._data, self.pos_df)
+        pd.testing.assert_frame_equal(read_position._df, self.pos_df)
 
         metadata = {
             'time_variable_name': self.hdf_tests_position.time_variable_name,
