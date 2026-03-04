@@ -2547,7 +2547,8 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
     def to_dataframe(self) -> pd.DataFrame:
         df = self._df.copy()
         return df
-    
+
+
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame, metadata=None) -> "Epoch":
         return cls(df, metadata=metadata)
