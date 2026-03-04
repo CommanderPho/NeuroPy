@@ -100,6 +100,42 @@ def compute_paginated_grid_config(num_required_subplots, max_num_columns, max_su
         max_num_columns ([type]): [description]
         max_subplots_per_page ([type]): [description]
         data_indicies ([type], optional): your indicies into your original data that will also be accessible in the main loop. Defaults to None, in which case they will be the same as the linear indicies unless otherwise specified
+        
+        
+    Usage:
+    
+        from neuropy.utils.misc import compute_paginated_grid_config, RowColTuple, PaginatedGridIndexSpecifierTuple, RequiredSubplotsTuple
+
+        debug_print: bool = True
+        n_laps: int = len(lap_occupancy_seconds_dict)
+        included_lap_idxs = np.arange(n_laps)
+
+        ## INPUTS: n_laps, included_lap_idxs
+        subplot_no_pagination_configuration, included_combined_indicies_pages, page_grid_sizes = compute_paginated_grid_config(n_laps, max_num_columns=6, max_subplots_per_page=100, data_indicies=included_lap_idxs, last_figure_subplots_same_layout=True)
+        num_pages: int = len(included_combined_indicies_pages)
+        page_idx: int = 0 # page_idx is zero here because we only have one page:
+
+        img_item_array = []
+        other_components_array = []
+        plot_array = []
+
+        for (a_linear_index, curr_row, curr_col, curr_included_lap_index) in included_combined_indicies_pages[page_idx]:
+            # Need to convert to page specific:
+            curr_page_relative_linear_index: int = np.mod(a_linear_index, int(page_grid_sizes[page_idx].num_rows * page_grid_sizes[page_idx].num_columns))
+            curr_page_relative_row: int = np.mod(curr_row, page_grid_sizes[page_idx].num_rows)
+            curr_page_relative_col: int = np.mod(curr_col, page_grid_sizes[page_idx].num_columns)
+            is_first_column: bool = (curr_page_relative_col == 0)
+            is_first_row: bool = (curr_page_relative_row == 0)
+            is_last_column: bool = (curr_page_relative_col == (page_grid_sizes[page_idx].num_columns-1))
+            is_last_row: bool = (curr_page_relative_row == (page_grid_sizes[page_idx].num_rows-1))
+            if debug_print:
+                print(f'a_linear_index: {a_linear_index}, curr_page_relative_linear_index: {curr_page_relative_linear_index}, curr_row: {curr_row}, curr_col: {curr_col}, curr_page_relative_row: {curr_page_relative_row}, curr_page_relative_col: {curr_page_relative_col}, curr_included_lap_index: {curr_included_lap_index}')
+
+
+
+
+                
+        
     """
     
     def _compute_subplots_grid_layout(num_page_required_subplots, page_max_num_columns):
