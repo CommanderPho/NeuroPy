@@ -16,7 +16,7 @@ from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, po
 from neuropy.utils.mixins.time_slicing import TimePointEventAccessor
 from neuropy.utils.mixins.position_slicing import PositionSlicedMixin
 
-    
+
 """ --- Helper FUNCTIONS """
 def build_position_df_time_window_idx(active_pos_df: pd.DataFrame, curr_active_time_windows, debug_print=False):
     """ adds the time_window_idx column to the active_pos_df
@@ -920,6 +920,90 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             print(f'percentage_within_ranges: {percentage_within_ranges}%')
         return percentage_within_ranges, filtered_df
 
+    # @function_attributes(short_name=None, tags=['rotation', 'bapun', '2D'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2026-03-19 07:50', related_items=[])
+    def rotate_to_align_with_grid_bin_bounds(self, inplace: bool=True, non_smoothed_column_labels=['x', 'y', 'z']) -> pd.DataFrame:
+        """ handles maze coordinates that are rotated relative to the camera's acquisition frame.
+        produces corrected columns: ['x', 'y', 'z']
+        backs-up original columns: ['_bak_x_pre_rot', '_bak_y_pre_rot', '_bak_z_pre_rot']
+
+        Usage:
+
+            pos_obj = deepcopy(curr_active_pipeline.sess.position)
+            pos_df: pd.DataFrame = pos_obj.to_dataframe()
+            pos_df
+
+            aligned_df: pd.DataFrame = pos_df.position.rotate_to_align_with_grid_bin_bounds(inplace=False)
+            aligned_df
+
+        """
+        pos_df: pd.DataFrame = self.df
+
+        backup_col_formatter = lambda a_name: f'_bak_{a_name}_pre_rot'
+        
+        if non_smoothed_column_labels is None:
+            non_smoothed_column_labels = self.dim_columns # + self.dim_computed_columns)
+
+        ## make backups of columns if needed:
+        for a_col in non_smoothed_column_labels:
+            backup_col_name: str = backup_col_formatter(a_col)
+            if backup_col_name not in pos_df:
+                ## NEEDS BACKUP
+                pos_df[backup_col_name] = pos_df[a_col].copy()
+
+        # 1. Extract the observed 3D coordinates
+        coords = pos_df[non_smoothed_column_labels].to_numpy(dtype=float)
+        
+        # 2. Compute the centroid
+        centroid = np.mean(coords, axis=0)
+        
+        # 3. Center the points to remove translation
+        centered_coords = coords - centroid
+        
+        # 4. THE FIX: Compute the 3x3 covariance matrix
+        # (3, N) dot (N, 3) results in a 3x3 matrix, bypassing the memory limit
+        cov_matrix = np.dot(centered_coords.T, centered_coords)
+        
+        # 5. Compute SVD on the tiny 3x3 matrix
+        # The right singular vectors (Vt) still represent our principal axes
+        U, S, Vt = np.linalg.svd(cov_matrix)
+        
+        # 6. Extract the Optimal Rotation Matrix (R)
+        R = Vt 
+        
+        # Ensure R is a proper rotation matrix (det = +1) and not a reflection
+        if np.linalg.det(R) < 0:
+            R[2, :] *= -1  
+            
+        # 7. Calculate the Translation Vector (t)
+        t = -np.dot(R, centroid)
+        
+        # 8. Apply the Transformation to the observed coordinates
+        transformed_coords = np.dot(coords, R.T) + t
+
+        ## R: rotation matrix
+        ## t: translation vector
+        
+        # Create the aligned dataframe
+        if not inplace:
+            aligned_df = pos_df.copy()
+        else:
+            aligned_df = pos_df
+
+        ## backup the existing columns
+        for i, a_col in enumerate(non_smoothed_column_labels):
+            aligned_df[a_col] = transformed_coords[:, i]
+
+        ## update the metadata of the position object with the transform parameters
+        pos_df._metadata.update('translation_vector': t, 'rotation_matrix': R, 'centroid': centroid)
+
+        ## if it changed, we'll need to recompute all computed parameters
+        pos_df.position.
+
+        if inplace:
+            self.df = aligned_df
+
+        return aligned_df
+
 
 
 
@@ -1265,7 +1349,7 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
     #     dt = np.diff(time)
         
     
-    def to_dataframe(self):
+    def to_dataframe(self) -> pd.DataFrame:
         return self._df.copy()
 
 
