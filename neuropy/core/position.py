@@ -994,10 +994,10 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             aligned_df[a_col] = transformed_coords[:, i]
 
         ## update the metadata of the position object with the transform parameters
-        pos_df._metadata.update('translation_vector': t, 'rotation_matrix': R, 'centroid': centroid)
+        pos_df._metadata.update(**{'translation_vector': t, 'rotation_matrix': R, 'centroid': centroid})
 
         ## if it changed, we'll need to recompute all computed parameters
-        pos_df.position.
+        # pos_df.position. # TODO
 
         if inplace:
             self.df = aligned_df
