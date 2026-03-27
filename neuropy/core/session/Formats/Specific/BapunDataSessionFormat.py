@@ -105,8 +105,9 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         
         bapun_open_field_grid_bin_bounds = (((-120.0, 120.0), (-120.0, 120.0)))
 
-        def _subfn_rat_N_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones(session):
-            """ captures: cls """
+        # Custom Reward Zone Functions _______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
+        def _subfn_rat_N_Day4Openfield_reward_zones(session) -> Dict[str, Polygon]:
+            """ captures: None """
             xmin: float = -85.75619321393464
             xmax: float = 112.57838773103435
             ymin: float = -96.44772761274268
@@ -116,12 +117,12 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 zone1 = box(xmin, 0.0, -60.0, 40.0),  # box(minx, miny, maxx, maxy, ccw=True)
                 zone2 = box(80.0, 0.0, xmax, 40.0), # box(minx, miny, maxx, maxy, ccw=True)
             )
-            return cls.build_Bapun_Day4OpenField_laps_from_reward_zones(session=session, bapun_Day4OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+            return bapun_Day4OpenField_reward_zones
 
 
 
-        def _subfn_rat_K_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones(session):
-            """ captures: cls """
+        def _subfn_rat_K_Day4Openfield_reward_zones(session) -> Dict[str, Polygon]:
+            """ captures: None """
             xmin: float = -109.52
             xmax: float = 92.963
             ymin: float = -76.865
@@ -130,6 +131,20 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 zone1 = box(xmin, 0.0, -80.0, 50.0),  # box(minx, miny, maxx, maxy, ccw=True)
                 zone2 = box(65.0, 0.0, xmax, 45.0), # box(minx, miny, maxx, maxy, ccw=True)
             )
+            return bapun_Day4OpenField_reward_zones
+
+
+        # Custom Lap Building Functions ______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
+        def _subfn_rat_N_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones(session):
+            """ captures: cls, _subfn_rat_N_Day4Openfield_reward_zones """
+            bapun_Day4OpenField_reward_zones = _subfn_rat_N_Day4Openfield_reward_zones(session=session)
+            return cls.build_Bapun_Day4OpenField_laps_from_reward_zones(session=session, bapun_Day4OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+
+
+
+        def _subfn_rat_K_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones(session):
+            """ captures: cls, _subfn_rat_K_Day4Openfield_reward_zones """
+            bapun_Day4OpenField_reward_zones = _subfn_rat_K_Day4Openfield_reward_zones(session=session)
             return cls.build_Bapun_Day4OpenField_laps_from_reward_zones(session=session, bapun_Day4OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
 
 
@@ -140,7 +155,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['roam', 'sprinkle'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(custom_lap_estimation_fn=_subfn_rat_N_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=20.0, merging_adjacent_max_separation_sec=6.0,),
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_N_Day4Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_N_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=20.0, merging_adjacent_max_separation_sec=6.0,),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatU', session_name= 'RatUDay5OpenfieldSD'): HardcodedProcessingParameters(
@@ -150,7 +165,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 # non_global_activity_session_names=['maze', 'sprinkle'],
                 non_global_activity_session_names=['roam', 'sprinkle'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(custom_lap_estimation_fn=cls.build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=cls.build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),      
             IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day4Openfield'): HardcodedProcessingParameters(
@@ -161,14 +176,14 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 # non_global_activity_session_names=['maze', 'sprinkle'],
                 non_global_activity_session_names=['maze'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(custom_lap_estimation_fn=_subfn_rat_K_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_K_Day4Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_K_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='shapely', all_session_mazes=Day5TwoNovel_all_session_mazes),
             ),
             ## Fallback defaults:
@@ -176,7 +191,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0,),
+                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0,),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),									
         }
@@ -641,6 +656,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         from neuropy.core import Laps
 
         if bapun_Day4OpenField_reward_zones is None:
+            ## define default reward zones:
             xmin: float = -85.75619321393464
             xmax: float = 112.57838773103435
             ymin: float = -96.44772761274268
