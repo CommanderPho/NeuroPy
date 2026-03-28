@@ -563,16 +563,33 @@ class PositionComputedDataMixin(PositionSlicedMixin):
 
 
     @classmethod
-    def circular_mean_deg(cls, angle_rad: NDArray) -> NDArray:
-        """Returns the mean of angles (in radians), in degrees, handling wrapping.
+    def circular_mean_deg(cls, angle_rad: NDArray) -> Union[float, NDArray]:
+        """Returns the mean of angles (in radians), in degrees in ``[0, 360)``, handling wrapping.
 
-        segment_angles = pos_df.groupby('segment_idx')['Vp_rad'].agg(lambda x: np.angle(np.mean(np.exp(1j * x.dropna())))) # drop NaNs per segment
-        
+        - If ``angle_rad`` is a 1D :class:`~pandas.Series` (e.g. from ``groupby``), returns a scalar float.
+        - If ``angle_rad`` is a 2D :class:`~numpy.ndarray` of shape ``(n, m)``, returns a length-``n``
+          vector of row-wise circular means (NaNs ignored per row).
+        - If ``angle_rad`` is a 1D ndarray, returns a scalar float (non-finite values are ignored).
+
         segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_deg)
-        segment_R = pos_df.groupby('segment_idx')['Vp_rad'].agg(lambda x: np.abs(np.mean(np.exp(1j * x.dropna())))) # R = 1 → perfectly aligned, R → 0 → very scattered
-
         """
-        return np.mod(np.rad2deg(np.angle(np.mean(np.exp(1j * angle_rad.dropna())))), 360)
+        if isinstance(angle_rad, pd.Series):
+            vals = angle_rad.dropna().to_numpy(dtype=np.float64)
+            if vals.size == 0:
+                return float('nan')
+            return float(np.mod(np.rad2deg(np.angle(np.mean(np.exp(1j * vals)))), 360.0))
+        arr = np.asarray(angle_rad, dtype=np.float64)
+        if arr.ndim == 2:
+            if arr.shape[0] == 0:
+                return np.zeros((0,), dtype=np.float64)
+            masked = np.where(np.isfinite(arr), arr, np.nan)
+            mean_c = np.nanmean(np.exp(1j * masked), axis=1)
+            return np.mod(np.rad2deg(np.angle(mean_c)), 360.0).astype(np.float64)
+        vals = arr.ravel()
+        vals = vals[np.isfinite(vals)]
+        if vals.size == 0:
+            return float('nan')
+        return float(np.mod(np.rad2deg(np.angle(np.mean(np.exp(1j * vals)))), 360.0))
 
 
     @classmethod
