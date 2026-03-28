@@ -559,7 +559,11 @@ def paired_incremental_sorting(neuron_IDs_lists, sortable_values_lists):
         # novel_sorted_neuron_ids = [aclu for aclu in a_sortable_neuron_id_dict.keys() if aclu not in union_accumulator] # doesn't sort them, passes them unsorted as-is
         novel_sorted_neuron_id_dicts = {aclu:sort_v for aclu, sort_v in a_sortable_neuron_id_dict.items() if aclu not in union_accumulator} # subset based on value not being in union_accumulator
         # Sort them now as needed:
-        novel_sorted_neuron_id_dicts = dict(sorted(novel_sorted_neuron_id_dicts.items(), key=lambda item: item[1]))
+        try:
+            novel_sorted_neuron_id_dicts = dict(sorted(novel_sorted_neuron_id_dicts.items(), key=lambda item: item[1]))
+        except (ValueError, TypeError):
+            ## Same ambiguity as paired_individual_sorting with 2D CoM / pseudo-2D keys
+            novel_sorted_neuron_id_dicts = dict(sorted(novel_sorted_neuron_id_dicts.items(), key=lambda item: tuple(np.asarray(item[1], dtype=float).ravel())))
         # Convert them into a list as expected now that they're sorted based on values:
         novel_sorted_neuron_ids	= list(novel_sorted_neuron_id_dicts.keys())
         curr_sorted_list = np.array([*prev_sorted_neuron_ids, *novel_sorted_neuron_ids])
