@@ -1862,6 +1862,17 @@ epochs_df
         return self._obj
 
 
+
+    def getting_metadata(self) -> Dict:
+        """ gets the dataframe's `df.attrs` dictionary metadata
+        """
+        ## Add the metadata:
+        if self._obj.attrs is None:
+            return {}
+        else:
+            return self._obj.attrs
+
+
     def adding_or_updating_metadata(self, **metadata_update_kwargs) -> pd.DataFrame:
         """ updates the dataframe's `df.attrs` dictionary metadata, building it as a new dict if it doesn't yet exist
          
