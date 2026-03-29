@@ -164,7 +164,236 @@ class TimeSliceAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtocol):
         included_df = included_df[included_indicies].reset_index(drop=True)
         return included_df
     
+
+
+
+# ==================================================================================================================== #
+# General TimePointEventAccessor                                                                                       #
+# ==================================================================================================================== #
+@pd.api.extensions.register_dataframe_accessor("time_point_event")
+class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtocol):
+    """ Allows general events (marked by a single point in time) represented as Pandas DataFrames to be easily time-sliced and manipulated along with their accompanying data without making a custom class.
+    
+    Generalized from SpikesAccessor on 2025-01-15 14:51 - refactored instantaneous-event functionality out into `TimePointEventAccessor` accessible via `a_df.time_point_event.adding_epochs_identity_column(....)`
+    
+    Examples: spikes_df, pos_df
+
+
+    from neuropy.utils.mixins.time_slicing import TimePointEventAccessor
+        
+    """
+    __time_variable_name = 't' # currently hardcoded
+    
+    def __init__(self, pandas_obj):
+        pandas_obj = self.renaming_synonym_columns_if_needed(pandas_obj, required_columns_synonym_dict={TimePointEventAccessor.__time_variable_name:['t_rel_seconds','t_sec']}) # @IgnoreException ,'begin','start_t','start'
+        self._validate(pandas_obj)
+        self._obj = pandas_obj
+
+    @staticmethod
+    def _validate(obj):
+        """ verify there is a column that identifies the spike's neuron, the type of cell of this neuron ('neuron_type'), and the timestamp at which each spike occured ('t'||'t_rel_seconds') """
+        if "t" not in obj.columns and "t_seconds" not in obj.columns and "t_rel_seconds" not in obj.columns:
+            raise AttributeError("Must have at least one time column: either 't' and 't_seconds', or 't_rel_seconds'.")
+
+    @property
+    def time_variable_name(self):
+        return self.__time_variable_name
+    
+    def set_time_variable_name(self, new_time_variable_name):
+        if self._obj.time_point_event.time_variable_name == new_time_variable_name:
+            # no change in the time_variable_name:
+            pass
+        else:
+            assert new_time_variable_name in self._obj.columns, f"a_df.time_point_event.set_time_variable_name(new_time_variable_name='{new_time_variable_name}') was called but '{new_time_variable_name}' is not a column of the dataframe! Original a_df.time_point_event.time_variable_name: '{self._obj.time_point_event.time_variable_name}'.\n\t valid_columns: {list(self._obj.columns)}"
+            # otherwise it's okay and we can continue
+            original_time_variable_name = self._obj.time_point_event.time_variable_name
+            TimePointEventAccessor.__time_variable_name = new_time_variable_name # set for the class
+            self.__time_variable_name = new_time_variable_name # also set for the instance, as the class properties won't be retained when doing deepcopy and hopefully the instance properties will.
+            print('\t time variable changed!')
+        
+    @property
+    def times(self):
+        """ convenience property to access the times of the spikes in the dataframe 
+            ## TODO: why doesn't this have a `times` property to access `self._obj[self.time_variable_name].values`?
+        """
+        return self._obj[self.time_variable_name].values
+
+
+    # ==================================================================================================================== #
+    # Begin Features                                                                                                       #
+    # ==================================================================================================================== #
+    def add_binned_time_column(self, time_window_edges, time_window_edges_binning_info:BinningInfo, override_time_variable_name=None, debug_print:bool=False):
+        """ adds a 'binned_time' column to spikes_df given the time_window_edges and time_window_edges_binning_info provided 
+        
+        """
+        if override_time_variable_name is None:
+            override_time_variable_name = self.time_variable_name # 't_rel_seconds'
+        if debug_print:
+            print(f'self._obj[time_variable_name]: {np.shape(self._obj[override_time_variable_name])}\ntime_window_edges: {np.shape(time_window_edges)}')
+            # assert (np.shape(out_digitized_variable_bins)[0] == np.shape(self._obj)[0]), f'np.shape(out_digitized_variable_bins)[0]: {np.shape(out_digitized_variable_bins)[0]} should equal np.shape(self._obj)[0]: {np.shape(self._obj)[0]}'
+            print(time_window_edges_binning_info)
+
+        bin_labels = time_window_edges_binning_info.bin_indicies[1:] # edge bin indicies: [0,     1,     2, ..., 11878, 11879, 11880][1:] -> [ 1,     2, ..., 11878, 11879, 11880]
+        self._obj['binned_time'] = pd.cut(self._obj[override_time_variable_name].to_numpy(), bins=time_window_edges, include_lowest=True, labels=bin_labels) # same shape as the input data (time_binned_self._obj: (69142,))
+        return self._obj
+
+    def adding_epochs_identity_column(self, epochs_df: pd.DataFrame, epoch_id_key_name:str='temp_epoch_id', epoch_label_column_name=None, override_time_variable_name=None,
+                                      no_interval_fill_value=-1, should_replace_existing_column=False, drop_non_epoch_events: bool=False, overlap_behavior: OverlappingIntervalsFallbackBehavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL):
+        """ Adds the arbitrary column with name epoch_id_key_name to the dataframe.
+
+            spikes: curr_active_pipeline.sess.spikes_df
+            adds column epoch_id_key_name to spikes df.
             
+            drop_non_epoch_spikes: if True, drops the spikes that don't have a matching epoch after these are determined.
+
+            # Created Columns:
+                epoch_id_key_name
+
+            Usage:
+                active_spikes_df = active_spikes_df.time_point_event.adding_epochs_identity_column(epochs_df=active_epochs_df, epoch_id_key_name=epoch_id_key_name, epoch_label_column_name='label', override_time_variable_name='t_rel_seconds',
+                                                                                        no_interval_fill_value=no_interval_fill_value, should_replace_existing_column=True, drop_non_epoch_events=True)
+                                                                                        
+
+        """
+        if (epoch_id_key_name in self._obj.columns) and (not should_replace_existing_column):
+            print(f'column "{epoch_id_key_name}" already exists in df! Skipping adding intervals.')
+            return self._obj
+        else:
+            from neuropy.utils.mixins.time_slicing import add_epochs_id_identity
+
+            if override_time_variable_name is None:
+                override_time_variable_name = self.time_variable_name # 't_rel_seconds'
+            
+            self._obj[epoch_id_key_name] = no_interval_fill_value # initialize the column to -1
+            self._obj = add_epochs_id_identity(self._obj, epochs_df=epochs_df, epoch_id_key_name=epoch_id_key_name, epoch_label_column_name=epoch_label_column_name, no_interval_fill_value=no_interval_fill_value, override_time_variable_name=override_time_variable_name, overlap_behavior=overlap_behavior) # uses new add_epochs_id_identity method which is general
+            if drop_non_epoch_events:
+                active_point_events_df = self._obj.copy()
+                active_point_events_df.drop(active_point_events_df.loc[active_point_events_df[epoch_id_key_name] == no_interval_fill_value].index, inplace=True)
+                # Sort by columns: 't_rel_seconds' (ascending), 'aclu' (ascending)
+                active_point_events_df = active_point_events_df.sort_values(['t_rel_seconds'])
+            else:
+                # return all spikes
+                active_point_events_df = self._obj
+            return active_point_events_df
+
+
+    def adding_lap_identity_column(self, laps_epoch_df, epoch_id_key_name:str='new_lap_IDX', override_time_variable_name=None):
+        """ Adds the lap IDX column to the spikes df from a set of lap epochs.
+
+            spikes: curr_active_pipeline.sess.spikes_df
+            adds column 'new_lap_IDX' to spikes df.
+            
+            # Created Columns:
+                'new_lap_IDX'
+
+        """
+        if epoch_id_key_name in self._obj.columns:
+            print(f'column "{epoch_id_key_name}" already exists in df! Skipping recomputation.')
+            return self._obj
+        else:
+            from neuropy.utils.efficient_interval_search import OverlappingIntervalsFallbackBehavior
+            from neuropy.utils.mixins.time_slicing import add_epochs_id_identity
+
+            if override_time_variable_name is None:
+                override_time_variable_name = self.time_variable_name # 't_rel_seconds'
+            self._obj[epoch_id_key_name] = -1 # initialize the 'scISI' column (same-cell Intra-spike-interval) to -1
+            self._obj = add_epochs_id_identity(self._obj, epochs_df=laps_epoch_df, epoch_id_key_name=epoch_id_key_name, epoch_label_column_name=None, no_interval_fill_value=-1, override_time_variable_name=override_time_variable_name, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL) # uses new add_epochs_id_identity method which is general
+            return self._obj
+
+
+    @classmethod
+    def add_maze_id_if_needed(cls, active_point_events_df: pd.DataFrame, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, event_time_col_name: str='t_rel_seconds') -> pd.DataFrame: # , labels_column_name:str='label'
+        """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
+
+        Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
+        
+        WARNING: does NOT modify in place!
+
+        Adds Columns: ['maze_id']
+        Usage:
+            from neuropy.core.session.dataSession import Laps
+
+            t_start, t_delta, t_end = owning_pipeline_reference.find_LongShortDelta_times()
+            laps_obj: Laps = curr_active_pipeline.sess.laps
+            laps_df = laps_obj.to_dataframe()
+            laps_df = laps_df.epochs.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end)
+            laps_df
+
+        """
+        # epochs_df = epochs_df.epochs.to_dataframe()
+        # active_point_events_df[[labels_column_name]] = active_point_events_df[[labels_column_name]].astype('int')
+        # active_point_events_df[[labels_column_name]] = active_point_events_df[[labels_column_name]].astype('int')
+        is_missing_column: bool = ('maze_id' not in active_point_events_df.columns)
+        if (is_missing_column or replace_existing):
+            # Create the maze_id column:
+            # active_point_events_df['maze_id'] = np.full_like(active_point_events_df[labels_column_name].to_numpy(), -1) # all -1 to start
+            active_point_events_df['maze_id'] = np.full_like(active_point_events_df.index.to_numpy().astype(int), -1) # all -1 to start
+            active_point_events_df.loc[(np.logical_and((active_point_events_df[event_time_col_name].to_numpy() >= t_start), (active_point_events_df[event_time_col_name].to_numpy() <= t_delta))), 'maze_id'] = 0 # first epoch
+            active_point_events_df.loc[(np.logical_and((active_point_events_df[event_time_col_name].to_numpy() >= t_delta), (active_point_events_df[event_time_col_name].to_numpy() <= t_end))), 'maze_id'] = 1 # second epoch, post delta
+            active_point_events_df['maze_id'] = active_point_events_df['maze_id'].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
+        else:
+            # already exists and we shouldn't overwrite it:
+            active_point_events_df[['maze_id']] = active_point_events_df[['maze_id']].astype('int') # note the single vs. double brakets in the two cases. Not sure if it makes a difference or not
+        return active_point_events_df
+            
+
+    def adding_maze_id_if_needed(self, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, override_time_variable_name=None) -> pd.DataFrame:
+        """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
+
+        Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
+        
+        WARNING: does NOT modify in place!
+
+        Adds Columns: ['maze_id']
+        Usage:
+            from neuropy.core.session.dataSession import Laps
+
+            t_start, t_delta, t_end = owning_pipeline_reference.find_LongShortDelta_times()
+            laps_obj: Laps = curr_active_pipeline.sess.laps
+            laps_df = laps_obj.to_dataframe()
+            laps_df = laps_df.time_point_event.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end)
+            laps_df
+
+        """
+        if override_time_variable_name is None:
+            override_time_variable_name = self.time_variable_name # 't_rel_seconds'
+        active_point_events_df: pd.DataFrame = self._obj.copy()
+        return self.add_maze_id_if_needed(active_point_events_df=active_point_events_df, t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=replace_existing, event_time_col_name=override_time_variable_name) # , labels_column_name=labels_column_name
+    
+    
+    def adding_true_decoder_identifier(self, t_start:float, t_delta:float, t_end:float, replace_existing:bool=True, override_time_variable_name=None) -> pd.DataFrame:
+        """ 2024-01-17 - adds the 'maze_id' column if it doesn't exist
+
+        Add the maze_id to the active_filter_epochs so we can see how properties change as a function of which track the replay event occured on
+        
+        WARNING: does NOT modify in place!
+        Requires Columns: ['maze_id', 'lap_dir']
+        Adds Columns: ['truth_decoder_name', 'maze_id']
+        Usage:
+            from neuropy.core.session.dataSession import Laps
+
+            t_start, t_delta, t_end = owning_pipeline_reference.find_LongShortDelta_times()
+            laps_obj: Laps = curr_active_pipeline.sess.laps
+            laps_df = laps_obj.to_dataframe()
+            pos_df = pos_df.time_point_event.adding_true_decoder_identifier(t_start=t_start, t_delta=t_delta, t_end=t_end)
+            pos_df
+
+        """
+        if override_time_variable_name is None:
+            override_time_variable_name = self.time_variable_name # 't_rel_seconds'
+        active_point_events_df: pd.DataFrame = self.adding_maze_id_if_needed(t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=replace_existing, override_time_variable_name=override_time_variable_name) # _obj.copy()
+        assert 'maze_id' in active_point_events_df
+        assert 'lap_dir' in active_point_events_df
+        # Creates Columns: 'truth_decoder_name':
+        lap_dir_keys = ['LR', 'RL']
+        maze_id_keys = ['long', 'short']
+        active_point_events_df['truth_decoder_name'] = active_point_events_df['maze_id'].map(dict(zip(np.arange(len(maze_id_keys)), maze_id_keys))) + '_' + active_point_events_df['lap_dir'].map(dict(zip(np.arange(len(lap_dir_keys)), lap_dir_keys)))
+        self._obj[['maze_id', 'truth_decoder_name']] = active_point_events_df[['maze_id', 'truth_decoder_name']] ## modify in-place and return?
+
+        # return self.add_maze_id_if_needed(active_point_events_df=active_point_events_df, t_start=t_start, t_delta=t_delta, t_end=t_end, replace_existing=replace_existing, labels_column_name=labels_column_name, event_time_col_name=override_time_variable_name)
+        return self._obj
+    
+    
 
 
 # ==================================================================================================================== #
@@ -512,7 +741,9 @@ def _compute_spike_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoc
         return spike_epoch_identity_arr
     
     # spk_times_arr = spk_df.t_seconds.to_numpy()
-    active_time_variable_name: str = (override_time_variable_name or spk_df.spikes.time_variable_name) # by default use spk_df.spikes.time_variable_name, but an optional override can be provided (to ensure compatibility with PBEs)
+    # active_time_variable_name: str = (override_time_variable_name or spk_df.spikes.time_variable_name) # by default use spk_df.spikes.time_variable_name, but an optional override can be provided (to ensure compatibility with PBEs)
+    active_time_variable_name: str = (override_time_variable_name or spk_df.time_point_event.time_variable_name) # by default use spk_df.spikes.time_variable_name, but an optional override can be provided (to ensure compatibility with PBEs)
+
     spk_times_arr = spk_df[active_time_variable_name].to_numpy()
     curr_epochs_start_stop_arr = provided_epochs_df[['start','stop']].to_numpy()
     if epoch_label_column_name is None:
