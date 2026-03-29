@@ -261,6 +261,13 @@ class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
             return self.window_stop_edges
         return self.centers + (self.center_info.step/2.0)
 
+
+    def get_sliding_window_intervals(self) -> Optional[Tuple[NDArray, NDArray]]:
+        """If built from sliding windows, returns (window_start_edges, window_stop_edges); else None."""
+        if self.window_start_edges is None:
+            return None
+        return (self.window_start_edges, self.window_stop_edges)
+
     
     def __init__(self, edges: Optional[NDArray]=None, centers: Optional[NDArray]=None, edge_info: Optional[BinningInfo]=None, center_info: Optional[BinningInfo]=None, window_start_edges: Optional[NDArray]=None, window_stop_edges: Optional[NDArray]=None, slideby: Optional[float]=None):
         super(BinningContainer, self).__init__()
