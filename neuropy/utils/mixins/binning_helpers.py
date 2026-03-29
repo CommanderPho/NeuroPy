@@ -235,7 +235,9 @@ class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     
     edge_info: BinningInfo = serialized_field(is_computable=True, repr=True)
     center_info: BinningInfo = serialized_field(is_computable=False, repr=True)
-    
+    window_start_edges: Optional[NDArray] = serialized_field(default=None, repr=array_values_preview_repr, is_computable=True, metadata={'shape':('num_bins',)})
+    window_stop_edges: Optional[NDArray] = serialized_field(default=None, repr=array_values_preview_repr, is_computable=True, metadata={'shape':('num_bins',)})
+
     @property
     def num_bins(self) -> int:
         return self.center_info.num_bins
@@ -244,17 +246,21 @@ class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     @property
     def left_edges(self) -> NDArray:
         """ the left edges of the bins. len(right_edges) == len(centers) """
+        if self.window_start_edges is not None:
+            return self.window_start_edges
         return self.centers - (self.center_info.step/2.0)
 
     @property
     def right_edges(self) -> NDArray:
         """ the right edges of the bins. len(right_edges) == len(centers) """
+        if self.window_stop_edges is not None:
+            return self.window_stop_edges
         return self.centers + (self.center_info.step/2.0)
 
         
     
 
-    def __init__(self, edges: Optional[NDArray]=None, centers: Optional[NDArray]=None, edge_info: Optional[BinningInfo]=None, center_info: Optional[BinningInfo]=None):
+    def __init__(self, edges: Optional[NDArray]=None, centers: Optional[NDArray]=None, edge_info: Optional[BinningInfo]=None, center_info: Optional[BinningInfo]=None, window_start_edges: Optional[NDArray]=None, window_stop_edges: Optional[NDArray]=None):
         super(BinningContainer, self).__init__()
         assert (edges is not None) or (centers is not None) # Require either centers or edges to be provided
         if edges is not None:
@@ -279,7 +285,35 @@ class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
             self.center_info = center_info
         else:
             self.center_info = BinningContainer.build_center_binning_info(self.centers, variable_extents=self.edge_info.variable_extents)
-            
+
+        self.window_start_edges = None if window_start_edges is None else np.asarray(window_start_edges)
+        self.window_stop_edges = None if window_stop_edges is None else np.asarray(window_stop_edges)
+        if self.window_start_edges is not None:
+            assert self.window_stop_edges is not None, "window_stop_edges required when window_start_edges is set"
+            assert len(self.window_start_edges) == len(self.window_stop_edges) == len(self.centers), "sliding window edges must match centers length"
+
+
+    @classmethod
+    def from_sliding_windows(cls, window_start_edges: NDArray, window_stop_edges: NDArray, epoch_variable_extents: Tuple[float, float], window_width: float, hop: float) -> "BinningContainer":
+        """Build a binning container for overlapping temporal windows; per-window [start, stop) in parallel arrays."""
+        window_start_edges = np.asarray(window_start_edges)
+        window_stop_edges = np.asarray(window_stop_edges)
+        assert len(window_start_edges) == len(window_stop_edges)
+        centers = (window_start_edges + window_stop_edges) / 2.0
+        n = len(centers)
+        edges_summary = np.array([epoch_variable_extents[0], epoch_variable_extents[1]])
+        edge_info = BinningInfo(variable_extents=(float(epoch_variable_extents[0]), float(epoch_variable_extents[1])), step=float(window_width), num_bins=2)
+        center_info = BinningInfo(variable_extents=(float(epoch_variable_extents[0]), float(epoch_variable_extents[1])), step=float(hop), num_bins=n)
+        return cls(edges=edges_summary, centers=centers, edge_info=edge_info, center_info=center_info, window_start_edges=window_start_edges, window_stop_edges=window_stop_edges)
+
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if 'window_start_edges' not in self.__dict__:
+            self.window_start_edges = None
+        if 'window_stop_edges' not in self.__dict__:
+            self.window_stop_edges = None
+
             
     @classmethod
     def build_edge_binning_info(cls, edges: NDArray) -> BinningInfo:
