@@ -11,6 +11,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from neuropy.utils.efficient_interval_search import OverlappingIntervalsFallbackBehavior, determine_event_interval_identity, determine_event_interval_is_included # numba acceleration
+from neuropy.utils.mixins.metadata_helpers import DataframeMetadataProtocol
 
 
 class StartStopTimesMixin:
@@ -139,7 +140,7 @@ class TimeColumnAliasesProtocol:
 
 
 @pd.api.extensions.register_dataframe_accessor("time_slicer")
-class TimeSliceAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtocol):
+class TimeSliceAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtocol, DataframeMetadataProtocol):
     """ Allows general epochs represented as Pandas DataFrames to be easily time-sliced and manipulated along with their accompanying data without making a custom class. """
 
     def __init__(self, pandas_obj):
@@ -171,7 +172,7 @@ class TimeSliceAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtocol):
 # General TimePointEventAccessor                                                                                       #
 # ==================================================================================================================== #
 @pd.api.extensions.register_dataframe_accessor("time_point_event")
-class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtocol):
+class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtocol, DataframeMetadataProtocol):
     """ Allows general events (marked by a single point in time) represented as Pandas DataFrames to be easily time-sliced and manipulated along with their accompanying data without making a custom class.
     
     Generalized from SpikesAccessor on 2025-01-15 14:51 - refactored instantaneous-event functionality out into `TimePointEventAccessor` accessible via `a_df.time_point_event.adding_epochs_identity_column(....)`
@@ -396,11 +397,12 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
     
 
 
+
 # ==================================================================================================================== #
 # General TimePointEventAccessor                                                                                       #
 # ==================================================================================================================== #
 @pd.api.extensions.register_dataframe_accessor("time_point_event")
-class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtocol):
+class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtocol, DataframeMetadataProtocol):
     """ Allows general events (marked by a single point in time) represented as Pandas DataFrames to be easily time-sliced and manipulated along with their accompanying data without making a custom class.
     
     Generalized from SpikesAccessor on 2025-01-15 14:51 - refactored instantaneous-event functionality out into `TimePointEventAccessor` accessible via `a_df.time_point_event.adding_epochs_identity_column(....)`

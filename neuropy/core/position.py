@@ -13,6 +13,7 @@ from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableO
 from neuropy.utils.mixins.concatenatable import ConcatenationInitializable
 from neuropy.utils.mixins.dataframe_representable import DataFrameRepresentable, ensure_dataframe
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
+from neuropy.utils.mixins.metadata_helpers import MetadataAccessor
 from neuropy.utils.mixins.time_slicing import TimePointEventAccessor
 from neuropy.utils.mixins.position_slicing import PositionSlicedMixin
 
@@ -1260,6 +1261,20 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
         super().__init__(metadata=metadata)
         self._df = pos_df # set to the laps dataframe
         self._df = self._df.sort_values(by=[self.time_variable_name]) # sorts all values in ascending order
+        if metadata is not None:
+            self.update_df_metadata(**metadata)
+
+    def update_df_metadata(self, **updated_metadata):
+        """ updates the metadata of the internal df from the explicit metadata"""
+        if getattr(self._df, 'attrs', None) is None:
+            self._df.attrs = {} ## setup df metadata
+        if len(updated_metadata) == 0:
+            if self.metadata is not None:
+                updated_metadata = self.metadata ## use internal metadata
+        if len(updated_metadata) > 0:
+            self._df.attrs.update(**updated_metadata)
+        
+
         
     def time_slice_indicies(self, t_start, t_stop):
         t_start, t_stop = self.safe_start_stop_times(t_start, t_stop)
