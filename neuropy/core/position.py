@@ -908,6 +908,9 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         # bin the dataframe's x and y positions into bins, with binned_x and binned_y containing the index of the bin that the given position is contained within.
         pos_df, out_bins, bin_info = build_df_discretized_binned_position_columns(pos_df, bin_values=bin_values, position_column_names=pos_col_names, binned_column_names=binned_col_names, active_computation_config=active_computation_config, force_recompute=False, debug_print=debug_print)
 
+        ## update metadata:
+        pos_df.metadata.metadata.update({'bin_info': bin_info, 'pos_binned_cols_dict': dict(zip(binned_col_names, out_bins))})
+        
         return pos_df
 
     
@@ -918,6 +921,61 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         """
         self.df = self.perform_add_binned_position_columns(pos_df=self.df, xbin_edges=xbin_edges, ybin_edges=ybin_edges, active_computation_config=active_computation_config, debug_print=debug_print)
         return self.df
+    
+
+    def compute_binned_position_occupancy(self, xbin_edges=None, ybin_edges=None, active_computation_config=None, position_sampling_rate_Hz: Optional[float]=None, debug_print:bool=False) -> pd.DataFrame:
+        """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
+        `active_computation_config` is not used/needed if the appropriate xbin_edges/ybin_edges are provided.
+        Internally uses: `cls.perform_add_binned_position_columns(...)`
+        
+        Usage:
+        
+            from neuropy.utils.mixins.metadata_helpers import DataframeMetadataProtocol, MetadataAccessor
+            from neuropy.core.position import PositionAccessor, Position
+
+            a_decoder_name: str = 'roam'
+            curr_sess = curr_active_pipeline.filtered_sessions[a_decoder_name]
+            laps_df: pd.DataFrame = ensure_dataframe(curr_sess.laps.to_dataframe())
+            position_sampling_rate_Hz: float = curr_sess.position_sampling_rate
+            mean_sampling_rate_sec: float = 1.0/position_sampling_rate_Hz
+            pos_obj: Position = curr_sess.position
+            updated_metadata = {'sampling_rate': position_sampling_rate_Hz, 'mean_sampling_rate_sec': mean_sampling_rate_sec}
+            pos_obj.metadata.update(**updated_metadata)
+            pos_obj.update_df_metadata(**updated_metadata)
+            pos_df: pd.DataFrame = pos_obj.to_dataframe()
+            occupancy_n_samples, occupancy_seconds = pos_df.position.compute_binned_position_occupancy(xbin_edges=a_decoder.xbin, ybin_edges=a_decoder.ybin, position_sampling_rate_Hz=position_sampling_rate_Hz)
+            occupancy_n_samples, occupancy_seconds
+
+        """
+        # binned_col_names = ['binned_x', 'binned_y']
+        # is_missing_binned_pos_columns: bool = np.any([(k not in self.df.columns) for k in binned_col_names])
+        # if is_missing_binned_pos_columns:
+        df: pd.DataFrame = self.df.copy()
+        df = self.perform_add_binned_position_columns(pos_df=df, xbin_edges=xbin_edges, ybin_edges=ybin_edges, active_computation_config=active_computation_config, debug_print=debug_print)
+        bin_info = df.metadata.metadata.get('bin_info', None)
+        assert bin_info is not None
+        # pos_binned_cols_dict = df.metadata.get('pos_binned_cols_dict', None)
+        # assert pos_binned_cols_dict is not None:
+
+        if position_sampling_rate_Hz is None:
+            position_sampling_rate_Hz = self.metadata.metadata.get('sampling_rate', None)
+            
+        assert position_sampling_rate_Hz is not None
+        mean_sampling_rate_sec: float = 1.0/position_sampling_rate_Hz
+        # mean_sampling_rate_sec: float = a_sess.position.to_dataframe().t.diff().mean() ## mean sampling rate
+        
+        an_occupancy_counts_df = df.groupby(['binned_x', 'binned_y']).agg(t_count=('t', 'count')).reset_index()
+        # a_position_binned_activity_matr = np.zeros(shape=(len(a_decoder.xbin_centers), len(a_decoder.ybin_centers)), dtype='uint64')
+        a_position_binned_activity_matr = np.zeros(shape=((bin_info['xnum_bins']-1), (bin_info['ynum_bins']-1)), dtype='uint64')
+                
+        an_occupancy_counts_df = an_occupancy_counts_df[an_occupancy_counts_df['t_count'] > 0] ## pre filter so there's less iteration needed
+        for a_row in an_occupancy_counts_df.itertuples():
+            a_position_binned_activity_matr[(a_row.binned_x-1), (a_row.binned_y-1)] += a_row.t_count
+        
+        occupancy_n_samples = a_position_binned_activity_matr
+        occupancy_seconds = a_position_binned_activity_matr.astype(float) * mean_sampling_rate_sec
+
+        return (occupancy_n_samples, occupancy_seconds)
     
 
     # ==================================================================================================================== #
