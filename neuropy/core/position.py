@@ -72,12 +72,24 @@ class QuaternionHelpers:
         pos_df = pos_df.position.add_quat_head_dir_degrees_column()
             self._df = QuaternionHelpers.add_quat_head_dir_degrees_column(pos_df=self._df)
         
+        Assumes the input quaternion (rx, ry, rz, rw) is in OptiTrack's default
+        right-handed Y-up world frame (X right, Y up, Z forward). The components
+        are remapped to a Z-up frame via a +90 deg rotation about the X axis,
+        which collapses algebraically to (x, y, z, w)_zup = (rx, -rz, ry, rw),
+        so the standard yaw-about-Z formula below computes the world heading
+        (rotation about the up axis).
         """
-        # Extract columns as numpy arrays for performance
-        x = pos_df['rx'].values
-        y = pos_df['ry'].values
-        z = pos_df['rz'].values
-        w = pos_df['rw'].values
+        # Extract raw OptiTrack (Y-up) quaternion columns
+        rx = np.asarray(pos_df['rx'].values)
+        ry = np.asarray(pos_df['ry'].values)
+        rz = np.asarray(pos_df['rz'].values)
+        rw = np.asarray(pos_df['rw'].values)
+
+        # Y-up -> Z-up change of basis: (x, y, z, w)_zup = (rx, -rz, ry, rw)
+        x = rx
+        y = -rz
+        z = ry
+        w = rw
 
         # Calculate yaw in radians using vectorized operations
         siny_cosp = 2 * (w * z + x * y)
