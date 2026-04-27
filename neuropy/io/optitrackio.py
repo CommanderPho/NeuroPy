@@ -58,7 +58,7 @@ def getnframes_fbx(fileName):
 
             if "KeyCount" in m:
                 # print("break at i = " + str(i))
-                # line_frame = linecache.getline(fileName, i + 2).strip().split(" ")
+                    # line_frame = linecache.getline(fileName, i + 2).strip().split(" ")
 
                 break
 
@@ -133,19 +133,19 @@ def posfromCSV(fileName):
     x0 = np.asarray(posdata.iloc[:, pos_idxs[0]])
     y0 = np.asarray(posdata.iloc[:, pos_idxs[1]])
     z0 = np.asarray(posdata.iloc[:, pos_idxs[2]])
-    rot0 = {name: np.asarray(posdata.iloc[:, rot_idxs[i]]) for i, name in enumerate(rot_col_names)}
+    rot_dict = {name: np.asarray(posdata.iloc[:, rot_idxs[i]]) for i, name in enumerate(rot_col_names)}
 
-    pos_df: pd.DataFrame = pd.DataFrame(dict(t=t, x0=x0, y0=y0, z0=z0, **rot0))
+    pos_df: pd.DataFrame = pd.DataFrame(dict(t=t, x0=x0, y0=y0, z0=z0, **rot_dict))
     pos_df.dropna(axis='index', how='any', subset=['t'], inplace=True) ## drop any entries with NaN timestamps, that is irrecoverable
     t, x0, y0, z0 = pos_df['t'].to_numpy(), pos_df['x0'].to_numpy(), pos_df['y0'].to_numpy(), pos_df['z0'].to_numpy() ## extract cols back to vars
-    rot0 = {name: pos_df[name].to_numpy() for name in rot_col_names}
+    rot_dict = {name: pos_df[name].to_numpy() for name in rot_col_names}
 
     # if end frames are nan drop those
     # last_nan_region = contiguous_regions(np.isnan(x0))[-1]
     # todo: potential bug here where csv file has missing timestamps at end that go to NaN and then don't get accounted for.
     if np.isnan(x0[-1]):
         t, x0, y0, z0 = t[:-1], x0[:-1], y0[:-1], z0[:-1]
-        rot0 = {name: arr[:-1] for name, arr in rot0.items()}
+        rot_dict = {name: arr[:-1] for name, arr in rot_dict.items()}
 
     xfill, yfill, zfill = interp_missing_pos(x0, y0, z0, t)
 
@@ -153,7 +153,7 @@ def posfromCSV(fileName):
     # Euler/quaternion data (slerp would be more correct); kept minimal here to mirror the
     # existing position interpolation pattern.
     rotfill = {}
-    for name, arr in rot0.items():
+    for name, arr in rot_dict.items():
         arr = arr.astype(float).copy()
         idnan = mathutil.contiguous_regions(np.isnan(arr))
         for ids in idnan:
@@ -729,3 +729,41 @@ class OptitrackIO:
     
 
     
+    def updating_position_obj(self, pos_obj: Position):
+        """ 
+        Adds:
+
+            # has ['t', 'rx', 'ry', 'rz', 'rw']  for quaternions
+
+        Usage:        
+        pos_obj = curr_active_pipeline.sess.position
+        pos_obj = _opti.updating_position_obj(pos_obj)
+        pos_df = pos_obj.to_dataframe()
+        pos_df
+                
+        """
+        from neuropy.core.position import PositionAccessor, Position
+        
+        rot_df = self.to_dataframe()          # has 't', 'rx', 'ry', 'rz' (and 'rw' for quaternion)
+        rot_t = rot_df['t'].to_numpy()
+    
+        pos_t = pos_obj.df['t'].to_numpy()             # existing time grid
+
+        # Interpolate each rotation channel onto the position time grid
+        pos_obj.df['rx'] = np.interp(pos_t, rot_t, rot_df['rx'].to_numpy())
+        pos_obj.df['ry'] = np.interp(pos_t, rot_t, rot_df['ry'].to_numpy())
+        pos_obj.df['rz'] = np.interp(pos_t, rot_t, rot_df['rz'].to_numpy())
+
+        # For quaternion exports:
+        if self.rotation_format == "quaternion":
+            pos_obj.df['rw'] = np.interp(pos_t, rot_t, rot_df['rw'].to_numpy())
+
+        ## compute the ['quat_head_dir_degrees'] column
+        pos_obj.df = pos_obj.df.position.adding_quat_head_dir_degrees_columns()
+
+        # Update metadata to record the format
+        pos_obj.metadata['rotation_format'] = self.rotation_format
+        pos_obj.update_df_metadata(rotation_format=self.rotation_format)
+        return pos_obj
+    
+
