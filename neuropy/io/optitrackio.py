@@ -74,10 +74,19 @@ def getunits(fileName):
 
 
 def posfromCSV(fileName):
-    """Import position data from OptiTrack CSV file"""
+    """Import position (and rotation, if exported) data from OptiTrack CSV file.
 
-    # ---- auto select which columns have rigid body position -------
-    pos_columns = rigidbody_columns = None
+    Returns:
+        x, y, z: 1D position arrays (cm)
+        t: 1D relative-time array (seconds)
+        rotation: 2D array shape (n_frames, 3 or 4) with rigid body rotation columns
+            in CSV order (Euler X,Y,Z when 3 cols; Quaternion X,Y,Z,W when 4 cols), or
+            None if the file has no rotation export.
+        rotation_format: "euler" | "quaternion" | None matching `rotation`.
+    """
+
+    # ---- auto select which columns have rigid body position / rotation -------
+    pos_columns = rigidbody_columns = rot_columns = None
     with open(fileName, newline="") as csvfile:
         reader = csv.reader(csvfile, delimiter=",")
         line_count = 0
@@ -91,37 +100,72 @@ def posfromCSV(fileName):
 
             if "Position" in row:
                 pos_columns = np.where(np.array(row) == "Position")[0]
+                rot_columns = np.where(np.array(row) == "Rotation")[0]
                 break
             line_count += 1
 
     rigidbody_pos_columns = np.intersect1d(pos_columns, rigidbody_columns)
+    rigidbody_rot_columns = np.intersect1d(rot_columns, rigidbody_columns) if rot_columns is not None else np.array([], dtype=int)
 
-    # second column is time so append that
-    read_columns = np.append(1, rigidbody_pos_columns)
+    n_rot = int(len(rigidbody_rot_columns))
+    if n_rot == 4:
+        rotation_format = "quaternion"
+        rot_col_names = ['rx', 'ry', 'rz', 'rw']
+    elif n_rot == 3:
+        rotation_format = "euler"
+        rot_col_names = ['rx', 'ry', 'rz']
+    else:
+        rotation_format = None
+        rot_col_names = []
 
-    posdata = pd.read_csv(
-        fileName,
-        skiprows=line_count + 1,
-        skip_blank_lines=False,
-        usecols=read_columns,
-    )
+    # second column is time so append that; include rotation cols too (variable width: 0/3/4)
+    read_columns = np.unique(np.concatenate([[1], rigidbody_rot_columns, rigidbody_pos_columns])).astype(int)
 
-    t = np.asarray(posdata.iloc[:, 0])
-    x0 = np.asarray(posdata.iloc[:, 1])
-    y0 = np.asarray(posdata.iloc[:, 2])
-    z0 = np.asarray(posdata.iloc[:, 3])
+    posdata = pd.read_csv(fileName, skiprows=line_count + 1, skip_blank_lines=False, usecols=read_columns)
 
-    pos_df: pd.DataFrame = pd.DataFrame(dict(t=t, x0=x0, y0=y0, z0=z0))
+    # pandas reads usecols in CSV-file (sorted) order; map original CSV indices -> df positions
+    sorted_cols = np.sort(read_columns)
+    t_idx = int(np.where(sorted_cols == 1)[0][0])
+    rot_idxs = [int(np.where(sorted_cols == c)[0][0]) for c in rigidbody_rot_columns]
+    pos_idxs = [int(np.where(sorted_cols == c)[0][0]) for c in rigidbody_pos_columns]
+
+    t = np.asarray(posdata.iloc[:, t_idx])
+    x0 = np.asarray(posdata.iloc[:, pos_idxs[0]])
+    y0 = np.asarray(posdata.iloc[:, pos_idxs[1]])
+    z0 = np.asarray(posdata.iloc[:, pos_idxs[2]])
+    rot0 = {name: np.asarray(posdata.iloc[:, rot_idxs[i]]) for i, name in enumerate(rot_col_names)}
+
+    pos_df: pd.DataFrame = pd.DataFrame(dict(t=t, x0=x0, y0=y0, z0=z0, **rot0))
     pos_df.dropna(axis='index', how='any', subset=['t'], inplace=True) ## drop any entries with NaN timestamps, that is irrecoverable
     t, x0, y0, z0 = pos_df['t'].to_numpy(), pos_df['x0'].to_numpy(), pos_df['y0'].to_numpy(), pos_df['z0'].to_numpy() ## extract cols back to vars
+    rot0 = {name: pos_df[name].to_numpy() for name in rot_col_names}
 
     # if end frames are nan drop those
     # last_nan_region = contiguous_regions(np.isnan(x0))[-1]
     # todo: potential bug here where csv file has missing timestamps at end that go to NaN and then don't get accounted for.
     if np.isnan(x0[-1]):
         t, x0, y0, z0 = t[:-1], x0[:-1], y0[:-1], z0[:-1]
+        rot0 = {name: arr[:-1] for name, arr in rot0.items()}
 
     xfill, yfill, zfill = interp_missing_pos(x0, y0, z0, t)
+
+    # Linear-fill NaN gaps per rotation channel. NOTE: linear interp is a coarse fill for
+    # Euler/quaternion data (slerp would be more correct); kept minimal here to mirror the
+    # existing position interpolation pattern.
+    rotfill = {}
+    for name, arr in rot0.items():
+        arr = arr.astype(float).copy()
+        idnan = mathutil.contiguous_regions(np.isnan(arr))
+        for ids in idnan:
+            missing_ids = range(ids[0], ids[-1])
+            bracket_ids = ids + [-1, 0]
+            try:
+                arr[missing_ids] = np.interp(t[missing_ids], t[bracket_ids], arr[bracket_ids])
+            except IndexError as e:
+                print(f'WARN: skipping malformed rotation interp ids: {ids} for channel {name} instead of aborting entirely.\n\tOccured with error {e}.')
+            except Exception:
+                raise
+        rotfill[name] = arr
 
     # Now convert to centimeters
     units = getunits(fileName)
@@ -135,11 +179,16 @@ def posfromCSV(fileName):
         )
 
     ## drop NaNs one more time
-    pos_df: pd.DataFrame = pd.DataFrame(dict(t=t, x=x, y=y, z=z))
+    pos_df: pd.DataFrame = pd.DataFrame(dict(t=t, x=x, y=y, z=z, **rotfill))
     pos_df.dropna(axis='index', how='any', subset=['t', 'x', 'y'], inplace=True) ## drop any entries with NaN timestamps, that is irrecoverable
     t, x, y, z = pos_df['t'].to_numpy(), pos_df['x'].to_numpy(), pos_df['y'].to_numpy(), pos_df['z'].to_numpy() ## extract cols back to vars
 
-    return x, y, z, t
+    if rotation_format is None:
+        rotation = None
+    else:
+        rotation = np.column_stack([pos_df[name].to_numpy() for name in rot_col_names])
+
+    return x, y, z, t, rotation, rotation_format
 
 
 def interp_missing_pos(x, y, z, t):
@@ -379,6 +428,7 @@ class OptitrackIO:
         self.override_included_csv_files = override_included_csv_files
         self._parse_folder()
 
+
     def _parse_folder(self):
         """get position data from files. All position related files should be in 'position' folder within basepath
 
@@ -412,7 +462,9 @@ class OptitrackIO:
         posfiles = posfiles[filesort_ind]
 
         postime, posx, posy, posz = [], [], [], []
+        posrx, posry, posrz, posrw = [], [], [], []
         datetime_starts, datetime_stops, datetime_nframes = [], [], []
+        rotation_format = None
 
         for file in posfiles:
             print(file)
@@ -429,8 +481,12 @@ class OptitrackIO:
                 assert len(x) == nframes_pos
                 postime.extend(trange)
 
+                ## FBX path doesn't parse rotation; pad with NaN to preserve length alignment
+                file_rotation = None
+                file_rotation_format = None
+
             else:
-                x, y, z, trelative = posfromCSV(file)
+                x, y, z, trelative, file_rotation, file_rotation_format = posfromCSV(file)
                 # Make sure you arent't just importing the header, if so engage except
                 assert len(x) > 0
                 nframes_pos = len(x)
@@ -444,6 +500,28 @@ class OptitrackIO:
             posx.extend(x)
             posy.extend(y)
             posz.extend(z)
+
+            ## ---- accumulate rotation (rx, ry, rz, [rw]); pad with NaN if absent ----
+            if file_rotation_format is not None:
+                if rotation_format is None:
+                    rotation_format = file_rotation_format
+                elif rotation_format != file_rotation_format:
+                    print(f'WARN: rotation_format mismatch across files (saw "{rotation_format}" then "{file_rotation_format}" in {file.name}). Falling back to rotation_format=None.')
+                    rotation_format = "__mismatch__"
+
+            if file_rotation is not None:
+                posrx.extend(file_rotation[:, 0])
+                posry.extend(file_rotation[:, 1])
+                posrz.extend(file_rotation[:, 2])
+                if file_rotation.shape[1] >= 4:
+                    posrw.extend(file_rotation[:, 3])
+                else:
+                    posrw.extend(np.full(nframes_pos, np.nan))
+            else:
+                posrx.extend(np.full(nframes_pos, np.nan))
+                posry.extend(np.full(nframes_pos, np.nan))
+                posrz.extend(np.full(nframes_pos, np.nan))
+                posrw.extend(np.full(nframes_pos, np.nan))
 
         postime = pd.to_datetime(postime)
         posx = np.asarray(posx)
@@ -460,6 +538,15 @@ class OptitrackIO:
         self.datetime_stops = datetime_stops
         self.datetime_nframes = datetime_nframes
         self.sampling_rate = sampling_rate
+
+        ## ---- store rotation channels (unscaled); rotation_format is "euler"/"quaternion"/None ----
+        if rotation_format == "__mismatch__":
+            rotation_format = None
+        self.rotation_format = rotation_format
+        self.rx = np.asarray(posrx)
+        self.ry = np.asarray(posry)
+        self.rz = np.asarray(posrz)
+        self.rw = np.asarray(posrw) if rotation_format == "quaternion" else None
 
     def get_position_at_datetimes(self, dt):
 
@@ -604,10 +691,12 @@ class OptitrackIO:
 
 
     def to_dataframe(self) -> pd.DataFrame:
-        pos_df = pd.DataFrame({'t': self.datetime_array, 'x': self.x, 'y': self.y, 'z': self.z, })
+        pos_df = pd.DataFrame({'t': self.datetime_array, 'x': self.x, 'y': self.y, 'z': self.z, 'rx': self.rx, 'ry': self.ry, 'rz': self.rz})
+        if self.rotation_format == "quaternion" and self.rw is not None:
+            pos_df['rw'] = self.rw
         pos_df['dt'] = pos_df['t'].copy() ## convert datetime times to 'dt' column
         pos_df['t'] = (pos_df['t'] - np.nanmin(pos_df['dt'])).dt.total_seconds() ## minimum (first) time to 't' (seconds) column
-        pos_df.attrs.update({'srate': self.sampling_rate, 'scale_factor': self.scale_factor})
+        pos_df.attrs.update({'srate': self.sampling_rate, 'scale_factor': self.scale_factor, 'rotation_format': self.rotation_format})
         return pos_df
     
 
@@ -618,7 +707,7 @@ class OptitrackIO:
         from neuropy.core.position import Position
         
         pos_df: pd.DataFrame = self.to_dataframe()
-        pos_df = pos_df.dropna(how='any', subset=['t', 'x', 'y'], inplace=False) ## drop any NaN values
+        pos_df = pos_df.dropna(how='any', subset=['t', 'x', 'y'], inplace=False) ## drop any NaN values (rotation cols intentionally not in subset)
         pos_obj: Position = Position(pos_df, metadata={'sampling_rate': self.sampling_rate,
                                                     'source': 'from_csvs',
                                                     'source_files': self.dirname.as_posix(),
@@ -626,6 +715,7 @@ class OptitrackIO:
                                                         'datetime': self.datetime,
                                                         'time': self.time,
                                                         'override_included_csv_files': self.override_included_csv_files,
+                                                        'rotation_format': self.rotation_format,
                                                         })
 
         # pos_obj: Position = Position.init(traces=pos_df[['t', 'x', 'y', 'z', 'dt']].to_numpy(), sampling_rate=_out.sampling_rate, metadata={'source': 'from_csvs', 'source_files': _out.dirname.as_posix(), })
