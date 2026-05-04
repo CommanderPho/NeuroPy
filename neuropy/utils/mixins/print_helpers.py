@@ -12,7 +12,23 @@ class SimplePrintable:
     """ Adds the default print method for classes that displays the class name and its dictionary. """
     def __repr__(self) -> str:
         ## TODO: this default printout is actually horrible for classes with any real content (like Pandas.DataFrame members, which spam the notebook)
-        return f"<{self.__class__.__name__}: {self.__dict__};>"
+        def _safe_repr(value):
+            try:
+                value_repr = repr(value)
+            except Exception:
+                value_repr = f"<repr failed: {type(value).__name__}>"
+            if not isinstance(value_repr, str):
+                try:
+                    value_repr = str(value_repr)
+                except Exception:
+                    value_repr = f"<non-string repr: {type(value).__name__}>"
+            return value_repr
+
+        try:
+            members = ", ".join(f"{_safe_repr(key)}: {_safe_repr(value)}" for key, value in self.__dict__.items())
+            return f"<{self.__class__.__name__}: {{{members}}};>"
+        except Exception as e:
+            return f"<{self.__class__.__name__}: <repr error: {type(e).__name__}>;>"
     
     
 

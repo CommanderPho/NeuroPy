@@ -443,8 +443,41 @@ def column_shift(arr, shifts=None):
     return arr[rows_indx, columns_indx]
 
 
+def _sliding_epoch_window_spike_counts(spikes_df: pd.DataFrame, epoch_start: float, epoch_stop: float, window_width: float, hop: float, included_neuron_ids: NDArray) -> Tuple[NDArray, NDArray, NDArray]:
+    """Spike counts in overlapping left-aligned windows [t, t+window_width) while t+window_width <= epoch_stop; if epoch shorter than window_width, one window [epoch_start, epoch_stop). Returns (counts n_aclus x n_windows, window_starts, window_stops)."""
+    spike_col: str = spikes_df.spikes.time_variable_name
+    t0, t1 = float(epoch_start), float(epoch_stop)
+    W, H = float(window_width), float(hop)
+    dur = t1 - t0
+    if dur <= 0:
+        starts = np.array([t0], dtype=np.float64)
+        ends = np.array([t0 + W], dtype=np.float64)
+    elif dur < W:
+        starts = np.array([t0], dtype=np.float64)
+        ends = np.array([t1], dtype=np.float64)
+    else:
+        n_windows = int(np.floor((dur - W) / H)) + 1
+        if n_windows < 1:
+            n_windows = 1
+            starts = np.array([t0], dtype=np.float64)
+            ends = np.array([t1], dtype=np.float64)
+        else:
+            starts = t0 + np.arange(n_windows, dtype=np.float64) * H
+            ends = starts + W
+    n_w = len(starts)
+    n_aclus = len(included_neuron_ids)
+    out = np.zeros((n_aclus, n_w), dtype=np.int64)
+    for ui, uid in enumerate(included_neuron_ids):
+        t = spikes_df.loc[spikes_df['aclu'] == uid, spike_col].to_numpy(dtype=np.float64, copy=False)
+        if t.size == 0:
+            continue
+        t.sort()
+        out[ui] = np.searchsorted(t, ends, side='right') - np.searchsorted(t, starts, side='left')
+    return out.astype(np.int32), starts, ends
+
+
 # @function_attributes(short_name=None, tags=['IMPROVED', 'FIXED'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-03-10 15:03', related_items=[])
-def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False, debug_careful_validate_shapes: bool=False) -> Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], List[NDArray[ND.Shape['N_EPOCHS'], Any]], List[BinningContainer]]:
+def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[core.Epoch, pd.DataFrame], bin_size=0.01, export_time_bins:bool=False, included_neuron_ids=None, debug_print:bool=False, use_single_time_bin_per_epoch: bool=False, debug_careful_validate_shapes: bool=False, slideby: Optional[float]=None) -> Tuple[List[NDArray[ND.Shape["N_ACLUS, N_TIME_BINS"], ND.Int]], NDArray[ND.Shape["N_ACLUS"], ND.Int], NDArray[ND.Shape['N_EPOCHS'], Any], List[BinningContainer]]:
     """Binning events and calculating spike counts
 
     Args:
@@ -455,7 +488,8 @@ def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[cor
         included_neuron_ids (bool, optional): Only relevent if using a spikes_df for the neurons input. Ensures there is one spiketrain built for each neuron in included_neuron_ids, even if there are no spikes.
         debug_print (bool, optional): _description_. Defaults to False.
         use_single_time_bin_per_epoch (bool, optional): If True, a single time bin is used per epoch instead of using the provided `bin_size`. This means that each epoch will have exactly one bin, but it will be variablely-sized depending on the epoch's duration. Defaults to false.
-        
+        slideby (float, optional): Step between sliding-window start times in seconds. If None, hop equals ``bin_size`` (standard non-overlapping bins). Ignored when ``use_single_time_bin_per_epoch`` is True. Requires ``0 < slideby <= bin_size`` (within float tolerance).
+
     Raises:
         NotImplementedError: _description_
         NotImplementedError: _description_
@@ -484,7 +518,7 @@ def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[cor
         from neuropy.analyses.decoders import epochs_spkcount
         
         spikes_df = get_proper_global_spikes_df(curr_active_pipeline)
-        spkcount, included_neuron_ids, nbins, time_bin_containers_list = epochs_spkcount(spikes_df, epochs=filter_epochs, bin_size=decoding_time_bin_size, slideby=decoding_time_bin_size, export_time_bins=True, included_neuron_ids=neuron_IDs, use_single_time_bin_per_epoch=use_single_time_bin_per_epoch, debug_print=debug_print)
+        spkcount, included_neuron_ids, nbins, time_bin_containers_list = epochs_spkcount(spikes_df, epochs=filter_epochs, bin_size=decoding_time_bin_size, slideby=None, export_time_bins=True, included_neuron_ids=neuron_IDs, use_single_time_bin_per_epoch=use_single_time_bin_per_epoch, debug_print=debug_print)
     
         
     """
@@ -520,73 +554,73 @@ def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[cor
         time_bin_containers_list = None
 
     n_tbin_centers: NDArray[ND.Shape['N_EPOCHS'], Any] = np.zeros(n_epochs, dtype="int")
+    resolved_window_W: Optional[float] = None
+    resolved_hop_H: Optional[float] = None
+    if not use_single_time_bin_per_epoch:
+        resolved_window_W = float(bin_size)
+        resolved_hop_H = float(slideby) if slideby is not None else resolved_window_W
+        assert resolved_hop_H > 0, f"slideby must be > 0, got {resolved_hop_H}"
+        assert resolved_hop_H <= resolved_window_W + 1e-9, f"slideby ({resolved_hop_H}) must be <= bin_size / window width ({resolved_window_W})"
 
     for i, epoch in enumerate(epoch_df.itertuples()):
         epoch_duration = epoch.stop - epoch.start
 
-        # if use_single_time_bin_per_epoch:
-        #     time_bin_edges = np.array([epoch.start, epoch.stop]) # two edges for the epoch
-        # else:
-        #     ## Binning with Fixed Bin Sizes: fixed time-bin duration -> variable num time bins per epoch depending on epoch length
-        #     # time_bin_edges, time_bin_edges_binning_info = compute_spanning_bins(variable_values=None, bin_size=bin_size, variable_start_value=epoch.start, variable_end_value=epoch.stop) # fixed_step mode
-        #     # Handle edge case: if epoch duration is shorter than bin_size, treat it like single bin per epoch
-        #     if epoch_duration < bin_size:
-        #         # TODO: added 2025-12-17 by AI as a suggested fix to single-time-bin item discrepancies
-        #         time_bin_edges = np.array([epoch.start, epoch.stop]) ## same as the `use_single_time_bin_per_epoch` case
-        #         # Create a BinningInfo manually for this special case
-        #         time_bin_edges_binning_info = BinningInfo(variable_extents=(epoch.start, epoch.stop), step=epoch_duration, num_bins=1)
-
-        #     else:
-        #         time_bin_edges, time_bin_edges_binning_info = compute_spanning_bins(variable_values=None, bin_size=bin_size, variable_start_value=epoch.start, variable_end_value=epoch.stop) # fixed_step mode
-
-
         if use_single_time_bin_per_epoch:
-            time_bin_edges = np.array([epoch.start, epoch.stop]) # two edges for the epoch
-        else:
-            ## Binning with Fixed Bin Sizes: fixed time-bin duration -> variable num time bins per epoch depending on epoch length
-            # Handle edge case: if epoch duration is shorter than bin_size, treat it like single bin per epoch
-            if epoch_duration < bin_size:
-                # Ensure bin edges are monotonically increasing (handle zero-duration epochs)
-                if epoch_duration <= 0:
-                    # Zero or negative duration: create a bin of size bin_size starting at epoch.start
-                    # This ensures np.histogram works (requires monotonically increasing bins)
-                    time_bin_edges = np.array([epoch.start, epoch.start + bin_size])
-                    time_bin_edges_binning_info = BinningInfo(
-                        variable_extents=(epoch.start, epoch.start + bin_size), 
-                        step=bin_size, 
-                        num_bins=2  # 2 edges = 1 bin, but num_bins in BinningInfo represents edges
-                    )
-                else:
-                    # Positive but short duration: use actual epoch boundaries
-                    time_bin_edges = np.array([epoch.start, epoch.stop])
-                    time_bin_edges_binning_info = BinningInfo(
-                        variable_extents=(epoch.start, epoch.stop), 
-                        step=epoch_duration, 
-                        num_bins=2  # 2 edges = 1 bin
-                    )
+            time_bin_edges = np.array([epoch.start, epoch.stop])
+            _edur = float(epoch_duration)
+            _step = _edur if _edur > 0 else 0.01
+            time_bin_edges_binning_info = BinningInfo(variable_extents=(epoch.start, epoch.stop), step=_step, num_bins=2)
+            n_tbin_centers[i] = len(time_bin_edges) - 1
+            unit_specific_time_binned_spike_counts, _included_neuron_ids = spikes_df.spikes.compute_unit_time_binned_spike_counts(time_bin_edges=time_bin_edges, included_neuron_ids=included_neuron_ids)
+            spkcount.append(unit_specific_time_binned_spike_counts)
+            if debug_print:
+                print(f'i: {i}, epoch: [{epoch.start}, {epoch.stop}], single_bin, np.shape(unit_specific_time_binned_spike_counts): {np.shape(unit_specific_time_binned_spike_counts)}')
+            if export_time_bins:
+                if debug_print:
+                    print(f'nbins[i]: {n_tbin_centers[i]}')
+                bin_container = BinningContainer.init_from_edges(edges=time_bin_edges, edge_info=time_bin_edges_binning_info)
+                if debug_careful_validate_shapes:
+                    assert len(bin_container.centers) == n_tbin_centers[i], f"The length of the produced bin_container.centers and the nbins[i] should be the same, but len(bin_container.centers): {len(bin_container.centers)} and nbins[i]: {n_tbin_centers[i]}!"
+                time_bin_containers_list.append(bin_container)
+            continue
+
+        assert resolved_window_W is not None and resolved_hop_H is not None
+        W, H = resolved_window_W, resolved_hop_H
+        use_sliding = not np.isclose(H, W, rtol=0.0, atol=1e-12)
+
+        if use_sliding:
+            unit_specific_time_binned_spike_counts, wstarts, wstops = _sliding_epoch_window_spike_counts(spikes_df, epoch.start, epoch.stop, W, H, included_neuron_ids)
+            n_tbin_centers[i] = int(np.shape(unit_specific_time_binned_spike_counts)[1])
+            spkcount.append(unit_specific_time_binned_spike_counts)
+            if debug_print:
+                print(f'i: {i}, epoch: [{epoch.start}, {epoch.stop}], sliding W={W} H={H}, n_windows={n_tbin_centers[i]}, np.shape(unit_specific_time_binned_spike_counts): {np.shape(unit_specific_time_binned_spike_counts)}')
+            if export_time_bins:
+                if debug_print:
+                    print(f'nbins[i]: {n_tbin_centers[i]}')
+                bin_container = BinningContainer.from_sliding_windows(window_start_edges=wstarts, window_stop_edges=wstops, epoch_variable_extents=(epoch.start, epoch.stop), window_width=W, hop=H)
+                if debug_careful_validate_shapes:
+                    assert len(bin_container.centers) == n_tbin_centers[i], f"The length of the produced bin_container.centers and the nbins[i] should be the same, but len(bin_container.centers): {len(bin_container.centers)} and nbins[i]: {n_tbin_centers[i]}!"
+                time_bin_containers_list.append(bin_container)
+            continue
+
+        if epoch_duration < bin_size:
+            if epoch_duration <= 0:
+                time_bin_edges = np.array([epoch.start, epoch.start + bin_size])
+                time_bin_edges_binning_info = BinningInfo(variable_extents=(epoch.start, epoch.start + bin_size), step=bin_size, num_bins=2)
             else:
-                time_bin_edges, time_bin_edges_binning_info = compute_spanning_bins(
-                    variable_values=None, 
-                    bin_size=bin_size, 
-                    variable_start_value=epoch.start, 
-                    variable_end_value=epoch.stop
-                )
-            
+                time_bin_edges = np.array([epoch.start, epoch.stop])
+                time_bin_edges_binning_info = BinningInfo(variable_extents=(epoch.start, epoch.stop), step=epoch_duration, num_bins=2)
+        else:
+            time_bin_edges, time_bin_edges_binning_info = compute_spanning_bins(variable_values=None, bin_size=bin_size, variable_start_value=epoch.start, variable_end_value=epoch.stop)
 
-
-        n_tbin_centers[i] = (len(time_bin_edges) -1 ) ## #TODO 2025-03-10 14:57: - [ ] MAJOR: !!! is this supposed to be centers, or edges?!?
- 
+        n_tbin_centers[i] = len(time_bin_edges) - 1
         unit_specific_time_binned_spike_counts, _included_neuron_ids = spikes_df.spikes.compute_unit_time_binned_spike_counts(time_bin_edges=time_bin_edges, included_neuron_ids=included_neuron_ids)
-        
         spkcount.append(unit_specific_time_binned_spike_counts)
-        
         if debug_print:
             print(f'i: {i}, epoch: [{epoch.start}, {epoch.stop}], bins: {np.shape(time_bin_edges)}, np.shape(unit_specific_time_binned_spike_counts): {np.shape(unit_specific_time_binned_spike_counts)}')
-
         if export_time_bins:
             if debug_print:
-                print(f'nbins[i]: {n_tbin_centers[i]}') # nbins: 20716
-
+                print(f'nbins[i]: {n_tbin_centers[i]}')
             bin_container = BinningContainer.init_from_edges(edges=time_bin_edges, edge_info=time_bin_edges_binning_info)
             if debug_careful_validate_shapes:
                 assert len(bin_container.centers) == n_tbin_centers[i], f"The length of the produced bin_container.centers and the nbins[i] should be the same, but len(bin_container.centers): {len(bin_container.centers)} and nbins[i]: {n_tbin_centers[i]}!"

@@ -13,6 +13,7 @@ from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableO
 from neuropy.utils.mixins.concatenatable import ConcatenationInitializable
 from neuropy.utils.mixins.dataframe_representable import DataFrameRepresentable, ensure_dataframe
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
+from neuropy.utils.mixins.metadata_helpers import MetadataAccessor
 from neuropy.utils.mixins.time_slicing import TimePointEventAccessor
 from neuropy.utils.mixins.position_slicing import PositionSlicedMixin
 
@@ -51,6 +52,56 @@ def build_position_df_resampled_to_time_windows(active_pos_df: pd.DataFrame, tim
     # What happened to the `base` parameter in Pandas v2? I used to `window_resampled_pos_df = active_pos_df.resample(f'{time_bin_size}S', base=0)` and now I get `TypeError: resample() got an unexpected keyword argument 'base'`
 
     return window_resampled_pos_df
+
+
+class QuaternionHelpers:
+    """ 
+
+    from neuropy.core.position import QuaternionHelpers
+
+
+    """
+    quaternion_col_names = ['rx', 'ry', 'rz', 'rw']
+
+    @classmethod
+    def add_quat_head_dir_degrees_column(cls, pos_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        
+        Adds: pos_df['quat_head_dir_degrees']
+        
+        pos_df = pos_df.position.add_quat_head_dir_degrees_column()
+            self._df = QuaternionHelpers.add_quat_head_dir_degrees_column(pos_df=self._df)
+        
+        Assumes the input quaternion (rx, ry, rz, rw) is in OptiTrack's default
+        right-handed Y-up world frame (X right, Y up, Z forward). The components
+        are remapped to a Z-up frame via a +90 deg rotation about the X axis,
+        which collapses algebraically to (x, y, z, w)_zup = (rx, -rz, ry, rw),
+        so the standard yaw-about-Z formula below computes the world heading
+        (rotation about the up axis).
+        """
+        # Extract raw OptiTrack (Y-up) quaternion columns
+        rx = np.asarray(pos_df['rx'].values)
+        ry = np.asarray(pos_df['ry'].values)
+        rz = np.asarray(pos_df['rz'].values)
+        rw = np.asarray(pos_df['rw'].values)
+
+        # Y-up -> Z-up change of basis: (x, y, z, w)_zup = (rx, -rz, ry, rw)
+        x = rx
+        y = -rz
+        z = ry
+        w = rw
+
+        # Calculate yaw in radians using vectorized operations
+        siny_cosp = 2 * (w * z + x * y)
+        cosy_cosp = 1 - 2 * (y**2 + z**2)
+        heading_rad = np.arctan2(siny_cosp, cosy_cosp)
+
+        # Convert to degrees and normalize to [0, 360)
+        heading_deg = np.rad2deg(heading_rad)
+        pos_df['quat_head_dir_degrees'] = np.mod(heading_deg, 360)
+        
+        return pos_df
+
 
 
 
@@ -872,6 +923,27 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         return self.df
 
 
+    def adding_quat_head_dir_degrees_columns(self, **kwargs) -> pd.DataFrame:
+        """Add quaternion-derived xy-heading angle columns
+         
+        Usage:
+            pos_df = pos_df.position.adding_quat_head_dir_degrees_columns()
+        
+        
+        pos_df['quat_head_dir_degrees']
+        
+        Returns:
+            pd.DataFrame: The updated dataframe with columns added:
+                - 'quat_head_dir_degrees': xy-head dir
+                
+        """
+        self.df = QuaternionHelpers.add_quat_head_dir_degrees_column(pos_df=self.df, **kwargs)
+        return self.df
+
+
+
+            
+        
 
     # ==================================================================================================================== #
     # Position Discretization/Binning                                                                                      #
@@ -907,6 +979,9 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         # bin the dataframe's x and y positions into bins, with binned_x and binned_y containing the index of the bin that the given position is contained within.
         pos_df, out_bins, bin_info = build_df_discretized_binned_position_columns(pos_df, bin_values=bin_values, position_column_names=pos_col_names, binned_column_names=binned_col_names, active_computation_config=active_computation_config, force_recompute=False, debug_print=debug_print)
 
+        ## update metadata:
+        pos_df.metadata.metadata.update({'bin_info': bin_info, 'pos_binned_cols_dict': dict(zip(binned_col_names, out_bins))})
+        
         return pos_df
 
     
@@ -917,6 +992,61 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         """
         self.df = self.perform_add_binned_position_columns(pos_df=self.df, xbin_edges=xbin_edges, ybin_edges=ybin_edges, active_computation_config=active_computation_config, debug_print=debug_print)
         return self.df
+    
+
+    def compute_binned_position_occupancy(self, xbin_edges=None, ybin_edges=None, active_computation_config=None, position_sampling_rate_Hz: Optional[float]=None, debug_print:bool=False) -> pd.DataFrame:
+        """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
+        `active_computation_config` is not used/needed if the appropriate xbin_edges/ybin_edges are provided.
+        Internally uses: `cls.perform_add_binned_position_columns(...)`
+        
+        Usage:
+        
+            from neuropy.utils.mixins.metadata_helpers import DataframeMetadataProtocol, MetadataAccessor
+            from neuropy.core.position import PositionAccessor, Position
+
+            a_decoder_name: str = 'roam'
+            curr_sess = curr_active_pipeline.filtered_sessions[a_decoder_name]
+            laps_df: pd.DataFrame = ensure_dataframe(curr_sess.laps.to_dataframe())
+            position_sampling_rate_Hz: float = curr_sess.position_sampling_rate
+            mean_sampling_rate_sec: float = 1.0/position_sampling_rate_Hz
+            pos_obj: Position = curr_sess.position
+            updated_metadata = {'sampling_rate': position_sampling_rate_Hz, 'mean_sampling_rate_sec': mean_sampling_rate_sec}
+            pos_obj.metadata.update(**updated_metadata)
+            pos_obj.update_df_metadata(**updated_metadata)
+            pos_df: pd.DataFrame = pos_obj.to_dataframe()
+            occupancy_n_samples, occupancy_seconds = pos_df.position.compute_binned_position_occupancy(xbin_edges=a_decoder.xbin, ybin_edges=a_decoder.ybin, position_sampling_rate_Hz=position_sampling_rate_Hz)
+            occupancy_n_samples, occupancy_seconds
+
+        """
+        # binned_col_names = ['binned_x', 'binned_y']
+        # is_missing_binned_pos_columns: bool = np.any([(k not in self.df.columns) for k in binned_col_names])
+        # if is_missing_binned_pos_columns:
+        df: pd.DataFrame = self.df.copy()
+        df = self.perform_add_binned_position_columns(pos_df=df, xbin_edges=xbin_edges, ybin_edges=ybin_edges, active_computation_config=active_computation_config, debug_print=debug_print)
+        bin_info = df.metadata.metadata.get('bin_info', None)
+        assert bin_info is not None
+        # pos_binned_cols_dict = df.metadata.get('pos_binned_cols_dict', None)
+        # assert pos_binned_cols_dict is not None:
+
+        if position_sampling_rate_Hz is None:
+            position_sampling_rate_Hz = self.metadata.metadata.get('sampling_rate', None)
+            
+        assert position_sampling_rate_Hz is not None
+        mean_sampling_rate_sec: float = 1.0/position_sampling_rate_Hz
+        # mean_sampling_rate_sec: float = a_sess.position.to_dataframe().t.diff().mean() ## mean sampling rate
+        
+        an_occupancy_counts_df = df.groupby(['binned_x', 'binned_y']).agg(t_count=('t', 'count')).reset_index()
+        # a_position_binned_activity_matr = np.zeros(shape=(len(a_decoder.xbin_centers), len(a_decoder.ybin_centers)), dtype='uint64')
+        a_position_binned_activity_matr = np.zeros(shape=((bin_info['xnum_bins']-1), (bin_info['ynum_bins']-1)), dtype='uint64')
+                
+        an_occupancy_counts_df = an_occupancy_counts_df[an_occupancy_counts_df['t_count'] > 0] ## pre filter so there's less iteration needed
+        for a_row in an_occupancy_counts_df.itertuples():
+            a_position_binned_activity_matr[(a_row.binned_x-1), (a_row.binned_y-1)] += a_row.t_count
+        
+        occupancy_n_samples = a_position_binned_activity_matr
+        occupancy_seconds = a_position_binned_activity_matr.astype(float) * mean_sampling_rate_sec
+
+        return (occupancy_n_samples, occupancy_seconds)
     
 
     # ==================================================================================================================== #
@@ -1260,6 +1390,20 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
         super().__init__(metadata=metadata)
         self._df = pos_df # set to the laps dataframe
         self._df = self._df.sort_values(by=[self.time_variable_name]) # sorts all values in ascending order
+        if metadata is not None:
+            self.update_df_metadata(**metadata)
+
+    def update_df_metadata(self, **updated_metadata):
+        """ updates the metadata of the internal df from the explicit metadata"""
+        if getattr(self._df, 'attrs', None) is None:
+            self._df.attrs = {} ## setup df metadata
+        if len(updated_metadata) == 0:
+            if self.metadata is not None:
+                updated_metadata = self.metadata ## use internal metadata
+        if len(updated_metadata) > 0:
+            self._df.attrs.update(**updated_metadata)
+        
+
         
     def time_slice_indicies(self, t_start, t_stop):
         t_start, t_stop = self.safe_start_stop_times(t_start, t_stop)

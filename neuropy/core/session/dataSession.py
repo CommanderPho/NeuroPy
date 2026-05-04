@@ -543,7 +543,7 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
     
 
     @classmethod
-    def perform_compute_non_running_epochs(cls, session, max_run_speed: float = 10.0, minimum_epoch_duration: float = 0.20, merging_adjacent_max_separation_sec: float = 0.01, speed_col_name: str = 'speed_xy', active_parameters=None, save_on_compute=False, **additional_df_metdata) -> Epoch:
+    def perform_compute_non_running_epochs(cls, session, max_run_speed: float = 10.0, minimum_epoch_duration: float = 0.20, merging_adjacent_max_separation_sec: float = 0.01, speed_col_name: str = 'speed_xy', active_parameters=None, save_on_compute=False, force_recompute=False, **additional_df_metdata) -> Epoch:
         """computes the low-speed non-running epochs and adds them to the session if they don't already exist there
 
         Args:
@@ -574,11 +574,22 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
 
         """
         extant_non_running_epochs_df = getattr(session, 'non_running_epochs', None)
+        needs_recompute: bool = True
         if (extant_non_running_epochs_df is not None):
-            print(f'already have extant_non_running_epochs_df: {extant_non_running_epochs_df}.\n\tskipping compute and loading previous...')
-            non_running_epochs_df: pd.DataFrame = ensure_dataframe(session.non_running_epochs)
-            epochs_obj = ensure_Epoch(deepcopy(non_running_epochs_df))
-        else:
+            ## check the metadata to see if it changed
+            prev_metadata = getattr(extant_non_running_epochs_df, 'attrs', {})
+            # prev_metadata = extant_non_running_epochs_df.epochs.getting_metadata()
+            max_run_speed_did_change = (prev_metadata is None) or ((prev_metadata.get('max_run_speed', None) != max_run_speed))
+            minimum_epoch_duration_did_change = ((prev_metadata.get('minimum_epoch_duration', None) != minimum_epoch_duration))
+            if (not max_run_speed_did_change) and (not minimum_epoch_duration_did_change) and (not force_recompute):
+                needs_recompute = False
+            
+            if (not needs_recompute):
+                print(f'already have extant_non_running_epochs_df: {extant_non_running_epochs_df}.\n\twith metadata: {prev_metadata}\n\tskipping compute and loading previous...')
+                non_running_epochs_df: pd.DataFrame = ensure_dataframe(session.non_running_epochs)
+                epochs_obj = ensure_Epoch(deepcopy(non_running_epochs_df))
+
+        if needs_recompute:
             print(f'recomputing non_running_epochs_df...')
             non_running_epochs_df: pd.DataFrame = session.position.compute_speed_info().position.detect_general_non_running_epochs(
                 max_run_speed=max_run_speed,

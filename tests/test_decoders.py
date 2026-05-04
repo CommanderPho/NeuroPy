@@ -11,6 +11,8 @@ from neuropy.core.epoch import Epoch
 
 # Add Neuropy to the path as needed
 tests_folder = Path(os.path.dirname(__file__))
+H5_FIXTURE_PATH = tests_folder.joinpath('neuropy_pf_testing.h5')
+requires_neuropy_h5 = unittest.skipUnless(H5_FIXTURE_PATH.is_file(), f'missing {H5_FIXTURE_PATH.name} (synthetic coverage in test_decoders_synthetic.py)')
 
 try:
     import neuropy
@@ -35,6 +37,7 @@ finally:
     
 
 
+@requires_neuropy_h5
 class TestEpochsSpkcountMethods(unittest.TestCase):
 
     def setUp(self):
@@ -70,10 +73,10 @@ class TestEpochsSpkcountMethods(unittest.TestCase):
 
 
     def test_single_time_bin_per_epoch(self):
-        spkcount, nbins, time_bins = epochs_spkcount(
+        spkcount, _, nbins, time_bins = epochs_spkcount(
             self.spikes_df, 
             self.test_epochs_df,
-            bin_size=0.1,
+            bin_size=None,
             export_time_bins=True,
             use_single_time_bin_per_epoch=True
         )
@@ -86,7 +89,7 @@ class TestEpochsSpkcountMethods(unittest.TestCase):
             'start': [0.0, 0.5],
             'stop': [0.005, 0.51]
         })
-        spkcount, nbins, time_bins = epochs_spkcount(
+        spkcount, _, nbins, time_bins = epochs_spkcount(
             self.spikes_df,
             short_epochs_df,
             bin_size=0.01,
@@ -97,7 +100,7 @@ class TestEpochsSpkcountMethods(unittest.TestCase):
 
     def test_included_neuron_ids(self):
         specific_neuron_ids = [1, 2, 3, 4]
-        spkcount, nbins, _ = epochs_spkcount(
+        spkcount, _, nbins, _ = epochs_spkcount(
             self.spikes_df,
             self.test_epochs_df,
             included_neuron_ids=specific_neuron_ids,
@@ -106,7 +109,7 @@ class TestEpochsSpkcountMethods(unittest.TestCase):
         self.assertEqual(len(spkcount[0]), len(specific_neuron_ids))
 
     def test_variable_slideby(self):
-        spkcount, nbins, _ = epochs_spkcount(
+        spkcount, _, nbins, _ = epochs_spkcount(
             self.spikes_df,
             self.test_epochs_df,
             bin_size=0.1,
@@ -228,6 +231,7 @@ class TestEpochsSpkcountMethods(unittest.TestCase):
 #         self.assertEqual(len(nbins), 2)
     
 
+@requires_neuropy_h5
 class TestDecodersMethods(unittest.TestCase):
 
     def setUp(self):

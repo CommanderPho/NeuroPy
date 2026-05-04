@@ -15,6 +15,7 @@ from neuropy.utils.mixins.dataframe_representable import DataFrameRepresentable,
 from .datawriter import DataWriter
 from neuropy.utils.mixins.print_helpers import SimplePrintable, OrderedMeta
 from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableObjectProtocol, TimeSlicedMixin, TimeColumnAliasesProtocol
+from neuropy.utils.mixins.metadata_helpers import DataframeMetadataProtocol, MetadataAccessor
 from neuropy.utils.efficient_interval_search import get_non_overlapping_epochs, deduplicate_epochs # for EpochsAccessor's .get_non_overlapping_df()
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_field, serialized_attribute_field, non_serialized_field
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
@@ -834,7 +835,7 @@ class NamedTimerange(SimplePrintable, metaclass=OrderedMeta):
         
 
 @pd.api.extensions.register_dataframe_accessor("epochs")
-class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesMixin, TimeSlicableObjectProtocol):
+class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataframeMetadataProtocol):
     """ A Pandas pd.DataFrame representation of [start, stop, label] epoch intervals """
     
     _time_column_name_synonyms = {"start":{'begin','start_t'},
@@ -1862,6 +1863,17 @@ epochs_df
         return self._obj
 
 
+
+    def getting_metadata(self) -> Dict:
+        """ gets the dataframe's `df.attrs` dictionary metadata
+        """
+        ## Add the metadata:
+        if self._obj.attrs is None:
+            return {}
+        else:
+            return self._obj.attrs
+
+
     def adding_or_updating_metadata(self, **metadata_update_kwargs) -> pd.DataFrame:
         """ updates the dataframe's `df.attrs` dictionary metadata, building it as a new dict if it doesn't yet exist
          
@@ -2000,21 +2012,21 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
 
     def __repr__(self) -> str:
         # return f"{len(self.starts)} epochs"
-        # return f"{len(self.starts)} epochs\n{self.as_array().__repr__()}\n"    
+        # return f"{len(self.starts)} epochs\n{self.as_array().__repr__()}\n"
         # """
         # 1 epochs
         # array([[7125, 11745]])
         # """
         # return self.to_dataframe()[['label', 'start', 'stop']].values
         # return self.to_dataframe()[['label', 'start', 'stop']].itertuples(index=False)
-        column_names: List[str] = ['label', 'start', 'stop']
-        code_value: str = list(tuple(v) for v in an_epoch.to_dataframe()[column_names].itertuples(index=False))
-        return code_value
-        # return f"pd.DataFrame.from_records({code_value}, columns={column_names})" ## return whole initialization code
+        # column_names: List[str] = ['label', 'start', 'stop']
+        # records = [tuple(v) for v in self.to_dataframe()[column_names].itertuples(index=False)]
+        # return f"pd.DataFrame.from_records({records!r}, columns={column_names!r})"  ## return whole initialization code
         # """
         # array([['roam', 7125.0, 9590.999999],
         # ['sprinkle', 9591.0, 11745.0]], dtype=object)
         # """
+        return f"{type(self).__name__}({self.str_for_concise_display()})"
 
 
 

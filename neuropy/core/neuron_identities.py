@@ -22,6 +22,7 @@ from matplotlib.colors import ListedColormap
 
 from attrs import define, field, Factory
 from neuropy.utils.mixins.indexing_helpers import UnpackableMixin
+from neuropy.utils.mixins.metadata_helpers import DataframeMetadataProtocol
 
 NeuronExtendedIdentityTuple = namedtuple('NeuronExtendedIdentityTuple', 'shank cluster id') ## DEPRICATED IN FAVOR OF `NeuronExtendedIdentity`
 
@@ -84,8 +85,9 @@ class NeuronIdentityTable(tb.IsDescription):
     
 
 
+
 @pd.api.extensions.register_dataframe_accessor("neuron_identity")
-class NeuronIdentityDataframeAccessor:
+class NeuronIdentityDataframeAccessor(DataframeMetadataProtocol):
     """ Describes a dataframe with at least a neuron_id (aclu) column. Provides functionality regarding building globally (across-sessions) unique neuron identifiers.
     
     #TODO 2023-08-22 15:34: - [ ] Finish implementation. Purpose is to easily add across-session-unique neuron identifiers to a result dataframe (as many result dataframes have an 'aclu' column).

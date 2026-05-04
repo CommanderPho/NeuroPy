@@ -81,7 +81,23 @@ class SessionFolderSpec:
     #     self.additional_validation_requirements = additional_validation_requirements
         
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}: {self.__dict__};>"
+        def _safe_repr(value):
+            try:
+                value_repr = repr(value)
+            except Exception:
+                value_repr = f"<repr failed: {type(value).__name__}>"
+            if not isinstance(value_repr, str):
+                try:
+                    value_repr = str(value_repr)
+                except Exception:
+                    value_repr = f"<non-string repr: {type(value).__name__}>"
+            return value_repr
+
+        try:
+            members = ", ".join(f"{_safe_repr(key)}: {_safe_repr(value)}" for key, value in self.__dict__.items())
+            return f"<{self.__class__.__name__}: {{{members}}};>"
+        except Exception as e:
+            return f"<{self.__class__.__name__}: <repr error: {type(e).__name__}>;>"
 
 
     def resolved_paths(self, proposed_session_path):
@@ -151,6 +167,12 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
     
     from neuropy.core.session.Formats.SessionSpecifications import SessionConfig
     
+    ['basepath', 'session_spec', 'session_name', 'session_context', 'format_name', 'preprocessing_parameters',
+     'absolute_start_timestamp', 'position_sampling_rate_Hz', 'microseconds_to_seconds_conversion_factor',
+     'pix2cm', 'x_midpoint', 'loaded_track_limits',
+     'is_resolved', 'resolved_required_filespecs_dict', 'resolved_optional_filespecs_dict',
+     'x_unit_midpoint', 'first_valid_pos_time', 'last_valid_pos_time']
+    
     """
     basepath: Path = field()
     session_spec: SessionFolderSpec = field()
@@ -177,6 +199,8 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
     track_start_t: Optional[float] = field(default=None, metadata={'desc': "the start time of the valid positions (in [seconds])", 'field_added_date':"2025.02.19_0"})
     track_end_t: Optional[float] = field(default=None, metadata={'desc': "the last good time of the valid positions (in [seconds])", 'field_added_date':"2025.02.19_0"})
 
+    x_unit_midpoint: float = field(default=0.5)
+    
     is_resolved: bool = field(default=False) # init=False, 
     resolved_required_filespecs_dict: dict = field(default=Factory(dict)) # , init=False
     resolved_optional_filespecs_dict: dict = field(default=Factory(dict)) # , init=False
@@ -207,6 +231,7 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
 
     def to_dict(self):
         out_dict = {a_key:str(a_value) for a_key, a_value in self.__dict__.items() if a_key in ['format_name', 'basepath', 'session_name', 'session_context', 'absolute_start_timestamp', 'position_sampling_rate_Hz', 'pix2cm', 'x_midpoint']}
+        out_dict = {a_key:str(a_value) for a_key, a_value in self.__dict__.items() if a_key in ['format_name', 'basepath', 'session_name', 'session_context', 'absolute_start_timestamp', 'position_sampling_rate_Hz', 'pix2cm', 'x_midpoint', 'x_unit_midpoint']} ## added 'x_unit_midpoint' 2025-01-15 10:04 
         # need to flatten: 'resolved_required_filespecs_dict', 'resolved_optional_filespecs_dict':
         out_dict['resolved_required_filespecs_dict'] = [str(a_path) for a_path in self.resolved_required_file_specs.keys()]
         out_dict['resolved_optional_filespecs_dict'] = [str(a_path) for a_path in self.resolved_optional_file_specs.keys()]

@@ -208,6 +208,9 @@ class BinningInfo(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
 class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     """A container that allows accessing either bin_edges (self.edges) or bin_centers (self.centers) 
     Factored out of pyphocorehelpers.indexing_helpers.BinningContainer
+
+    slideby: Optional hop/step between consecutive window starts. None means standard edge-defined bins.
+        Non-None marks overlapping sliding windows (same as center_info.step when built via from_sliding_windows).
     
     #TODO 2024-08-07 16:12: - [ ] Observing inconsistent values:
         a_time_bin_container: neuropy.utils.mixins.binning_helpers.BinningContainer
@@ -235,7 +238,10 @@ class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     
     edge_info: BinningInfo = serialized_field(is_computable=True, repr=True)
     center_info: BinningInfo = serialized_field(is_computable=False, repr=True)
-    
+    window_start_edges: Optional[NDArray] = serialized_field(default=None, repr=array_values_preview_repr, is_computable=True, metadata={'shape':('num_bins',)})
+    window_stop_edges: Optional[NDArray] = serialized_field(default=None, repr=array_values_preview_repr, is_computable=True, metadata={'shape':('num_bins',)})
+    slideby: Optional[float] = serialized_field(default=None, repr=True, is_computable=False)
+
     @property
     def num_bins(self) -> int:
         return self.center_info.num_bins
@@ -244,17 +250,26 @@ class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
     @property
     def left_edges(self) -> NDArray:
         """ the left edges of the bins. len(right_edges) == len(centers) """
+        if self.window_start_edges is not None:
+            return self.window_start_edges
         return self.centers - (self.center_info.step/2.0)
 
     @property
     def right_edges(self) -> NDArray:
         """ the right edges of the bins. len(right_edges) == len(centers) """
+        if self.window_stop_edges is not None:
+            return self.window_stop_edges
         return self.centers + (self.center_info.step/2.0)
 
-        
-    
 
-    def __init__(self, edges: Optional[NDArray]=None, centers: Optional[NDArray]=None, edge_info: Optional[BinningInfo]=None, center_info: Optional[BinningInfo]=None):
+    def get_sliding_window_intervals(self) -> Optional[Tuple[NDArray, NDArray]]:
+        """If built from sliding windows, returns (window_start_edges, window_stop_edges); else None."""
+        if self.window_start_edges is None:
+            return None
+        return (self.window_start_edges, self.window_stop_edges)
+
+    
+    def __init__(self, edges: Optional[NDArray]=None, centers: Optional[NDArray]=None, edge_info: Optional[BinningInfo]=None, center_info: Optional[BinningInfo]=None, window_start_edges: Optional[NDArray]=None, window_stop_edges: Optional[NDArray]=None, slideby: Optional[float]=None):
         super(BinningContainer, self).__init__()
         assert (edges is not None) or (centers is not None) # Require either centers or edges to be provided
         if edges is not None:
@@ -279,7 +294,38 @@ class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
             self.center_info = center_info
         else:
             self.center_info = BinningContainer.build_center_binning_info(self.centers, variable_extents=self.edge_info.variable_extents)
-            
+
+        self.window_start_edges = None if window_start_edges is None else np.asarray(window_start_edges)
+        self.window_stop_edges = None if window_stop_edges is None else np.asarray(window_stop_edges)
+        self.slideby = None if slideby is None else float(slideby)
+        if self.window_start_edges is not None:
+            assert self.window_stop_edges is not None, "window_stop_edges required when window_start_edges is set"
+            assert len(self.window_start_edges) == len(self.window_stop_edges) == len(self.centers), "sliding window edges must match centers length"
+
+
+    @classmethod
+    def from_sliding_windows(cls, window_start_edges: NDArray, window_stop_edges: NDArray, epoch_variable_extents: Tuple[float, float], window_width: float, hop: float) -> "BinningContainer":
+        """Build a binning container for overlapping temporal windows; per-window [start, stop) in parallel arrays."""
+        window_start_edges = np.asarray(window_start_edges)
+        window_stop_edges = np.asarray(window_stop_edges)
+        assert len(window_start_edges) == len(window_stop_edges)
+        centers = (window_start_edges + window_stop_edges) / 2.0
+        n = len(centers)
+        edges_summary = np.array([epoch_variable_extents[0], epoch_variable_extents[1]])
+        edge_info = BinningInfo(variable_extents=(float(epoch_variable_extents[0]), float(epoch_variable_extents[1])), step=float(window_width), num_bins=2)
+        center_info = BinningInfo(variable_extents=(float(epoch_variable_extents[0]), float(epoch_variable_extents[1])), step=float(hop), num_bins=n)
+        return cls(edges=edges_summary, centers=centers, edge_info=edge_info, center_info=center_info, window_start_edges=window_start_edges, window_stop_edges=window_stop_edges, slideby=float(hop))
+
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if 'window_start_edges' not in self.__dict__:
+            self.window_start_edges = None
+        if 'window_stop_edges' not in self.__dict__:
+            self.window_stop_edges = None
+        if 'slideby' not in self.__dict__:
+            self.slideby = None
+
             
     @classmethod
     def build_edge_binning_info(cls, edges: NDArray) -> BinningInfo:
@@ -358,7 +404,8 @@ class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
         BinningContainer(edges=shape=(3,) - [42.65807735896669, 42.68307735896669, ..., 42.70807735896669],
             centers=shape=(2,) - [42.670577358966696, 42.69557735896669],
             edge_info=BinningInfo(variable_extents=(42.65807735896669, 42.690456222509965), step=0.025, num_bins=3, bin_indicies=shape=(3,)),
-            center_info=BinningInfo(variable_extents=(42.65807735896669, 42.690456222509965), step=0.024999999999991473, num_bins=2, bin_indicies=shape=(2,)))
+            center_info=BinningInfo(variable_extents=(42.65807735896669, 42.690456222509965), step=0.024999999999991473, num_bins=2, bin_indicies=shape=(2,)),
+            slideby=None)
         ```
 
         """
@@ -374,7 +421,8 @@ class BinningContainer(HDF_SerializationMixin, AttrsBasedClassHelperMixin):
                 f"    edges={edges_repr},\n"
                 f"    centers={centers_repr},\n"
                 f"    edge_info={edge_info_repr},\n"
-                f"    center_info={center_info_repr}\n"
+                f"    center_info={center_info_repr},\n"
+                f"    slideby={self.slideby!r}\n"
                 f")")
     
 
