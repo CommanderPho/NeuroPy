@@ -54,6 +54,56 @@ def build_position_df_resampled_to_time_windows(active_pos_df: pd.DataFrame, tim
     return window_resampled_pos_df
 
 
+class QuaternionHelpers:
+    """ 
+
+    from neuropy.core.position import QuaternionHelpers
+
+
+    """
+    quaternion_col_names = ['rx', 'ry', 'rz', 'rw']
+
+    @classmethod
+    def add_quat_head_dir_degrees_column(cls, pos_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        
+        Adds: pos_df['quat_head_dir_degrees']
+        
+        pos_df = pos_df.position.add_quat_head_dir_degrees_column()
+            self._df = QuaternionHelpers.add_quat_head_dir_degrees_column(pos_df=self._df)
+        
+        Assumes the input quaternion (rx, ry, rz, rw) is in OptiTrack's default
+        right-handed Y-up world frame (X right, Y up, Z forward). The components
+        are remapped to a Z-up frame via a +90 deg rotation about the X axis,
+        which collapses algebraically to (x, y, z, w)_zup = (rx, -rz, ry, rw),
+        so the standard yaw-about-Z formula below computes the world heading
+        (rotation about the up axis).
+        """
+        # Extract raw OptiTrack (Y-up) quaternion columns
+        rx = np.asarray(pos_df['rx'].values)
+        ry = np.asarray(pos_df['ry'].values)
+        rz = np.asarray(pos_df['rz'].values)
+        rw = np.asarray(pos_df['rw'].values)
+
+        # Y-up -> Z-up change of basis: (x, y, z, w)_zup = (rx, -rz, ry, rw)
+        x = rx
+        y = -rz
+        z = ry
+        w = rw
+
+        # Calculate yaw in radians using vectorized operations
+        siny_cosp = 2 * (w * z + x * y)
+        cosy_cosp = 1 - 2 * (y**2 + z**2)
+        heading_rad = np.arctan2(siny_cosp, cosy_cosp)
+
+        # Convert to degrees and normalize to [0, 360)
+        heading_deg = np.rad2deg(heading_rad)
+        pos_df['quat_head_dir_degrees'] = np.mod(heading_deg, 360)
+        
+        return pos_df
+
+
+
 
 """ --- Helper MIXINS """
 class PositionDimDataMixin:
@@ -873,6 +923,27 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         return self.df
 
 
+    def adding_quat_head_dir_degrees_columns(self, **kwargs) -> pd.DataFrame:
+        """Add quaternion-derived xy-heading angle columns
+         
+        Usage:
+            pos_df = pos_df.position.adding_quat_head_dir_degrees_columns()
+        
+        
+        pos_df['quat_head_dir_degrees']
+        
+        Returns:
+            pd.DataFrame: The updated dataframe with columns added:
+                - 'quat_head_dir_degrees': xy-head dir
+                
+        """
+        self.df = QuaternionHelpers.add_quat_head_dir_degrees_column(pos_df=self.df, **kwargs)
+        return self.df
+
+
+
+            
+        
 
     # ==================================================================================================================== #
     # Position Discretization/Binning                                                                                      #
