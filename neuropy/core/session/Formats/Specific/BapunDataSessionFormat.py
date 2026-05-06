@@ -132,20 +132,39 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 zone2 = box(65.0, 0.0, xmax, 45.0), # box(minx, miny, maxx, maxy, ccw=True)
             )
             return bapun_Day4OpenField_reward_zones
+        
+
+        def _subfn_rat_U_Day5OpenfieldSD_reward_zones(session) -> Dict[str, Polygon]:
+            """ captures: None """
+            # xmin: float = -109.52
+            # xmax: float = 92.963
+            # ymin: float = -76.865
+            ymax: float = 30.0 ## 30 is liberal, but 20.0 is more than enough
+            
+            bapun_OpenField_reward_zones = dict(    ## Define the two reward zones
+                zone1 = box(-np.inf, 0.0, 30.0, ymax), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
+                zone2 = box(60.0, 0.0, 85.0, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
+                zone3 = box(120.0, 0.0, np.inf, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Right Extrema
+            )
+            return bapun_OpenField_reward_zones
+        
 
 
         # Custom Lap Building Functions ______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
         def _subfn_rat_N_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones(session):
             """ captures: cls, _subfn_rat_N_Day4Openfield_reward_zones """
             bapun_Day4OpenField_reward_zones = _subfn_rat_N_Day4Openfield_reward_zones(session=session)
-            return cls.build_Bapun_Day4OpenField_laps_from_reward_zones(session=session, bapun_Day4OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
-
-
+            return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
 
         def _subfn_rat_K_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones(session):
             """ captures: cls, _subfn_rat_K_Day4Openfield_reward_zones """
             bapun_Day4OpenField_reward_zones = _subfn_rat_K_Day4Openfield_reward_zones(session=session)
-            return cls.build_Bapun_Day4OpenField_laps_from_reward_zones(session=session, bapun_Day4OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+            return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+
+        def _subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones(session):
+            """ captures: cls, _subfn_rat_U_Day5OpenfieldSD_reward_zones """
+            bapun_OpenField_reward_zones = _subfn_rat_U_Day5OpenfieldSD_reward_zones(session=session)
+            return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_OpenField_reward_zones)
 
 
 
@@ -165,9 +184,17 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 # non_global_activity_session_names=['maze', 'sprinkle'],
                 non_global_activity_session_names=['roam', 'sprinkle'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=cls.build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=_subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
-            ),      
+            ),
+            IdentifyingContext(format_name= 'bapun', animal= 'RatU', session_name= 'Day5OpenfieldSD'): HardcodedProcessingParameters( ## #TODO 2026-05-06 06:11: - [ ] Note this is a purposeful repeat of the above entry, but for the renamed session_name (without "RatU" part. 
+                decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['roam', 'sprinkle'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=_subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
+            ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day4Openfield'): HardcodedProcessingParameters(
                 # decoder_building_session_names=['maze', 'sprinkle', 'maze_GLOBAL'],
                 decoder_building_session_names=['maze'],
@@ -647,7 +674,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
 
     @classmethod
-    def build_Bapun_Day4OpenField_laps_from_reward_zones(cls, session, bapun_Day4OpenField_reward_zones: Dict=None):
+    def build_Bapun_OpenField_laps_from_reward_zones(cls, session, bapun_OpenField_reward_zones: Dict=None):
         """ builds correct laps (transitions between the two reward zones on the open field maze for the 'roam' experiment
         
         session = curr_active_pipeline.filtered_sessions['roam']
@@ -655,7 +682,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         """            
         from neuropy.core import Laps
 
-        if bapun_Day4OpenField_reward_zones is None:
+        if bapun_OpenField_reward_zones is None:
             ## define default reward zones:
             xmin: float = -85.75619321393464
             xmax: float = 112.57838773103435
@@ -663,14 +690,14 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             ymax: float = 98.6220528078153
             bapun_Day4OpenField_grid_bin_bounds = box(xmin, ymin, xmax, ymax)
 
-            bapun_Day4OpenField_reward_zones = dict(    ## Define the two reward zones
+            bapun_OpenField_reward_zones = dict(    ## Define the two reward zones
                 zone1 = box(xmin, 0.0, -60.0, 40.0),  # box(minx, miny, maxx, maxy, ccw=True)
                 zone2 = box(80.0, 0.0, xmax, 40.0), # box(minx, miny, maxx, maxy, ccw=True)
             )
 
 
         pos: Position = session.position
-        laps_obj, pos = cls._perform_build_Bapun_Day4OpenField_laps_from_reward_zones(pos=pos, bapun_Day4OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+        laps_obj, pos = cls._perform_build_Bapun_Day4OpenField_laps_from_reward_zones(pos=pos, bapun_Day4OpenField_reward_zones=bapun_OpenField_reward_zones)
         ## Update the current session
         session.position = pos
         session.laps = laps_obj
