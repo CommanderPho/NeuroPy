@@ -134,6 +134,8 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             return bapun_Day4OpenField_reward_zones
         
 
+        bapun_open_field_grid_bin_bounds_rat_U = (((0.0, 142.0), (0.0, 30.0)))
+        
         def _subfn_rat_U_Day5OpenfieldSD_reward_zones(session) -> Dict[str, Polygon]:
             """ captures: None """
             # xmin: float = -109.52
@@ -183,7 +185,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 global_session_name='maze_GLOBAL',
                 # non_global_activity_session_names=['maze', 'sprinkle'],
                 non_global_activity_session_names=['roam', 'sprinkle'],
-                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds_rat_U,
                 lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=_subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
@@ -191,7 +193,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['roam', 'sprinkle'],
-                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds_rat_U,
                 lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=_subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
