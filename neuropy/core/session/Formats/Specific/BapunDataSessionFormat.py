@@ -134,19 +134,21 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             return bapun_Day4OpenField_reward_zones
         
 
-        bapun_open_field_grid_bin_bounds_rat_U = (((0.0, 142.0), (0.0, 30.0)))
+        # bapun_open_field_grid_bin_bounds_rat_U = (((0.0, 142.0), (0.0, 30.0)))
+        bapun_open_field_grid_bin_bounds_rat_U = (((0.0, 142.0), (-35.0, 175.0)))
         
         def _subfn_rat_U_Day5OpenfieldSD_reward_zones(session) -> Dict[str, Polygon]:
             """ captures: None """
             # xmin: float = -109.52
             # xmax: float = 92.963
-            # ymin: float = -76.865
-            ymax: float = 30.0 ## 30 is liberal, but 20.0 is more than enough
-            
+            ymin: float = -35.0
+            # ymax: float = 30.0 ## 30 is liberal, but 20.0 is more than enough
+            ymax: float = 175.0
+
             bapun_OpenField_reward_zones = dict(    ## Define the two reward zones
-                zone1 = box(-np.inf, 0.0, 30.0, ymax), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
-                zone2 = box(60.0, 0.0, 85.0, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
-                zone3 = box(120.0, 0.0, np.inf, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Right Extrema
+                zone1 = box(-np.inf, ymin, 30.0, ymax), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
+                zone2 = box(60.0, ymin, 85.0, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
+                zone3 = box(120.0, ymin, np.inf, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Right Extrema
             )
             return bapun_OpenField_reward_zones
         
@@ -257,16 +259,42 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         """
         session.neurons = Neurons.from_file(filepath)
 
-
         return session
+
     @classmethod
     def _load_probegroup_file(cls, filepath, session): # .probegroup
         session.probegroup = ProbeGroup.from_file(filepath)
         return session
+
     @classmethod
     def _load_position_file(cls, filepath, session): # .position
         session.position = Position.from_file(filepath)
+
+        ## the traces ['x', 'y'] should have the highest range in them, with 'z' being minimal. If 'z' has higheer variance than 'y' and the session identifier is matching, swap them before continuing
+        """
+        # Can check with:
+            pos_df = curr_active_pipeline.filtered_sessions['maze_GLOBAL'].position.df.copy()
+            pos_df.plot(x='t', y=['x', 'y', 'z'])
+        """
+        pos_df: pd.DataFrame = session.position.df.copy()
+
+        y_ptp: float = np.ptp(pos_df['y'].to_numpy())
+        z_ptp: float = np.ptp(pos_df['z'].to_numpy())
+        needs_variable_swap: bool = (z_ptp > y_ptp)
+
+        if needs_variable_swap:
+            ## swap 'y' and 'z' columns
+            pos_df = pos_df.rename(columns={'y': 'z', 'z':'y'}, inplace=False)
+            session.position.df = pos_df ## assignment okay or need private member?
+            # session.position._df = pos_df ## assignment okay or need private member?
+
+            ## perform save differences to file if possible
+            session.position.filename = session.filePrefix.with_suffix('.position.npy')
+            session.position.save()
+
         return session
+
+
     @classmethod
     def _load_paradigm_file(cls, filepath, session): # .paradigm
         session.paradigm = Epoch.from_file(filepath)  # "epoch" field of file
