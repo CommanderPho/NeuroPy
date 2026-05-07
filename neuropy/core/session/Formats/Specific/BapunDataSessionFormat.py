@@ -275,7 +275,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
     @classmethod
     def _subfn_FIXUP_Bapun_RatU_paradigm_epoch_times(cls, curr_paradigm_df: pd.DataFrame, start_col: str = 'start', stop_col: str = 'stop') -> pd.DataFrame:
-        """ fixes epoch times given manually observed corrections 
+        """ 2025-05-06 - fixes epoch times given manually observed corrections 
         """
 
         roam_row_idx: int = np.where(curr_paradigm_df['label'] == 'roam')[0][0]
@@ -381,8 +381,8 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             
         elif (is_bapun_RatUDay5OpenfieldSD_sess and needs_update):
             
-            if not hasattr(curr_active_pipeline.sess, '_BAK_paradigm'):
-                curr_active_pipeline.sess._BAK_paradigm = deepcopy(curr_active_pipeline.sess.paradigm) ## make backup of existing epochs/paradigm
+            # if not hasattr(curr_active_pipeline.sess, '_BAK_paradigm'):
+            #     curr_active_pipeline.sess._BAK_paradigm = deepcopy(curr_active_pipeline.sess.paradigm) ## make backup of existing epochs/paradigm
                 
             ## INPUTS: bapun_epochs_df
             # curr_paradigm_df: pd.DataFrame = bapun_epochs_df # ensure_dataframe(curr_active_pipeline.sess.paradigm)
@@ -390,6 +390,42 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             bapun_epochs_df
 
             
+            # Save/Set/Etc copied from notebook
+            # did_change: bool = np.all(curr_active_pipeline.sess._BAK_paradigm != curr_paradigm_df)
+            # # did_change: bool = np.all(curr_active_pipeline.sess.paradigm != curr_paradigm_df)
+
+            # ## did_change
+            # print(f'did_change: {did_change}')
+            # if did_change:
+                
+            #     def get_resolved_paradigm_path(sess) -> Path:
+            #         return sess.basepath.joinpath(f'{sess.session_name}.paradigm.npy').resolve()
+
+            #     # paradigm_path = getattr(curr_active_pipeline.sess.paradigm, "filename", None)
+            #     fn = getattr(curr_active_pipeline.sess.paradigm, "filename", None)
+            #     paradigm_path = Path(fn).resolve() if fn is not None else get_resolved_paradigm_path(curr_active_pipeline.sess)
+            #     ## just replace path
+            #     print(f'paradigm_path: "{paradigm_path.as_posix()}"')
+
+            #     backup_path = paradigm_path.with_suffix(paradigm_path.suffix + ".pre_edit.bak")  # e.g. *.npy.pre_edit.bak
+            #     if paradigm_path.is_file() and not backup_path.is_file():
+            #         print(f'creating backup of original paradigm file: "{paradigm_path}" -> "{backup_path}"...')
+            #         shutil.copy2(paradigm_path, backup_path)
+            #         print(f'\tdone.')
+
+            #     # ==================================================================================================================================================================================================================================================================================== #
+            #     # overwrite the old value:                                                                                                                                                                                                                                                             #
+            #     # ==================================================================================================================================================================================================================================================================================== #
+            #     curr_active_pipeline.sess.paradigm = curr_paradigm_df
+            #     # curr_active_pipeline.sess.epochs = curr_paradigm_df
+
+            #     ## INPUTS: paradigm_path
+            #     # paradigm_path = Path(r"...") / f"{curr_active_pipeline.sess.session_name}.paradigm.npy"  # or sess.config.resolved path to that file
+            #     modified = Epoch(curr_paradigm_df.copy())  # validates/normalizes via Epoch ctor
+            #     modified.metadata = getattr(curr_active_pipeline.sess.paradigm, "metadata", None)
+            #     modified.filename = paradigm_path.resolve()    
+            #     modified.save(status_print=True)
+                
 
 
 
