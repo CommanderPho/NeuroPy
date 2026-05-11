@@ -767,3 +767,65 @@ class OptitrackIO:
         return pos_obj
     
 
+    @classmethod
+    def post_hoc_try_load_optitrack_head_directions(cls, curr_active_pipeline) -> "OptitrackIO":
+        """ 
+        from neuropy.io.optitrackio import OptitrackIO, posfromCSV
+        
+        _opti: "OptitrackIO" = OptitrackIO.post_hoc_try_load_optitrack_head_directions(curr_active_pipeline=curr_active_pipeline)
+
+        """
+        from pyphocorehelpers.Filesystem.path_helpers import find_first_extant_path
+
+        # csv_path = curr_active_pipeline.sess.basepath / "Raw_data" / "position" / "CSV"
+        # csv_path = curr_active_pipeline.sess.basepath / "position" / "CSV"
+        csv_path = find_first_extant_path([(curr_active_pipeline.sess.basepath / "position" / "CSV"), (curr_active_pipeline.sess.basepath / "Raw_data" / "position" / "CSV"), (curr_active_pipeline.sess.basepath / "position"), (curr_active_pipeline.sess.basepath / "Raw_data" / "position")])
+        assert csv_path.exists(), f"csv_path: {csv_path}"
+        take_files = sorted(csv_path.glob("Take *.csv"))
+        print(take_files)
+
+        # # Re-parse from disk (fast, only reads the CSVs you already have)
+        _opti: "OptitrackIO" = cls(dirname=csv_path)  # or pass override_included_csv_files=...
+        # # rot_df = _opti.to_dataframe()          # has 't', 'rx', 'ry', 'rz' (and 'rw' for quaternion)
+        # pos_obj = curr_active_pipeline.sess.position
+        # pos_obj = _opti.updating_position_obj(pos_obj)
+
+        ## INPUTS: _opti
+
+        ## full session:
+        pos_obj = curr_active_pipeline.sess.position
+        pos_obj = _opti.updating_position_obj(pos_obj)
+        curr_active_pipeline.sess.position = pos_obj
+        pos_df = pos_obj.to_dataframe()
+        pos_df
+
+        ## TODO: Should save out to the position.npy file:
+        pos_out_file_path: Path = pos_obj.filename
+        filename: str = pos_out_file_path.name ## just the file's name
+
+
+        desired_out_pos_file_path: Path = curr_active_pipeline.sess.basepath.joinpath(filename)
+        print(f'{desired_out_pos_file_path}')
+
+        pos_obj.filename = desired_out_pos_file_path ## update the pos_obj's file path
+
+        print(f'saving updated positions out to pos_out_filename: {pos_out_file_path}...')
+        try:
+            pos_obj.save() ## save it out to the positions.npy file
+            print(f'\fdone.')
+            
+        except FileNotFoundError as err:
+            print(f'err: {err} file has wrong parent path. Fixing...')
+
+        except PermissionError as err:
+            print(f'err: {err}. skipping saving to file.')
+            
+
+        ## update filtered sessions
+        for k, sess in curr_active_pipeline.filtered_sessions.items():
+            pos_obj = sess.position
+            pos_obj = _opti.updating_position_obj(pos_obj)
+            sess.position = pos_obj
+
+
+        return _opti

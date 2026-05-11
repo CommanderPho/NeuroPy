@@ -132,20 +132,43 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 zone2 = box(65.0, 0.0, xmax, 45.0), # box(minx, miny, maxx, maxy, ccw=True)
             )
             return bapun_Day4OpenField_reward_zones
+        
+
+        # bapun_open_field_grid_bin_bounds_rat_U = (((0.0, 142.0), (0.0, 30.0)))
+        bapun_open_field_grid_bin_bounds_rat_U = (((0.0, 142.0), (-35.0, 175.0)))
+        
+        def _subfn_rat_U_Day5OpenfieldSD_reward_zones(session) -> Dict[str, Polygon]:
+            """ captures: None """
+            # xmin: float = -109.52
+            # xmax: float = 92.963
+            ymin: float = -35.0
+            # ymax: float = 30.0 ## 30 is liberal, but 20.0 is more than enough
+            ymax: float = 175.0
+
+            bapun_OpenField_reward_zones = dict(    ## Define the two reward zones
+                zone1 = box(-np.inf, ymin, 30.0, ymax), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
+                zone2 = box(60.0, ymin, 85.0, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
+                zone3 = box(120.0, ymin, np.inf, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Right Extrema
+            )
+            return bapun_OpenField_reward_zones
+        
 
 
         # Custom Lap Building Functions ______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
         def _subfn_rat_N_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones(session):
             """ captures: cls, _subfn_rat_N_Day4Openfield_reward_zones """
             bapun_Day4OpenField_reward_zones = _subfn_rat_N_Day4Openfield_reward_zones(session=session)
-            return cls.build_Bapun_Day4OpenField_laps_from_reward_zones(session=session, bapun_Day4OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
-
-
+            return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
 
         def _subfn_rat_K_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones(session):
             """ captures: cls, _subfn_rat_K_Day4Openfield_reward_zones """
             bapun_Day4OpenField_reward_zones = _subfn_rat_K_Day4Openfield_reward_zones(session=session)
-            return cls.build_Bapun_Day4OpenField_laps_from_reward_zones(session=session, bapun_Day4OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+            return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+
+        def _subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones(session):
+            """ captures: cls, _subfn_rat_U_Day5OpenfieldSD_reward_zones """
+            bapun_OpenField_reward_zones = _subfn_rat_U_Day5OpenfieldSD_reward_zones(session=session)
+            return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_OpenField_reward_zones)
 
 
 
@@ -162,12 +185,19 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 # decoder_building_session_names=['maze', 'sprinkle', 'maze_GLOBAL'],
                 decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
-                # non_global_activity_session_names=['maze', 'sprinkle'],
                 non_global_activity_session_names=['roam', 'sprinkle'],
-                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=cls.build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds_rat_U,
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_U_Day5OpenfieldSD_reward_zones, custom_lap_estimation_fn=_subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
-            ),      
+            ),
+            IdentifyingContext(format_name= 'bapun', animal= 'RatU', session_name= 'Day5OpenfieldSD'): HardcodedProcessingParameters( ## #TODO 2026-05-06 06:11: - [ ] Note this is a purposeful repeat of the above entry, but for the renamed session_name (without "RatU" part. 
+                decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['roam', 'sprinkle'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds_rat_U,
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_U_Day5OpenfieldSD_reward_zones, custom_lap_estimation_fn=_subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
+            ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day4Openfield'): HardcodedProcessingParameters(
                 # decoder_building_session_names=['maze', 'sprinkle', 'maze_GLOBAL'],
                 decoder_building_session_names=['maze'],
@@ -228,21 +258,81 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         """
         session.neurons = Neurons.from_file(filepath)
 
-
         return session
+
     @classmethod
     def _load_probegroup_file(cls, filepath, session): # .probegroup
         session.probegroup = ProbeGroup.from_file(filepath)
         return session
+
     @classmethod
     def _load_position_file(cls, filepath, session): # .position
         session.position = Position.from_file(filepath)
+
+        ## the traces ['x', 'y'] should have the highest range in them, with 'z' being minimal. If 'z' has higheer variance than 'y' and the session identifier is matching, swap them before continuing
+        """
+        # Can check with:
+            pos_df = curr_active_pipeline.filtered_sessions['maze_GLOBAL'].position.df.copy()
+            pos_df.plot(x='t', y=['x', 'y', 'z'])
+        """
+        pos_df: pd.DataFrame = session.position.df.copy()
+
+        y_ptp: float = np.ptp(pos_df['y'].to_numpy())
+        z_ptp: float = np.ptp(pos_df['z'].to_numpy())
+        needs_variable_swap: bool = (z_ptp > y_ptp)
+
+        if needs_variable_swap:
+            ## swap 'y' and 'z' columns
+            pos_df = pos_df.rename(columns={'y': 'z', 'z':'y'}, inplace=False)
+            session.position.df = pos_df ## assignment okay or need private member?
+            # session.position._df = pos_df ## assignment okay or need private member?
+
+            ## perform save differences to file if possible
+            session.position.filename = session.filePrefix.with_suffix('.position.npy')
+            session.position.save()
+
         return session
+
+
     @classmethod
     def _load_paradigm_file(cls, filepath, session): # .paradigm
         session.paradigm = Epoch.from_file(filepath)  # "epoch" field of file
         return session
     
+
+    @classmethod
+    def _subfn_FIXUP_Bapun_RatU_paradigm_epoch_times(cls, curr_paradigm_df: pd.DataFrame, start_col: str = 'start', stop_col: str = 'stop') -> pd.DataFrame:
+        """ 2025-05-06 - fixes epoch times given manually observed corrections 
+        """
+
+        roam_row_idx: int = np.where(curr_paradigm_df['label'] == 'roam')[0][0]
+        sprinkle_row_idx: int = np.where(curr_paradigm_df['label'] == 'sprinkle')[0][0]
+
+        ## 2026-05-06 - Corrected roam/sprinkle start and end times
+        corrected_paradigm_epoch_records = [
+            ['roam', 8031, 10421],
+            ['sprinkle', 10477, 11745],
+        ]
+        corrected_paradigm_epoch_df: pd.DataFrame = pd.DataFrame.from_records(corrected_paradigm_epoch_records, columns=['label', start_col, stop_col])
+        # corrected_paradigm_epoch_df
+
+        curr_paradigm_df.iat[roam_row_idx, 0] = corrected_paradigm_epoch_df[corrected_paradigm_epoch_df['label'] == 'roam'][start_col].iloc[0]
+        curr_paradigm_df.iat[roam_row_idx, 1] = corrected_paradigm_epoch_df[corrected_paradigm_epoch_df['label'] == 'roam'][stop_col].iloc[0]
+
+        curr_paradigm_df.iat[sprinkle_row_idx, 0] = corrected_paradigm_epoch_df[corrected_paradigm_epoch_df['label'] == 'sprinkle'][start_col].iloc[0]
+        curr_paradigm_df.iat[sprinkle_row_idx, 1] = corrected_paradigm_epoch_df[corrected_paradigm_epoch_df['label'] == 'sprinkle'][stop_col].iloc[0]
+
+        duration_col_name = 't_duration' if 't_duration' in curr_paradigm_df.columns else 'duration'
+        curr_paradigm_df[duration_col_name] = curr_paradigm_df[stop_col] - curr_paradigm_df[start_col]
+
+        curr_paradigm_df = curr_paradigm_df.reset_index(drop=True, inplace=False)
+        # _time_column_name_synonyms = {"start":{'begin','start','start_t'},
+        #     'stop':['end','stop','stop_t'],
+        #     "t_duration":['duration'],
+        # }
+        # curr_paradigm_df = TimeColumnAliasesProtocol.renaming_synonym_columns_if_needed(df=curr_paradigm_df, required_columns_synonym_dict=_time_column_name_synonyms)
+
+        return curr_paradigm_df
 
 
     @classmethod
@@ -281,7 +371,8 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         if curr_sess_context is not None:
             is_bapun_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'Day4OpenField'}) ## all must match, 'animal': 'RatN'
             is_bapun_ratK_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatK', 'session_name': 'Day4Openfield'}) ## all must match, 'animal': 'RatK'
-            is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'RatUDay5OpenfieldSD'}) ## all must match, 'animal': 'RatN'
+            # is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'RatUDay5OpenfieldSD'}) ## all must match, 'animal': 'RatN'
+            is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatU', 'session_name': ['RatUDay5OpenfieldSD', 'Day5OpenfieldSD']}) ## all must match, 'animal': 'RatU'
 
             if is_bapun_ratK_Day4OpenField_sess:
                 assert (len(bapun_epochs_df) == 3), f"{len(bapun_epochs_df)}"
@@ -299,7 +390,8 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 needs_update = (len(bapun_epochs_df) >= 6) and ('roam' not in bapun_epochs_df['label'].to_list())
 
 
-        if ((is_bapun_Day4OpenField_sess or is_bapun_RatUDay5OpenfieldSD_sess) and needs_update):
+        # if ((is_bapun_Day4OpenField_sess or is_bapun_RatUDay5OpenfieldSD_sess) and needs_update):
+        if (is_bapun_Day4OpenField_sess and needs_update):
             ## Applicable to Day4OpenField only: add the 'roam' row if it doesn't already exist
             # bapun_epochs_arr = bapun_epochs_df.to_numpy()
             # new_roam_row = [bapun_epochs_arr[1, 0], (bapun_epochs_arr[2, 0]-1), 'roam', 0.0] # ['start', 'stop', 'label', 'duration']
@@ -313,6 +405,56 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             bapun_epochs_df.loc[(bapun_epochs_df['label'] == 'roam'), 'stop'] = (bapun_epochs_df[bapun_epochs_df['label'] == 'sprinkle']['start'].item() - 1e-6)  # make sure 'roam' row doesn't overlap the 'sprinkle' row
             bapun_epochs_df[['start', 'stop', 'duration']] = bapun_epochs_df[['start', 'stop', 'duration']].astype(float)
             bapun_epochs_df['duration'] = bapun_epochs_df['stop'] - bapun_epochs_df['start'] ## recompute duration
+            
+        elif (is_bapun_RatUDay5OpenfieldSD_sess and needs_update):
+            
+            # if not hasattr(curr_active_pipeline.sess, '_BAK_paradigm'):
+            #     curr_active_pipeline.sess._BAK_paradigm = deepcopy(curr_active_pipeline.sess.paradigm) ## make backup of existing epochs/paradigm
+                
+            ## INPUTS: bapun_epochs_df
+            # curr_paradigm_df: pd.DataFrame = bapun_epochs_df # ensure_dataframe(curr_active_pipeline.sess.paradigm)
+            bapun_epochs_df = cls._subfn_FIXUP_Bapun_RatU_paradigm_epoch_times(curr_paradigm_df=bapun_epochs_df)
+            bapun_epochs_df
+
+            
+            # Save/Set/Etc copied from notebook
+            # did_change: bool = np.all(curr_active_pipeline.sess._BAK_paradigm != curr_paradigm_df)
+            # # did_change: bool = np.all(curr_active_pipeline.sess.paradigm != curr_paradigm_df)
+
+            # ## did_change
+            # print(f'did_change: {did_change}')
+            # if did_change:
+                
+            #     def get_resolved_paradigm_path(sess) -> Path:
+            #         return sess.basepath.joinpath(f'{sess.session_name}.paradigm.npy').resolve()
+
+            #     # paradigm_path = getattr(curr_active_pipeline.sess.paradigm, "filename", None)
+            #     fn = getattr(curr_active_pipeline.sess.paradigm, "filename", None)
+            #     paradigm_path = Path(fn).resolve() if fn is not None else get_resolved_paradigm_path(curr_active_pipeline.sess)
+            #     ## just replace path
+            #     print(f'paradigm_path: "{paradigm_path.as_posix()}"')
+
+            #     backup_path = paradigm_path.with_suffix(paradigm_path.suffix + ".pre_edit.bak")  # e.g. *.npy.pre_edit.bak
+            #     if paradigm_path.is_file() and not backup_path.is_file():
+            #         print(f'creating backup of original paradigm file: "{paradigm_path}" -> "{backup_path}"...')
+            #         shutil.copy2(paradigm_path, backup_path)
+            #         print(f'\tdone.')
+
+            #     # ==================================================================================================================================================================================================================================================================================== #
+            #     # overwrite the old value:                                                                                                                                                                                                                                                             #
+            #     # ==================================================================================================================================================================================================================================================================================== #
+            #     curr_active_pipeline.sess.paradigm = curr_paradigm_df
+            #     # curr_active_pipeline.sess.epochs = curr_paradigm_df
+
+            #     ## INPUTS: paradigm_path
+            #     # paradigm_path = Path(r"...") / f"{curr_active_pipeline.sess.session_name}.paradigm.npy"  # or sess.config.resolved path to that file
+            #     modified = Epoch(curr_paradigm_df.copy())  # validates/normalizes via Epoch ctor
+            #     modified.metadata = getattr(curr_active_pipeline.sess.paradigm, "metadata", None)
+            #     modified.filename = paradigm_path.resolve()    
+            #     modified.save(status_print=True)
+                
+
+
 
         if enable_global_epoch:
             # maze_epochs_df = deepcopy(curr_active_pipeline.sess.epochs).to_dataframe()
@@ -647,7 +789,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
 
     @classmethod
-    def build_Bapun_Day4OpenField_laps_from_reward_zones(cls, session, bapun_Day4OpenField_reward_zones: Dict=None):
+    def build_Bapun_OpenField_laps_from_reward_zones(cls, session, bapun_OpenField_reward_zones: Dict=None):
         """ builds correct laps (transitions between the two reward zones on the open field maze for the 'roam' experiment
         
         session = curr_active_pipeline.filtered_sessions['roam']
@@ -655,7 +797,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         """            
         from neuropy.core import Laps
 
-        if bapun_Day4OpenField_reward_zones is None:
+        if bapun_OpenField_reward_zones is None:
             ## define default reward zones:
             xmin: float = -85.75619321393464
             xmax: float = 112.57838773103435
@@ -663,14 +805,14 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             ymax: float = 98.6220528078153
             bapun_Day4OpenField_grid_bin_bounds = box(xmin, ymin, xmax, ymax)
 
-            bapun_Day4OpenField_reward_zones = dict(    ## Define the two reward zones
+            bapun_OpenField_reward_zones = dict(    ## Define the two reward zones
                 zone1 = box(xmin, 0.0, -60.0, 40.0),  # box(minx, miny, maxx, maxy, ccw=True)
                 zone2 = box(80.0, 0.0, xmax, 40.0), # box(minx, miny, maxx, maxy, ccw=True)
             )
 
 
         pos: Position = session.position
-        laps_obj, pos = cls._perform_build_Bapun_Day4OpenField_laps_from_reward_zones(pos=pos, bapun_Day4OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+        laps_obj, pos = cls._perform_build_Bapun_Day4OpenField_laps_from_reward_zones(pos=pos, bapun_Day4OpenField_reward_zones=bapun_OpenField_reward_zones)
         ## Update the current session
         session.position = pos
         session.laps = laps_obj
