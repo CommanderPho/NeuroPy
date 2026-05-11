@@ -185,10 +185,9 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 # decoder_building_session_names=['maze', 'sprinkle', 'maze_GLOBAL'],
                 decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
-                # non_global_activity_session_names=['maze', 'sprinkle'],
                 non_global_activity_session_names=['roam', 'sprinkle'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds_rat_U,
-                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=_subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_U_Day5OpenfieldSD_reward_zones, custom_lap_estimation_fn=_subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatU', session_name= 'Day5OpenfieldSD'): HardcodedProcessingParameters( ## #TODO 2026-05-06 06:11: - [ ] Note this is a purposeful repeat of the above entry, but for the renamed session_name (without "RatU" part. 
@@ -196,7 +195,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['roam', 'sprinkle'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds_rat_U,
-                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=_subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_U_Day5OpenfieldSD_reward_zones, custom_lap_estimation_fn=_subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day4Openfield'): HardcodedProcessingParameters(
