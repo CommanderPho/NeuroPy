@@ -1800,12 +1800,8 @@ epochs_df
         """
         all_epoch_names = list(self.get_unique_labels()) # all_epoch_names # ['maze1', 'maze2']
         if global_epoch_name in all_epoch_names:
-            global_epoch_name = f"{global_epoch_name}_GLOBAL"
-            print(f'WARNING: name collision "{global_epoch_name}" already exists in all_epoch_names: {all_epoch_names}! Using {global_epoch_name} instead.')
-            if (global_epoch_name in all_epoch_names):
-                print(F'\t\tDOUBLE-WARNING: already had the _GLOBAL suffixed one too! Skipping and returning unaltered!')
-                return self._obj
-                
+            print(f'adding_global_epoch_row: skipping, label {global_epoch_name!r} already in epochs (names={all_epoch_names}).')
+            return self._obj
 
         if (included_epoch_names is not None) and (len(included_epoch_names) >= 2):
             ## valid
@@ -2091,7 +2087,7 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
             
         else:
             return np.vstack((self.starts[slice_], self.stops[slice_])).T
-
+            
 
     def adding_global_epoch_row(self, global_epoch_name='maze_GLOBAL', first_included_epoch_name=None, last_included_epoch_name=None, included_epoch_names=None, inplace: bool=False) -> "Epoch":
         """ builds the 'global' epoch row for the entire session that includes by default the times from all other epochs in epochs_df. 
