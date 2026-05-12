@@ -145,11 +145,18 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             # ymax: float = 30.0 ## 30 is liberal, but 20.0 is more than enough
             ymax: float = 175.0
 
+            # bapun_OpenField_reward_zones = dict(    ## Define the two reward zones
+            #     zone1 = box(-np.inf, ymin, 30.0, ymax), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
+            #     zone2 = box(60.0, ymin, 85.0, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
+            #     zone3 = box(120.0, ymin, np.inf, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Right Extrema
+            # )
+
             bapun_OpenField_reward_zones = dict(    ## Define the two reward zones
-                zone1 = box(-np.inf, ymin, 30.0, ymax), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
-                zone2 = box(60.0, ymin, 85.0, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
-                zone3 = box(120.0, ymin, np.inf, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Right Extrema
+                zone1 = box(64.0, ymin, 84.0, -6.0), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
+                zone2 = box(60.0, 148.0, 75.0, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
+                zone3 = box(118.0, 146.0, np.inf, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Right Extrema
             )
+            
             return bapun_OpenField_reward_zones
         
 
