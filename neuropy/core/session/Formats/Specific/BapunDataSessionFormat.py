@@ -52,6 +52,65 @@ Day5TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollection(sh
 )   
 
 
+def plot_shapely_maze(grid_bin_bounds: Tuple[Tuple[float, float], Tuple[float, float]], reward_zones_dict: Dict[str, Polygon], ax=None):
+    """ plots the generic shapely maze extracted from the hardcoded parameters for this session
+
+    Usage:
+    
+        from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
+        from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass
+
+        hardcoded_params: HardcodedProcessingParameters = BapunDataSessionFormatRegisteredClass._get_session_specific_parameters(session_context=curr_active_pipeline.get_session_context())
+        active_reward_zones_dict = hardcoded_params.lap_estimation_parameters['reward_zones'](curr_active_pipeline.filtered_sessions['roam'])
+        _out = plot_shapely_maze(grid_bin_bounds=hardcoded_params.grid_bin_bounds, 
+                                reward_zones_dict=active_reward_zones_dict,
+                                ax=None)
+                                
+    """
+    from shapely import box, Polygon
+    from shapely.geometry import LineString, Point
+    from shapely.plotting import plot_polygon, patch_from_polygon
+
+    grid_bin_bounds_box = None
+    if not isinstance(grid_bin_bounds, Polygon):
+        ## convert to a polygon
+        if len(grid_bin_bounds) == 2:
+            # min_tuple, max_tuple = grid_bin_bounds ## unpack
+            # xmin, ymin = min_tuple
+            # xmax, ymax = max_tuple
+            x_tuple, y_tuple = grid_bin_bounds ## unpack
+            xmin, xmax = x_tuple
+            ymin, ymax = y_tuple
+            grid_bin_bounds_box = box(xmin, ymin, xmax, ymax)
+        elif len(grid_bin_bounds) == 4:
+            xmin, ymin, xmax, ymax = grid_bin_bounds ## unpack directly
+            grid_bin_bounds_box = box(xmin, ymin, xmax, ymax)
+            
+        else:
+            raise ValueError(f'grid_bin_bounds is unexpected format: {grid_bin_bounds}')
+    else:
+        grid_bin_bounds_box = grid_bin_bounds ## already a box or Polygon object
+                
+            
+    _out = {'maze': None, 'reward_zones': {}}
+
+    ## Plot maze sections:
+    if ax is None:
+        fig, ax = plt.subplots(1, 1)
+        _out['fig'] = fig
+        _out['ax'] = ax
+    else:
+        _out['ax'] = ax
+            
+    _out['maze'] = plot_polygon(grid_bin_bounds_box, ax=ax, color='darkgrey', add_points=False)
+    # perform_update_title_subtitle(
+    for k, a_zone in reward_zones_dict.items():
+        _out['reward_zones'][k] = plot_polygon(a_zone, ax=ax, color='orange', add_points=False)
+
+    return _out
+
+
+
 class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     """
 
@@ -154,7 +213,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             bapun_OpenField_reward_zones = dict(    ## Define the two reward zones
                 zone1 = box(64.0, ymin, 84.0, -6.0), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
                 zone2 = box(60.0, 148.0, 75.0, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
-                zone3 = box(118.0, 146.0, np.inf, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Right Extrema
+                zone3 = box(118.0, 146.0, 140.0, ymax), # box(minx, miny, maxx, maxy, ccw=True)- Right Extrema
             )
             
             return bapun_OpenField_reward_zones
@@ -242,6 +301,40 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         """ returns the session_name for this basedir, which determines the files to load. """
         # Find the only .xml file to obtain the session name
         return DataSessionFormatBaseRegisteredClass.find_session_name_from_sole_xml_file(basedir) # 'RatS-Day5TwoNovel-2020-12-04_07-55-09'
+
+
+    @classmethod
+    def build_session_basedirs_dict(cls, global_data_root_parent_path, debug_print=False) -> Dict[IdentifyingContext, Path]:
+        """Session ctx → folder under ``<global_data_root_parent_path>/Bapun``. Tries ``Animal/<on_disk_folder>`` then flat ``<on_disk_folder>`` (some drives use ``R:\\data\\Bapun\\Day5TwoNovel`` style layouts)."""
+        if not isinstance(global_data_root_parent_path, Path):
+            global_data_root_parent_path = Path(global_data_root_parent_path).resolve()
+        bapun_root = global_data_root_parent_path.joinpath('Bapun')
+        fmt = cls._session_class_name
+        # (animal, logical session_name as in IdentifyingContext, optional on-disk folder name if it differs)
+        session_specs: List[Tuple[str, str, Optional[str]]] = [
+            ('RatN', 'Day4OpenField', None),
+            ('RatU', 'Day5OpenfieldSD', None),
+            ('RatU', 'RatUDay5OpenfieldSD', 'Day5OpenfieldSD'),
+            ('RatK', 'Day4Openfield', None),
+            ('RatS', 'Day5TwoNovel', None),
+        ]
+        out: Dict[IdentifyingContext, Path] = {}
+        for animal, session_name, disk_folder in session_specs:
+            disk_folder = disk_folder or session_name
+            ctx = IdentifyingContext(format_name=fmt, animal=animal, session_name=session_name)
+            nested = bapun_root.joinpath(animal, disk_folder)
+            flat = bapun_root.joinpath(disk_folder)
+            if nested.is_dir():
+                chosen = nested
+            elif flat.is_dir():
+                chosen = flat
+            else:
+                chosen = nested
+                if debug_print:
+                    print(f'Bapun build_session_basedirs_dict: no extant folder for {ctx}; using default path {chosen}')
+            out[ctx] = chosen.resolve()
+        return out
+
 
     @classmethod
     def get_session_spec(cls, session_name):
