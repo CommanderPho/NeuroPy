@@ -350,7 +350,7 @@ class RawDataInitializationMixin:
 			n_channels = recinfo_dict.get('n_channels', n_channels)
 
 		if dat_file_sampling_rate is None:
-			dat_file_sampling_rate = recinfo_dict.get('dat_file_sampling_rate', dat_sampling_rate)
+			dat_file_sampling_rate = recinfo_dict.get('dat_file_sampling_rate', dat_file_sampling_rate)
 
 		eeg_sampling_rate: int = recinfo_dict.get('eeg_sampling_rate', 1250)
 
