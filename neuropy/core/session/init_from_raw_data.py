@@ -53,7 +53,7 @@ class RawDataInitializationMixin:
 	"""
 
 	@classmethod
-	def build_session_datetime_csv(cls, search_dir: Path, basename: str='RatS-Day1Openfield', excluded_data_datetimes: Optional[List[str]]=None, n_channels: int = 195, sampling_rate: int = 30000):
+	def build_session_datetime_csv(cls, search_dir: Path, basename: str='RatS-Day1Openfield', excluded_data_datetimes: Optional[List[str]]=None, n_channels: int = 195, sampling_rate: int = 30000, minimum_recording_duration_hours: Optional[float]=(5.0/60.0)):
 		"""
 		Recursively finds all 'settings.xml' files in search_dir and extracts their <DATE>.
 		Then tries to find the correct continuous.dat (raw recording) file, loads its nFrames and duration in hours, and then exports the dateframe to CSV in the format required by 'RatS_Day1Openfield.datetime.csv'
@@ -111,13 +111,26 @@ class RawDataInitializationMixin:
 		# Convert just the 'startTime' column to the desired string format
 		extracted_df['startTime'] = extracted_df['startTime'].dt.strftime('%Y-%m-%d_%H-%M-%S')
 		extracted_df['is_included'] = True ## all true by default
+		is_included = extracted_df['is_included'].to_numpy()
+		
 		if excluded_data_datetimes is not None:
-			is_included = np.logical_not(extracted_df['startTime'].isin(excluded_data_datetimes))
-			included_indicies = np.where(is_included)[0]
-			extracted_df['is_included'] = is_included
-			## filter out the excluded ones
-			extracted_df = extracted_df[extracted_df['is_included']].reset_index(drop=True)
-			found_raw_data_paths = [v for i, v in enumerate(found_raw_data_paths) if i in included_indicies]
+			is_included_considering_exclusions = np.logical_not(extracted_df['startTime'].isin(excluded_data_datetimes))
+			is_included = np.logical_and(is_included, is_included_considering_exclusions)
+			
+		if minimum_recording_duration_hours is not None:
+			is_included_considering_duration = (extracted_df['duration (h)'] >= minimum_recording_duration_hours)
+			is_included = np.logical_and(is_included, is_included_considering_duration)
+			duration_excluded_indicies = np.where(np.logical_not(is_included_considering_duration))[0]
+			if len(duration_excluded_indicies) > 0:
+				print(f'excluded duration_excluded_indicies: {duration_excluded_indicies} because they were shorter than minimum_recording_duration_hours: {minimum_recording_duration_hours}')
+			
+		## INPUTS: is_included
+		extracted_df['is_included'] = is_included
+		included_indicies = np.where(is_included)[0]
+
+		## filter out the excluded ones
+		extracted_df = extracted_df[extracted_df['is_included']].reset_index(drop=True)
+		found_raw_data_paths = [v for i, v in enumerate(found_raw_data_paths) if i in included_indicies]
 			
 		csv_output_path: Path = search_dir.parent
 		csv_out_path: Path = csv_output_path.joinpath(f'{basename}.datetime.csv')
@@ -220,7 +233,7 @@ class RawDataInitializationMixin:
 				
 
 	@classmethod
-	def step_perform_concat(cls, found_raw_data_paths: List[Path], spyk_circ_output_dir: Path):
+	def step_perform_concat(cls, found_raw_data_paths: List[Path], spyk_circ_output_dir: Path, basename: str='continuous_combined'):
 		""" performs the concatenation, creates the output directory if needed
 		
 
@@ -236,7 +249,7 @@ class RawDataInitializationMixin:
 		spyk_circ_output_dir.mkdir(exist_ok=True, parents=True) ## dang I sure hope we're on Windows or I'll add some garbage paths :P
 		
 		## Copy the concatenated files to the output directory
-		concatenated_file_output_path: Path = spyk_circ_output_dir.joinpath('continuous_combined.dat').resolve() ## do I need to do anything with the adjacent `timestamps.npy` or anything??
+		concatenated_file_output_path: Path = spyk_circ_output_dir.joinpath(f'{basename}.dat').resolve() ## do I need to do anything with the adjacent `timestamps.npy` or anything??
 		if not concatenated_file_output_path.exists():
 			cls.concatenate_to_output_file(input_paths=found_raw_data_paths, output_path=concatenated_file_output_path)
 		return concatenated_file_output_path
@@ -260,8 +273,6 @@ class RawDataInitializationMixin:
 			return output_process_resample_cmd
 		else:
 			return None ## not needed
-
-
 
 	@classmethod
 	def step_perform_downsample(cls, concatenated_file_output_path: Path, sampling_frequency=30000, num_chan=195, resample_rate=1250) -> Path:
@@ -296,3 +307,106 @@ class RawDataInitializationMixin:
 		# )
 		# print(f'\tdone.')
 		# return output_lfp_path
+
+
+
+	@classmethod
+	def run_all(cls, basedir: Path,
+			 basename: str = 'RatS-Day1Openfield', n_channels: int = 195, dat_file_sampling_rate: int = 30000, excluded_data_datetimes: List[str]=None,
+		):
+		""" runs all needed steps 
+
+		## Bapun Format:
+		# basedir = '/media/share/data/Bapun/Day5TwoNovel' # Linux
+		basedir: Path = Path('W:/Data/Bapun/RatS/Day1Openfield') # Windows
+		# basedir = '/Volumes/iNeo/Data/Bapun/Day5TwoNovel' # MacOS
+				
+		n_channels: int = 195
+		dat_file_sampling_rate: int = 30000
+		basename: str = 'RatS-Day1Openfield'
+		excluded_data_datetimes = ['2020-11-25_10-24-24']
+
+		
+		sess = RawDataInitializationMixin.run_all(basedir=basedir,
+			basename=basename, excluded_data_datetimes=excluded_data_datetimes, n_channels=n_channels, sampling_rate=dat_file_sampling_rate,
+		)
+		
+		
+		"""
+		from neuropy.core.session.data_session_loader import DataSessionLoader
+
+		## INPUTS: basedir
+		sess = DataSessionLoader.bapun_data_session(basedir, enable_continue_on_required_path_failure=True)
+		active_sess_config = sess.config
+	
+		if basename is None:
+			basename = sess.name
+
+		print(f'basename: {basename}')
+
+		recinfo_dict = sess.recinfo.to_dict()
+
+		if n_channels is None:
+			n_channels = recinfo_dict.get('n_channels', n_channels)
+
+		if dat_file_sampling_rate is None:
+			dat_file_sampling_rate = recinfo_dict.get('dat_file_sampling_rate', dat_sampling_rate)
+
+		eeg_sampling_rate: int = recinfo_dict.get('eeg_sampling_rate', 1250)
+
+		print(f'n_channels: {n_channels}')
+		print(f'dat_file_sampling_rate: {dat_file_sampling_rate}')
+		print(f'eeg_sampling_rate: {eeg_sampling_rate}')
+
+		raw_data_path: Path = basedir.joinpath('Raw_data')
+		assert raw_data_path.exists(), f"raw_data_path: '{raw_data_path.as_posix()}' does not exist!"
+		print(f'raw_data_path: "{raw_data_path.as_posix()}"')
+
+		## make the "spyk-circ" output directory
+		spyk_circ_output_dir: Path = basedir.joinpath('spyk-circ')
+		spyk_circ_output_dir.mkdir(exist_ok=True, parents=True) ## dang I sure hope we're on Windows or I'll add some garbage paths :P
+
+		# ## INPUTS: raw_data_path: Path # Path(r'W:/Data/Bapun/RatS/Day1Openfield/Raw_data').resolve()
+		# print(f'raw_data_path: "{raw_data_path.as_posix()}"')
+
+		# ## find all constitutent "continuous.dat" files recurrsively in all subdirectories: "W:\Data\Bapun\RatS\Day1Openfield\Raw_data\2020-11-25_10-24-24\experiment1\recording1\continuous\Rhythm_FPGA-100.0\continuous.dat"
+		# found_raw_data_paths = ["W:/Data/Bapun/RatS/Day1Openfield/Raw_data/2020-11-25_10-20-27/experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat",
+		#                         # "W:/Data/Bapun/RatS/Day1Openfield/Raw_data/2020-11-25_10-24-24/experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat", ## BAD ONE, only has 32 channels, skip
+		#                         "W:/Data/Bapun/RatS/Day1Openfield/Raw_data/2020-11-25_13-02-47/experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat",
+		#                         "W:/Data/Bapun/RatS/Day1Openfield/Raw_data/2020-11-25_14-30-32/experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat",
+		#                         "W:/Data/Bapun/RatS/Day1Openfield/Raw_data/2020-11-25_15-06-02/experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat",
+		# ]    
+		# ## *-24-24 is a bad one with only 30 good channels!
+
+		# ## Iterate through and make proper paths, check their existance
+		# found_raw_data_paths: List[Path] = [Path(v).resolve() for v in found_raw_data_paths]
+		## could assert that they all exist... but let's NOT!
+		# excluded_data_datetimes = ['2020-11-25_10-24-24']
+		
+
+		datetime_df, datetime_csv_out_path, found_raw_data_paths = cls.build_session_datetime_csv(raw_data_path, basename=basename, excluded_data_datetimes=excluded_data_datetimes,
+																												    	n_channels=n_channels, sampling_rate=dat_file_sampling_rate,
+																														)
+		datetime_df
+		found_raw_data_paths
+		
+
+
+		## Copy the concatenated files to the output directory
+		concatenated_file_output_path: Path = cls.step_perform_concat(found_raw_data_paths=found_raw_data_paths, spyk_circ_output_dir=spyk_circ_output_dir, basename=basename)
+		print(f'have concatenated_file_output_path: "{concatenated_file_output_path.as_posix()}"')
+		concatenated_file_output_path
+
+
+		# sess.eegfile ## has an EEG file object
+		output_process_resample_cmd: Optional[str] = cls.build_process_resample_command(sess, n_channels=n_channels, dat_sampling_rate_Hz=dat_file_sampling_rate, desired_eeg_sampling_rate_Hz=eeg_sampling_rate)
+		output_process_resample_cmd
+
+		## POSITIONS:
+		from neuropy.core import Position
+
+		position_csvs_path: Path = sess.basepath.joinpath('Raw_data/position/CSVs')
+		position: Position = RawDataInitializationMixin.build_initial_position_data(sess, position_csvs_path=position_csvs_path)
+		position
+
+		return sess
