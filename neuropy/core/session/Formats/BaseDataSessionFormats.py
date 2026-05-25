@@ -1,7 +1,7 @@
 import re # used in try_extract_date_from_session_name
 import param
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 from attrs import define, field, Factory, astuple, asdict, fields
@@ -531,7 +531,7 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
         return KnownDataSessionTypeProperties(load_function=(lambda a_base_dir: cls.get_session(basedir=a_base_dir, override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)), basedir=basepath)
         
     @classmethod
-    def build_session(cls, basedir, override_parameters_flat_keypaths_dict=None):
+    def build_session(cls, basedir, override_parameters_flat_keypaths_dict=None, enable_continue_on_required_path_failure: bool=False):
         basedir = Path(basedir)
         session_name = cls.get_session_name(basedir) # 'RatS-Day5TwoNovel-2020-12-04_07-55-09'
         session_context = cls.parse_session_basepath_to_context(basedir) 
@@ -541,8 +541,12 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
         # get the default preprocessing parameters:
         preprocessing_parameters = cls.build_default_preprocessing_parameters(override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
 
-        session_config = SessionConfig(basedir, format_name=format_name, session_spec=session_spec, session_name=session_name, session_context=session_context, preprocessing_parameters=preprocessing_parameters)
-        assert session_config.is_resolved, "active_sess_config could not be resolved!"
+        session_config = SessionConfig(basedir, format_name=format_name, session_spec=session_spec, session_name=session_name, session_context=session_context, preprocessing_parameters=preprocessing_parameters, enable_continue_on_required_path_failure=enable_continue_on_required_path_failure)
+        if not enable_continue_on_required_path_failure:
+            assert session_config.is_resolved, "active_sess_config could not be resolved!"
+        else:
+            print(f'ERROR: active_sess_config could not be resolved! BUT since `enable_continue_on_required_path_failure == True` continuing on anyway...')
+
         session_obj = DataSession(session_config)
         return session_obj
     
@@ -557,6 +561,8 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
             loaded_file_record_list.append(_test_xml_file_path)
         except IndexError as e:
             # No XML file can be found, so instead check for a dynamically provided rec_info
+            if debug_print:
+                print(f'No XML file in resolved required filespecs; falling back to _fallback_recinfo.')
             session = cls._fallback_recinfo(None, session)
             # raise e
                 

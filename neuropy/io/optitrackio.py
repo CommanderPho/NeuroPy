@@ -555,6 +555,22 @@ class OptitrackIO:
         z = np.interp(dt, self.datetime_array, self.z)
 
         return x, y, z
+    
+
+    def get_rotations_at_datetimes(self, dt):
+
+        rx = np.interp(dt, self.datetime_array, self.rx)
+        ry = np.interp(dt, self.datetime_array, self.ry)
+        rz = np.interp(dt, self.datetime_array, self.rz)
+
+        # For quaternion exports:
+        if self.rotation_format == "quaternion":
+            rw = np.interp(dt, self.datetime_array, self.rw)        
+            return rx, ry, rz, rw
+        else:
+            return rx, ry, rz
+
+
 
     def old_stuff(self):
         """get position data from files. All position related files should be in 'position' folder within basepath
@@ -776,10 +792,21 @@ class OptitrackIO:
 
         """
         from pyphocorehelpers.Filesystem.path_helpers import find_first_extant_path
+        
+        # is_session: bool = (hasattr(curr_active_pipeline, 'basepath') and hasattr(curr_active_pipeline, 'position'))
+        is_pipeline: bool = hasattr(curr_active_pipeline, 'sess')
+
+        if is_pipeline:
+            sess = curr_active_pipeline.sess
+        else:
+            ## have no pipeline, it is a session
+            sess = curr_active_pipeline
+            curr_active_pipeline = None
+            
 
         # csv_path = curr_active_pipeline.sess.basepath / "Raw_data" / "position" / "CSV"
         # csv_path = curr_active_pipeline.sess.basepath / "position" / "CSV"
-        csv_path = find_first_extant_path([(curr_active_pipeline.sess.basepath / "position" / "CSV"), (curr_active_pipeline.sess.basepath / "Raw_data" / "position" / "CSV"), (curr_active_pipeline.sess.basepath / "position"), (curr_active_pipeline.sess.basepath / "Raw_data" / "position")])
+        csv_path = find_first_extant_path([(sess.basepath / "position" / "CSV"), (sess.basepath / "Raw_data" / "position" / "CSV"), (sess.basepath / "position"), (sess.basepath / "Raw_data" / "position")])
         assert csv_path.exists(), f"csv_path: {csv_path}"
         take_files = sorted(csv_path.glob("Take *.csv"))
         print(take_files)
@@ -793,18 +820,17 @@ class OptitrackIO:
         ## INPUTS: _opti
 
         ## full session:
-        pos_obj = curr_active_pipeline.sess.position
+        pos_obj = sess.position
         pos_obj = _opti.updating_position_obj(pos_obj)
-        curr_active_pipeline.sess.position = pos_obj
+        sess.position = pos_obj
         pos_df = pos_obj.to_dataframe()
-        pos_df
+        
 
         ## TODO: Should save out to the position.npy file:
         pos_out_file_path: Path = pos_obj.filename
         filename: str = pos_out_file_path.name ## just the file's name
 
-
-        desired_out_pos_file_path: Path = curr_active_pipeline.sess.basepath.joinpath(filename)
+        desired_out_pos_file_path: Path = sess.basepath.joinpath(filename)
         print(f'{desired_out_pos_file_path}')
 
         pos_obj.filename = desired_out_pos_file_path ## update the pos_obj's file path
@@ -822,10 +848,11 @@ class OptitrackIO:
             
 
         ## update filtered sessions
-        for k, sess in curr_active_pipeline.filtered_sessions.items():
-            pos_obj = sess.position
-            pos_obj = _opti.updating_position_obj(pos_obj)
-            sess.position = pos_obj
+        if curr_active_pipeline is not None:
+            for k, sess in curr_active_pipeline.filtered_sessions.items():
+                pos_obj = sess.position
+                pos_obj = _opti.updating_position_obj(pos_obj)
+                sess.position = pos_obj
 
 
         return _opti

@@ -113,7 +113,8 @@ class SessionFolderSpec:
         resolved_optional_filespecs_dict = {a_file_spec.resolved_path(proposed_session_path):a_file_spec for a_file_spec in self.optional_files}
         return resolved_required_filespecs_dict, resolved_optional_filespecs_dict
         
-    def validate(self, proposed_session_path):
+
+    def validate(self, proposed_session_path, enable_continue_on_required_path_failure: bool=True):
         """Check whether the proposed_session_path meets this folder spec's requirements
         Args:
             proposed_session_path ([Path]): [description]
@@ -130,21 +131,31 @@ class SessionFolderSpec:
             # the path exists:
             for a_required_filepath, a_file_spec in resolved_required_filespecs_dict.items():
                 if not a_required_filepath.exists():
-                    meets_spec = False                    
-                    raise RequiredFileError(f'Required File: {a_required_filepath} does not exist.', (a_required_filepath, a_file_spec))
-                    break
+                    meets_spec = False
+                    if not enable_continue_on_required_path_failure:
+                        raise RequiredFileError(f'Required File: {a_required_filepath} does not exist.', (a_required_filepath, a_file_spec))
+                        break
+                    else:
+                        print(f'ERROR: Required File: {a_required_filepath} does not exist BUT `enable_continue_on_required_path_failure == True` so trying to continue...')
+                        
             for a_required_validation_function in self.additional_validation_requirements:
                 if not a_required_validation_function(Path(proposed_session_path)):
                     # print('Required additional_validation_requirements[i]({}) returned False'.format(proposed_session_path))
                     meets_spec = False
-                    raise RequiredValidationFailedError(f'Required additional_validation_requirements[i]({proposed_session_path}) returned False', a_required_validation_function)
-                    break
-                
+                    if not enable_continue_on_required_path_failure:
+                        raise RequiredValidationFailedError(f'Required additional_validation_requirements[i]({proposed_session_path}) returned False', a_required_validation_function)
+                        break
+                    else:
+                        print(f'ERROR: Required additional_validation_requirements[i]({proposed_session_path}) returned False (for a_required_validation_function: `{a_required_validation_function}`) BUT `enable_continue_on_required_path_failure == True` so trying to continue...')
+
+
             for an_optional_filepath, a_file_spec in resolved_optional_filespecs_dict.items():
                 if not an_optional_filepath.exists():
                     print(f'WARNING: Optional File: "{an_optional_filepath}" does not exist. Continuing without it.')
                     
-            meets_spec = True # otherwise it exists
+            ## TODO: allow setting `meets_spec = True` even when it doesn't? Probably not.
+            if (not enable_continue_on_required_path_failure):
+                meets_spec = True # otherwise it exists
             
         return meets_spec, resolved_required_filespecs_dict, resolved_optional_filespecs_dict
     
@@ -157,6 +168,7 @@ class SessionFolderSpec:
 # ])
 
 
+enable_continue_on_required_path_failure: bool = True
 
 @define(slots=False, repr=False, str=False)
 class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
@@ -204,6 +216,7 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
     is_resolved: bool = field(default=False) # init=False, 
     resolved_required_filespecs_dict: dict = field(default=Factory(dict)) # , init=False
     resolved_optional_filespecs_dict: dict = field(default=Factory(dict)) # , init=False
+    enable_continue_on_required_path_failure: bool = field(default=False)
 
     additional_metadata: Dict = field(default=Factory(dict), metadata={'desc': "optional dict to hold additional metadata without adding new fields. Contents must be picklable.", 'field_added_date':"2025.02.19_0"})
 
@@ -221,12 +234,12 @@ class SessionConfig(SimplePrintable, metaclass=OrderedMeta):
 
     def __attrs_post_init__(self):
         # Computed variables:
-        self.is_resolved, self.resolved_required_filespecs_dict, self.resolved_optional_filespecs_dict = self.session_spec.validate(self.basepath)
+        self.is_resolved, self.resolved_required_filespecs_dict, self.resolved_optional_filespecs_dict = self.session_spec.validate(self.basepath, enable_continue_on_required_path_failure=self.enable_continue_on_required_path_failure)
 
 
     def validate(self):
         """ re-validates the self.session_spec items and updates the resolved dicts """
-        self.is_resolved, self.resolved_required_filespecs_dict, self.resolved_optional_filespecs_dict = self.session_spec.validate(self.basepath)
+        self.is_resolved, self.resolved_required_filespecs_dict, self.resolved_optional_filespecs_dict = self.session_spec.validate(self.basepath, enable_continue_on_required_path_failure=self.enable_continue_on_required_path_failure)
 
 
     def to_dict(self):
