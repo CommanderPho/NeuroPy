@@ -89,8 +89,16 @@ class RawDataInitializationMixin:
 					
 					## Got the datetime, great start! Get the .dat file
 					a_parent_recording_folder: Path = file_path.parent
-					a_binary_file_path: Path = a_parent_recording_folder.joinpath('experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat')
+					# a_binary_file_path: Path = a_parent_recording_folder.joinpath('experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat') # '/home/halechr/FastData/Bapun/RatS/Day4Openfield/Raw_data/2020-12-02_14-46-16/experiment1/recording1/continuous/Intan_Rec._Controller-100.0/continuous.dat'
+					
+					found_binary_file_paths: List[Path] = [file_path for file_path in a_parent_recording_folder.rglob('continuous.dat') if (file_path.exists() and file_path.is_file)]
+					assert (len(found_binary_file_paths) > 0), f'ERROR: found no valid continuous.dat files in the subdirectory: "{a_parent_recording_folder.as_posix()}"!!'
+					if len(found_binary_file_paths) > 1:
+						print(f'WARNING: found multiple continuous.dat files in the subdirectory: "{a_parent_recording_folder.as_posix()}"\n\tfound_binary_file_paths: {found_binary_file_paths}\n\tusing the FIRST.')
+
+					a_binary_file_path: Path = found_binary_file_paths[0]
 					assert (a_binary_file_path.exists() and a_binary_file_path.is_file()), f"a_binary_file_path: {a_binary_file_path} does not exist!"
+
 					found_raw_data_paths.append(a_binary_file_path)
 
 					## Use `BinarysignalIO` to extract the signal duration information from the raw files
@@ -223,7 +231,7 @@ class RawDataInitializationMixin:
 	
 
 	@classmethod
-	def concatenate_to_output_file(input_paths: List[Path], output_path: Path):
+	def concatenate_to_output_file(cls, input_paths: List[Path], output_path: Path):
 		""" concatenates the binary files in input_paths to a single joined output_path. 
 		"""
 		with open(output_path, "wb") as outfile:
@@ -350,7 +358,7 @@ class RawDataInitializationMixin:
 			n_channels = recinfo_dict.get('n_channels', n_channels)
 
 		if dat_file_sampling_rate is None:
-			dat_file_sampling_rate = recinfo_dict.get('dat_file_sampling_rate', dat_file_sampling_rate)
+			dat_file_sampling_rate = recinfo_dict.get('dat_sampling_rate', dat_file_sampling_rate)
 
 		eeg_sampling_rate: int = recinfo_dict.get('eeg_sampling_rate', 1250)
 
