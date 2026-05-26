@@ -1,6 +1,7 @@
 import pandas as pd
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
+import os
 import numpy as np
 import shutil
 import sys
@@ -32,6 +33,58 @@ def find_first_extant_column(df: pd.DataFrame, columns_list: List[str], raise_er
         raise ValueError(f'no columns in the provided list: {columns_list} were found in the dataframe.\n\tdf.columns: {list(df.columns)}')
     else:
         return None
+
+
+
+
+def windows_to_wsl_path_if_needed(path: str | Path) -> Path:
+    """
+    Converts a Windows path to a WSL-compatible path only when useful:
+    - If the original path exists, returns it unchanged.
+    - If running inside WSL and the converted path exists, returns the WSL path.
+    - Otherwise returns the original path unchanged.
+
+	Usage:
+
+	from neuropy.core.session.init_from_raw_data import RawDataInitializationMixin, windows_to_wsl_path_if_needed
+
+	windows_to_wsl_path_if_needed(path=path)
+
+    """
+    original = Path(path)
+
+    # Original path already works.
+    if original.exists():
+        return original
+
+    # Only attempt conversion when running under WSL.
+    if "WSL_DISTRO_NAME" not in os.environ:
+        return original
+
+    s = str(path).strip().strip('"')
+
+    # Already POSIX-like.
+    if s.startswith("/") or s.startswith("~"):
+        return original
+
+    p = PureWindowsPath(s)
+
+    # Skip UNC/network paths.
+    if p.drive.startswith("\\\\"):
+        return original
+
+    # Convert drive-letter path.
+    if p.drive:
+        tail = PurePosixPath(*p.parts[1:]).as_posix()
+        converted = Path(
+            f"/mnt/{p.drive[:-1].lower()}" + (f"/{tail}" if tail else "")
+        )
+
+        if converted.exists():
+            return converted
+
+    return original
+
 
 
 
@@ -317,6 +370,67 @@ class RawDataInitializationMixin:
 		# return output_lfp_path
 
 
+	@classmethod
+	def step_copy_probe_files(cls, valid_reference_session_basepath: Path, ref_basename: str,
+									target_session_basepath: Path, target_basename: str = 'RatS-Day1Openfield'):
+		""" copies the potentially missing probe file from an existing valid session's.
+
+		Usage:
+
+			neuroscope_obj = cls.step_copy_probe_files(valid_reference_session_basepath='', ref_basename = 'RatS-Day5TwoNovel-2020-12-04_07-55-09',
+												target_session_basepath=sess.basepath, target_basename = 'RatS-Day1Openfield')
+
+		"""
+		from neuropy.core.probe import Shank, Probe, ProbeGroup
+		from neuropy.io.neuroscopeio import NeuroscopeIO
+
+		# probe_file = valid_reference_probe_file
+
+		# # probe_file = sess.filePrefix.with_suffix('.probegroup.npy')
+		# # probe_file = Path(r"W:\Data\Bapun\RatS\Day5TwoNovel\RatS-Day5TwoNovel-2020-12-04_07-55-09.probegroup.npy").resolve()
+		# assert probe_file.exists(), f"probe_file: '{probe_file.as_posix()}'"
+		# probe_group: ProbeGroup = ProbeGroup.from_file(probe_file)
+		# probe_group
+
+
+		## Reference Object
+		# nrs_path = Path(r"W:\Data\Bapun\RatK\Day4Openfield\RatK_Day4_2019-08-16_04-42-36.nrs").resolve()
+		# ref_nrs_path = Path(r"W:\Data\Bapun\RatS\Day5TwoNovel\RatS-Day5TwoNovel-2020-12-04_07-55-09.nrs").resolve()
+		# ref_xml_path = Path(r"W:\Data\Bapun\RatS\Day5TwoNovel\RatS-Day5TwoNovel-2020-12-04_07-55-09.xml").resolve()
+		ref_xml_path = valid_reference_session_basepath.joinpath(f"{ref_basename}.xml")
+
+		ref_neuroscope_obj: NeuroscopeIO = NeuroscopeIO(xml_filename=ref_xml_path)
+		ref_good_channels = ref_neuroscope_obj.good_channels
+		print(f'ref_good_channels: {ref_good_channels}')
+		ref_channel_groups_dict: Dict[int, np.array] = {(grp_idx+1):channels_list for grp_idx, channels_list in enumerate(ref_neuroscope_obj.channel_groups.tolist())} ## 1-indexed dict of channel groups
+		ref_channel_groups_dict
+
+		## Target to update
+		xml_path = target_session_basepath.joinpath(f"{target_basename}.xml").resolve()
+		
+		# xml_path = Path(r"W:\Data\Bapun\RatS\Day1Openfield\RatS-Day1Openfield.xml").resolve()
+		neuroscope_obj: NeuroscopeIO = NeuroscopeIO(xml_filename=xml_path)
+		good_channels = neuroscope_obj.good_channels
+		print(f'good_channels: {good_channels}')
+		channel_groups_dict: Dict[int, np.array] = {(grp_idx+1):channels_list for grp_idx, channels_list in enumerate(neuroscope_obj.channel_groups.tolist())} ## 1-indexed dict of channel groups
+		channel_groups_dict
+
+		is_channel_missing_original = np.isin(ref_good_channels, good_channels)
+		assert np.all(is_channel_missing_original), f"the later reference session should not contain any channels that don't exist in the unfiltered session.\n\tref_good_channels (ref only): {ref_good_channels[is_channel_missing_original]}"
+		is_channel_marked_bad_ref = np.logical_not(np.isin(good_channels, ref_good_channels))
+		channels_marked_bad_in_ref = good_channels[is_channel_marked_bad_ref]
+		channels_marked_bad_in_ref
+
+		## Update curr from ref
+		neuroscope_obj.skipped_channels = ref_neuroscope_obj.skipped_channels
+		neuroscope_obj.discarded_channels = ref_neuroscope_obj.discarded_channels
+		neuroscope_obj._good_channels() ## update good channels on the object
+		neuroscope_obj.channel_groups = ref_neuroscope_obj.channel_groups
+		_bak_xml_path = neuroscope_obj.backup_xml_file()
+		neuroscope_obj.update_xml_file()
+		return neuroscope_obj
+
+
 
 	@classmethod
 	def run_all(cls, basedir: Path,
@@ -416,5 +530,13 @@ class RawDataInitializationMixin:
 		position_csvs_path: Path = sess.basepath.joinpath('Raw_data/position/CSVs')
 		position: Position = RawDataInitializationMixin.build_initial_position_data(sess, position_csvs_path=position_csvs_path)
 		position
+
+		## copy probe/xml as needed
+		neuroscope_obj = cls.step_copy_probe_files(
+											# valid_reference_session_basepath=Path("/mnt/w/Data/Bapun/RatS/Day5TwoNovel"), ref_basename = 'RatS-Day5TwoNovel-2020-12-04_07-55-09',
+											valid_reference_session_basepath=windows_to_wsl_path_if_needed(Path("W:/Data/Bapun/RatS/Day5TwoNovel")), ref_basename = 'RatS-Day5TwoNovel-2020-12-04_07-55-09',
+											target_session_basepath=sess.basepath, target_basename = sess.name)
+		neuroscope_obj
+
 
 		return sess
