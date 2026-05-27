@@ -6,7 +6,8 @@ import numpy as np
 import shutil
 import subprocess
 import sys
-from typing import List, Dict, Tuple, Union, Set, Optional
+import re
+from typing import List, Dict, Tuple, Union, Set, Optional, Callable
 
 ## Neuropy Imports:
 from neuropy.io import OptitrackIO
@@ -598,6 +599,107 @@ class RawDataInitializationMixin:
         _bak_xml_path = neuroscope_obj.backup_xml_file()
         neuroscope_obj.update_xml_file()
         return neuroscope_obj
+
+
+
+
+
+
+    @classmethod
+    def update_session_n_channels(cls, basedir: Path, n_channels: int, *, session_stem: str | None = None, dry_run: bool = False) -> Dict[str, int]:
+        """Set channel count in Spyking Circus / Neuroscope session config files.
+
+        Parameters
+        ----------
+        basedir : Path
+            Session folder (e.g. .../RatS/Day1Openfield).
+        n_channels : int
+            Value written to each target file that exists.
+        session_stem : str, optional
+            File prefix; default RatS-{basedir.name}.
+        dry_run : bool
+            If True, print would-be updates without writing.
+
+        Returns
+        -------
+        dict
+            relative_path -> previous integer for files that existed and were changed.
+        Prints each changed file (missing files are skipped silently).
+
+
+        Usage:
+            # Example:
+            prev = RawDataInitializationMixin.update_session_n_channels(Path('/mnt/w/Data/Bapun/RatS/Day1Openfield'), 195)
+            print(prev)
+
+
+        """
+        # (relative_path_from_session_basedir, line replacer)
+        _ChannelFileUpdate = Tuple[str, Callable[[str, int], str]]
+
+        def _replace_prb_total_nb_channels(text: str, n_channels: int) -> str:
+            new_text, n = re.subn(r'^total_nb_channels\s*=\s*\d+\s*$', f'total_nb_channels = {n_channels}', text, count=1, flags=re.MULTILINE)
+            if n != 1:
+                raise ValueError('expected exactly one total_nb_channels assignment')
+            return new_text
+
+
+        def _replace_params_nb_channels(text: str, n_channels: int) -> str:
+            new_text, n = re.subn(r'^nb_channels\s*=\s*\d+\s*$', f'nb_channels = {n_channels}', text, count=1, flags=re.MULTILINE)
+            if n != 1:
+                raise ValueError('expected exactly one nb_channels assignment in [data]')
+            return new_text
+
+
+        def _replace_xml_n_channels(text: str, n_channels: int) -> str:
+            new_text, n = re.subn(r'<nChannels>\d+</nChannels>', f'<nChannels>{n_channels}</nChannels>', text, count=1)
+            if n != 1:
+                raise ValueError('expected exactly one <nChannels> element')
+            return new_text
+
+        ########### BEGIN FUNCTION BODY
+        if n_channels < 1:
+            raise ValueError(f'n_channels must be >= 1, got {n_channels}')
+        base = Path(basedir)
+        if not base.is_dir():
+            raise FileNotFoundError(f'session basedir not found: {base}')
+        stem = session_stem or f'RatS-{base.name}'
+        updates: List[_ChannelFileUpdate] = [
+            (f'{stem}.prb', _replace_prb_total_nb_channels),
+            (f'{stem}.params', _replace_params_nb_channels),
+            (f'{stem}.xml', _replace_xml_n_channels),
+            (f'spyk-circ/{stem}.prb', _replace_prb_total_nb_channels),
+            (f'spyk-circ/{stem}.params', _replace_params_nb_channels),
+            (f'spyk-circ/{stem}.xml', _replace_xml_n_channels),
+        ]
+        previous: Dict[str, int] = {}
+        for rel_path, replacer in updates:
+            path = base / rel_path
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding='utf-8')
+            if rel_path.endswith('.prb'):
+                m = re.search(r'^total_nb_channels\s*=\s*(\d+)\s*$', text, flags=re.MULTILINE)
+            elif rel_path.endswith('.params'):
+                m = re.search(r'^nb_channels\s*=\s*(\d+)\s*$', text, flags=re.MULTILINE)
+            else:
+                m = re.search(r'<nChannels>(\d+)</nChannels>', text)
+            if not m:
+                print(f'skip {rel_path}: could not read current channel count')
+                continue
+            old_n = int(m.group(1))
+            new_text = replacer(text, n_channels)
+            if new_text == text:
+                continue
+            previous[rel_path] = old_n
+            action = 'would update' if dry_run else 'updated'
+            print(f'{action} {rel_path}: {old_n} -> {n_channels}')
+            if not dry_run:
+                path.write_text(new_text, encoding='utf-8', newline='')
+
+        return previous
+
+
 
 
 
