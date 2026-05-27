@@ -408,9 +408,14 @@ class RawDataInitializationMixin:
     
 
     @classmethod
-    def concatenate_to_output_file(cls, input_paths: List[Path], output_path: Path):
-        """ concatenates the binary files in input_paths to a single joined output_path. 
+    def concatenate_to_output_file(cls, input_paths: List[Path], output_path: Path, disable_single_file_symlink: bool = False):
+        """ concatenates the binary files in input_paths to a single joined output_path.
+        When there is only one input file, creates a symlink at output_path instead of copying,
+        unless ``disable_single_file_symlink`` is True.
         """
+        if len(input_paths) == 1 and not disable_single_file_symlink:
+            output_path.symlink_to(input_paths[0].resolve())
+            return
         with open(output_path, "wb") as outfile:
             for path in input_paths:
                 with open(path, "rb") as infile:
@@ -418,9 +423,12 @@ class RawDataInitializationMixin:
                 
 
     @classmethod
-    def step_perform_concat(cls, found_raw_data_paths: List[Path], spyk_circ_output_dir: Path, basename: str='continuous_combined'):
+    def step_perform_concat(cls, found_raw_data_paths: List[Path], spyk_circ_output_dir: Path, basename: str='continuous_combined', force_overwrite: bool=False):
         """ performs the concatenation, creates the output directory if needed
-        
+
+        When ``force_overwrite`` is True and the output file already exists, the user is prompted to back up the
+        existing file by renaming it with a ``.bak`` suffix before concatenation proceeds. If the ``.bak`` file
+        already exists, an error is raised.
 
         Usage:		
             ## Copy the concatenated files to the output directory
@@ -435,8 +443,18 @@ class RawDataInitializationMixin:
         
         ## Copy the concatenated files to the output directory
         concatenated_file_output_path: Path = spyk_circ_output_dir.joinpath(f'{basename}.dat').resolve() ## do I need to do anything with the adjacent `timestamps.npy` or anything??
-        if not concatenated_file_output_path.exists():
-            cls.concatenate_to_output_file(input_paths=found_raw_data_paths, output_path=concatenated_file_output_path)
+        if concatenated_file_output_path.exists():
+            if not force_overwrite:
+                return concatenated_file_output_path
+            backup_path: Path = concatenated_file_output_path.with_suffix(concatenated_file_output_path.suffix + '.bak')
+            backup_response: str = input(f'Output file already exists: "{concatenated_file_output_path.as_posix()}". Back up existing file to "{backup_path.as_posix()}"? [y/N]: ').strip().lower()
+            if backup_response in ('y', 'yes'):
+                if backup_path.exists():
+                    raise FileExistsError(f'Backup path already exists, refusing to overwrite: "{backup_path.as_posix()}"')
+                print(f'backing up existing file to: "{backup_path.as_posix()}"...')
+                concatenated_file_output_path.rename(backup_path)
+                print(f'\tdone.')
+        cls.concatenate_to_output_file(input_paths=found_raw_data_paths, output_path=concatenated_file_output_path)
         return concatenated_file_output_path
 
 
