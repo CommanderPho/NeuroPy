@@ -432,7 +432,7 @@ class RawDataInitializationMixin:
                 
 
     @classmethod
-    def step_perform_concat(cls, found_raw_data_paths: List[Path], spyk_circ_output_dir: Path, basename: str='continuous_combined', force_overwrite: bool=False):
+    def step_perform_concat(cls, found_raw_data_paths: List[Path], basedir: Path, basename: str='continuous_combined', force_overwrite: bool=False):
         """ performs the concatenation, creates the output directory if needed
 
         When the output file already exists, its size is compared to the sum of the input file sizes.
@@ -450,12 +450,10 @@ class RawDataInitializationMixin:
             concatenated_file_output_path
 
         """
-        ## make the "spyk-circ" output directory
-        # spyk_circ_output_dir: Path = Path('W:/Data/Bapun/RatS/Day1Openfield/spyk-circ').resolve()
-        spyk_circ_output_dir.mkdir(exist_ok=True, parents=True) ## dang I sure hope we're on Windows or I'll add some garbage paths :P
-        
+        assert basedir.exists(), f"basedir: {basedir} does not exist."        
+
         ## Copy the concatenated files to the output directory
-        concatenated_file_output_path: Path = spyk_circ_output_dir.joinpath(f'{basename}.dat').resolve() ## do I need to do anything with the adjacent `timestamps.npy` or anything??
+        concatenated_file_output_path: Path = basedir.joinpath(f'{basename}.dat').resolve() ## do I need to do anything with the adjacent `timestamps.npy` or anything??
         expected_size_bytes: int = sum(input_path.stat().st_size for input_path in found_raw_data_paths)
         if concatenated_file_output_path.exists():
             existing_size_bytes: int = concatenated_file_output_path.stat().st_size
@@ -678,7 +676,7 @@ class RawDataInitializationMixin:
 
 
         ## Copy the concatenated files to the output directory
-        concatenated_file_output_path: Path = cls.step_perform_concat(found_raw_data_paths=found_raw_data_paths, spyk_circ_output_dir=spyk_circ_output_dir, basename=basename)
+        concatenated_file_output_path: Path = cls.step_perform_concat(found_raw_data_paths=found_raw_data_paths, basedir=basedir, basename=basename)
         print(f'have concatenated_file_output_path: "{concatenated_file_output_path.as_posix()}"')
         concatenated_file_output_path
 
