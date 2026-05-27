@@ -4,6 +4,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 import os
 import numpy as np
 import shutil
+import subprocess
 import sys
 from typing import List, Dict, Tuple, Union, Set, Optional
 
@@ -134,6 +135,38 @@ class RawDataInitializationMixin:
 
 
     @classmethod
+    def _find_7z_executable(cls) -> str:
+        for candidate_name in ('7z', '7za', '7zr'):
+            found_executable: Optional[str] = shutil.which(candidate_name)
+            if found_executable is not None:
+                return found_executable
+        for windows_path in (Path(r'C:\Program Files\7-Zip\7z.exe'), Path(r'C:\Program Files (x86)\7-Zip\7z.exe')):
+            if windows_path.is_file():
+                return str(windows_path)
+        raise FileNotFoundError("Could not find 7z executable. Install 7-Zip (Windows) or p7zip-full (Linux), or ensure '7z' is on PATH.")
+
+
+    @classmethod
+    def archive_directory_to_7z(cls, source_dir: Path, archive_path: Path) -> Path:
+        """ archives source_dir into a .7z file at archive_path """
+        source_dir = Path(source_dir).resolve()
+        archive_path = Path(archive_path).resolve()
+        if not source_dir.is_dir():
+            raise FileNotFoundError(f"Cannot archive missing directory: '{source_dir.as_posix()}'")
+        archive_path.parent.mkdir(parents=True, exist_ok=True)
+        seven_z_exe: str = cls._find_7z_executable()
+        print(f'archiving "{source_dir.as_posix()}" to "{archive_path.as_posix()}"...')
+        completed = subprocess.run([seven_z_exe, 'a', '-t7z', str(archive_path), str(source_dir)], capture_output=True, text=True)
+        if completed.returncode != 0:
+            error_output: str = (completed.stderr or completed.stdout).strip()
+            raise RuntimeError(f"7z archive failed (exit {completed.returncode}): {error_output}")
+        if not archive_path.is_file() or archive_path.stat().st_size <= 0:
+            raise RuntimeError(f"7z archive was not created or is empty: '{archive_path.as_posix()}'")
+        print(f'\tdone.')
+        return archive_path
+
+
+    @classmethod
     def delete_previous_spyk_circ_run(cls, sess, archive_previous: bool=True):
         """ deletes a previous/incorrect spyking circus run directory, backing it up to a .7z archive first if desired"""
         ## make the "spyk-circ" output directory
@@ -142,12 +175,27 @@ class RawDataInitializationMixin:
         dest_dat_path
 
         ## backup the previous extant spyk_circ outputs, which are located at 
-        spyk_circ_outputs = spyk_circ_dir.joinpath(sess.name)
+        spyk_circ_outputs: Path = spyk_circ_dir.joinpath(sess.name)
+        if not spyk_circ_outputs.exists():
+            print(f'no previous spyk-circ outputs found at: "{spyk_circ_outputs.as_posix()}"')
+            return
+        if archive_previous:
+            archive_path: Path = spyk_circ_dir.joinpath(f'{sess.name}_spyk-circ_{datetime.now().strftime("%Y%m%d_%H%M%S")}.7z')
+            cls.archive_directory_to_7z(source_dir=spyk_circ_outputs, archive_path=archive_path)
+        else:
+            delete_response: str = input(f'Delete spyk-circ outputs without backup at "{spyk_circ_outputs.as_posix()}"? [y/N]: ').strip().lower()
+            if delete_response not in ('y', 'yes'):
+                print(f'keeping existing spyk-circ outputs: "{spyk_circ_outputs.as_posix()}"')
+                return
+        print(f'deleting spyk-circ outputs: "{spyk_circ_outputs.as_posix()}"...')
+        shutil.rmtree(spyk_circ_outputs)
+        print(f'\tdone.')
 
 
 
     @classmethod
-    def build_session_datetime_csv(cls, search_dir: Path, basename: str='RatS-Day1Openfield', excluded_data_datetimes: Optional[List[str]]=None, n_channels: int = 195, sampling_rate: int = 30000, minimum_recording_duration_hours: Optional[float]=(5.0/60.0)):
+    def build_session_datetime_csv(cls, search_dir: Path, basename: str='RatS-Day1Openfield', excluded_data_datetimes: Optional[List[str]]=None, minimum_recording_duration_hours: Optional[float]=(5.0/60.0),
+                                    n_channels: int = 195, sampling_rate: int = 30000, debug_print: bool = True):
         """
         Recursively finds all 'settings.xml' files in search_dir and extracts their <DATE>.
         Then tries to find the correct continuous.dat (raw recording) file, loads its nFrames and duration in hours, and then exports the dateframe to CSV in the format required by 'RatS_Day1Openfield.datetime.csv'
@@ -167,14 +215,15 @@ class RawDataInitializationMixin:
         """
         import xml.etree.ElementTree as ET
         
-        extracted_df = []
+        all_datetime_df = []
+        all_found_files_dict = {'settings_xml': [], 'continuous_xml': [], 'dat': [], 'recording_folder': []}
         found_raw_data_paths = []
 
         # rglob recursively searches the directory and all subdirectories
-        for file_path in Path(search_dir).rglob('settings.xml'):
+        for settings_xml_file_path in Path(search_dir).rglob('settings.xml'):
             try:
                 # Parse the XML and concisely grab the text inside the <DATE> tag
-                date_str = ET.parse(file_path).findtext('.//INFO/DATE')
+                date_str = ET.parse(settings_xml_file_path).findtext('.//INFO/DATE')
                 
                 if date_str:
                     # Convert "25 Nov 2020 10:20:27" to a Python datetime object
@@ -182,9 +231,33 @@ class RawDataInitializationMixin:
                     # extracted_dates[file_path] = parsed_date
                     
                     ## Got the datetime, great start! Get the .dat file
-                    a_parent_recording_folder: Path = file_path.parent
+                    a_parent_recording_folder: Path = settings_xml_file_path.parent
                     # a_binary_file_path: Path = a_parent_recording_folder.joinpath('experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat') # '/home/halechr/FastData/Bapun/RatS/Day4Openfield/Raw_data/2020-12-02_14-46-16/experiment1/recording1/continuous/Intan_Rec._Controller-100.0/continuous.dat'
+                    all_found_files_dict['recording_folder'].append(a_parent_recording_folder)
+
+                    ## try to parse the number of channels from the continuous.xml file:
+                    found_continuous_xml_files = [continuous_xml for continuous_xml in Path(a_parent_recording_folder).rglob('continuous.xml') if (continuous_xml.exists() and continuous_xml.is_file())]
+                    assert (len(found_continuous_xml_files) > 0), f'ERROR: found no valid continuous.xml files in the subdirectory: "{a_parent_recording_folder.as_posix()}"!!'
+                    if len(found_continuous_xml_files) > 1:
+                        print(f'WARNING: found multiple continuous.xml files in the subdirectory: "{a_parent_recording_folder.as_posix()}"\n\tfound_continuous_xml_files: {found_continuous_xml_files}\n\tusing the FIRST.')
+                    a_continuous_xml: Path = found_continuous_xml_files[0]
+                    assert (a_continuous_xml.exists() and a_continuous_xml.is_file()), f"a_continuous_xml: {a_continuous_xml} does not exist!"
+                    parsed_n_channels: int = int(ET.parse(a_continuous_xml).findtext('.//acquisitionSystem/nChannels'))
+
+                    ## try to parse the number of channels from the settings.xml file:
+                    # all_channel_names = ET.parse(settings_xml_file_path).findall('.//PROCESSOR[@pluginName="Rhythm FPGA"]/CHANNEL')
+                    # if len(all_channel_names) > 0:
+                    #     parsed_n_channels: int = int(all_channel_names[-1].attrib['number'])
+                    #     if debug_print:                            print(f'settings.xml: "{settings_xml_file_path.as_posix()}" -- last_channel_number: {parsed_n_channels}')
+                    # else:
+                    #     raise ValueError(f'could not extract the last channel number from the settings.xml: "{settings_xml_file_path.as_posix()}"')
+                    # # -> '200'
                     
+
+                    if (parsed_n_channels != n_channels):
+                        raise ValueError(f'number of channels parsed from one of the .xml files is {parsed_n_channels}, differing from the specified n_channels: {n_channels}.') 
+
+
                     found_binary_file_paths: List[Path] = [file_path for file_path in a_parent_recording_folder.rglob('continuous.dat') if (file_path.exists() and file_path.is_file)]
                     assert (len(found_binary_file_paths) > 0), f'ERROR: found no valid continuous.dat files in the subdirectory: "{a_parent_recording_folder.as_posix()}"!!'
                     if len(found_binary_file_paths) > 1:
@@ -198,48 +271,58 @@ class RawDataInitializationMixin:
                     ## Use `BinarysignalIO` to extract the signal duration information from the raw files
                     a_raw_file_obj: BinarysignalIO = BinarysignalIO(a_binary_file_path, dtype="int16", n_channels=n_channels, sampling_rate=sampling_rate)
                     
+                    dat_file_size_bytes: int = a_binary_file_path.stat().st_size
+
+                    ## Add collected files:
+                    all_found_files_dict['settings_xml'].append(settings_xml_file_path)
+                    all_found_files_dict['continuous_xml'].append(a_continuous_xml)
+                    all_found_files_dict['dat'].append(a_binary_file_path)
+                    all_found_files_dict['recording_folder'].append(a_parent_recording_folder)
+                    
                     n_frames: int = a_raw_file_obj.n_frames
                     duration_hours: float = float(a_raw_file_obj.duration) / 3600.0
                     # self.duration/3600
-                    extracted_df.append((parsed_date, n_frames, duration_hours))
+                    
+                    all_datetime_df.append((parsed_date, n_frames, duration_hours, parsed_n_channels, dat_file_size_bytes, a_parent_recording_folder.as_posix(), a_binary_file_path.as_posix(), a_continuous_xml.as_posix()))
+
 
             except (ET.ParseError, ValueError) as e:
                 # Skips files with malformed XML or unexpected date formats
-                print(f"Skipping {file_path} due to error: {e}")
+                print(f"Skipping {settings_xml_file_path} due to error: {e}")
 
-        columns = ["startTime", "nFrames", "duration (h)"]
-        extracted_df = pd.DataFrame.from_records(extracted_df, columns=columns) 
+        columns = ["startTime", "nFrames", "duration (h)", "n_channels", "dat_file_size_bytes", "recording_folder", "dat_file", "continuous_xml"]
+        all_datetime_df = pd.DataFrame.from_records(all_datetime_df, columns=columns) 
 
         # Convert just the 'startTime' column to the desired string format
-        extracted_df['startTime'] = extracted_df['startTime'].dt.strftime('%Y-%m-%d_%H-%M-%S')
-        extracted_df['is_included'] = True ## all true by default
-        is_included = extracted_df['is_included'].to_numpy()
+        all_datetime_df['startTime'] = all_datetime_df['startTime'].dt.strftime('%Y-%m-%d_%H-%M-%S')
+        all_datetime_df['is_included'] = True ## all true by default
+        is_included = all_datetime_df['is_included'].to_numpy()
         
         if excluded_data_datetimes is not None:
-            is_included_considering_exclusions = np.logical_not(extracted_df['startTime'].isin(excluded_data_datetimes))
+            is_included_considering_exclusions = np.logical_not(all_datetime_df['startTime'].isin(excluded_data_datetimes))
             is_included = np.logical_and(is_included, is_included_considering_exclusions)
             
         if minimum_recording_duration_hours is not None:
-            is_included_considering_duration = (extracted_df['duration (h)'] >= minimum_recording_duration_hours)
+            is_included_considering_duration = (all_datetime_df['duration (h)'] >= minimum_recording_duration_hours)
             is_included = np.logical_and(is_included, is_included_considering_duration)
             duration_excluded_indicies = np.where(np.logical_not(is_included_considering_duration))[0]
             if len(duration_excluded_indicies) > 0:
                 print(f'excluded duration_excluded_indicies: {duration_excluded_indicies} because they were shorter than minimum_recording_duration_hours: {minimum_recording_duration_hours}')
             
         ## INPUTS: is_included
-        extracted_df['is_included'] = is_included
+        all_datetime_df['is_included'] = is_included
         included_indicies = np.where(is_included)[0]
 
         ## filter out the excluded ones
-        extracted_df = extracted_df[extracted_df['is_included']].reset_index(drop=True)
+        included_only_datetime_df = all_datetime_df[all_datetime_df['is_included']].reset_index(drop=True)
         found_raw_data_paths = [v for i, v in enumerate(found_raw_data_paths) if i in included_indicies]
-            
+
         csv_output_path: Path = search_dir.parent
         csv_out_path: Path = csv_output_path.joinpath(f'{basename}.datetime.csv')
         print(f'output csv path: "{csv_out_path.as_posix()}"')
-        extracted_df.to_csv(csv_out_path)
+        included_only_datetime_df.to_csv(csv_out_path)
 
-        return extracted_df, csv_out_path, found_raw_data_paths
+        return included_only_datetime_df, csv_out_path, found_raw_data_paths, all_datetime_df, all_found_files_dict
 
 
     @classmethod
@@ -549,7 +632,7 @@ class RawDataInitializationMixin:
 
         datetime_df, datetime_csv_out_path, found_raw_data_paths = cls.build_session_datetime_csv(raw_data_path, basename=basename, excluded_data_datetimes=excluded_data_datetimes,
                                                                                                                         n_channels=n_channels, sampling_rate=dat_file_sampling_rate,
-                                                                                                                        )
+                                                                                                )
         datetime_df
         found_raw_data_paths
         
