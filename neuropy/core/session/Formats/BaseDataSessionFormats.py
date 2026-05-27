@@ -386,7 +386,7 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
         """
         # Find the only .xml file to obtain the session name 
         xml_files = sorted(basedir.glob("*.xml"))
-        assert len(xml_files) > 0, "Missing required .xml file!"
+        assert len(xml_files) > 0, f"Missing required .xml file in basedir: '{basedir.as_posix()}'!"
         assert len(xml_files) == 1, f"Found more than one .xml file. Found files: {xml_files}"
         file_prefix = xml_files[0].with_suffix("") # gets the session name (basically) without the .xml extension. (R:\data\Bapun\Day5TwoNovel\RatS-Day5TwoNovel-2020-12-04_07-55-09)   
         file_basename = xml_files[0].stem # file_basename: (RatS-Day5TwoNovel-2020-12-04_07-55-09)
