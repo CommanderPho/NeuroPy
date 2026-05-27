@@ -606,7 +606,7 @@ class RawDataInitializationMixin:
 
 
     @classmethod
-    def update_session_n_channels(cls, basedir: Path, n_channels: int, *, session_stem: str | None = None, dry_run: bool = False) -> Dict[str, int]:
+    def update_session_n_channels(cls, basedir: Path, n_channels: int, *, session_stem: str | None = None, dry_run: bool = False, debug_print: bool = True) -> Dict[str, int]:
         """Set channel count in Spyking Circus / Neuroscope session config files.
 
         Parameters
@@ -619,12 +619,14 @@ class RawDataInitializationMixin:
             File prefix; default RatS-{basedir.name}.
         dry_run : bool
             If True, print would-be updates without writing.
+        debug_print : bool
+            If True, print when an expected target file is not found.
 
         Returns
         -------
         dict
             relative_path -> previous integer for files that existed and were changed.
-        Prints each changed file (missing files are skipped silently).
+        Prints each changed file; missing targets are reported when debug_print is True.
 
 
         Usage:
@@ -672,10 +674,12 @@ class RawDataInitializationMixin:
             (f'spyk-circ/{stem}.params', _replace_params_nb_channels),
             (f'spyk-circ/{stem}.xml', _replace_xml_n_channels),
         ]
-        previous: Dict[str, int] = {}
+        replace_dict: Dict[str, Tuple[int, int]] = {}
         for rel_path, replacer in updates:
             path = base / rel_path
             if not path.is_file():
+                if debug_print:
+                    print(f'path: "{path.as_posix()}": not found.')
                 continue
             text = path.read_text(encoding='utf-8')
             if rel_path.endswith('.prb'):
@@ -685,19 +689,22 @@ class RawDataInitializationMixin:
             else:
                 m = re.search(r'<nChannels>(\d+)</nChannels>', text)
             if not m:
-                print(f'skip {rel_path}: could not read current channel count')
+                print(f'path: "{path.as_posix()}": could not read current channel count')
                 continue
             old_n = int(m.group(1))
             new_text = replacer(text, n_channels)
             if new_text == text:
+                if debug_print:
+                    print(f'path: "{path.as_posix()}": (new_text == old_text): (n_channels: {n_channels}).')
                 continue
-            previous[rel_path] = old_n
+            replace_dict[path] = (old_n, n_channels)
             action = 'would update' if dry_run else 'updated'
-            print(f'{action} {rel_path}: {old_n} -> {n_channels}')
+            print(f'path: "{path.as_posix()}" ({rel_path}): {action}: n_channels {old_n} -> {n_channels}')
             if not dry_run:
                 path.write_text(new_text, encoding='utf-8', newline='')
+        ## END for rel_path, replacer in updat...
 
-        return previous
+        return replace_dict
 
 
 
