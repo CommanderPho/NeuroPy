@@ -419,12 +419,20 @@ class RawDataInitializationMixin:
         """
         expected_size_bytes: int = sum(input_path.stat().st_size for input_path in input_paths)
         if len(input_paths) == 1 and not disable_single_file_symlink:
+            print(f'Linking single input file to output...')
+            print(f'\tInput:  "{input_paths[0].as_posix()}"')
+            print(f'\tOutput: "{output_path.as_posix()}"')
             output_path.symlink_to(input_paths[0].resolve())
         else:
+            print(f'Concatenating {len(input_paths)} input files to output...')
+            for input_path in input_paths:
+                print(f'\t"{input_path.as_posix()}"')
+            print(f'\tOutput: "{output_path.as_posix()}"')
             with open(output_path, "wb") as outfile:
                 for path in input_paths:
                     with open(path, "rb") as infile:
                         shutil.copyfileobj(infile, outfile)
+        print(f'\tdone.')
         output_size_bytes: int = output_path.stat().st_size
         if output_size_bytes != expected_size_bytes:
             size_difference_bytes: int = output_size_bytes - expected_size_bytes
