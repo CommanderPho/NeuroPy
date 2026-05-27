@@ -36,9 +36,6 @@ def find_first_extant_column(df: pd.DataFrame, columns_list: List[str], raise_er
     else:
         return None
 
-
-
-
 def windows_to_wsl_path_if_needed(path: str | Path) -> Path:
     """
     Converts a Windows path to a WSL-compatible path only when useful:
@@ -87,6 +84,43 @@ def windows_to_wsl_path_if_needed(path: str | Path) -> Path:
 
     return original
 
+
+def subfn_copy_if_needed(ref_file: Path, target_file: Path, force_overwrite: bool = False) -> bool:
+    """ copies the file only if the target_file does not exist, unless force_overwrite is True """
+    ref_file, target_file = Path(ref_file), Path(target_file)
+    if target_file.exists() and not force_overwrite:
+        print(f'target_file: "{target_file.as_posix()}" already exists.')
+        return False
+    assert ref_file.exists(), f'ref_file: {ref_file} does not exist (and it is needed because target_file: "{target_file.as_posix()}" does not exist either)!'
+    target_file.parent.mkdir(exist_ok=True, parents=True)
+    print(f'copying: "{ref_file.as_posix()}" -> "{target_file.as_posix()}"...')
+    shutil.copy2(ref_file, target_file)
+    print(f'\tdone.')
+    return True
+
+
+def find_first_file_rglob(search_root: Union[str, Path], filename: str, warn_on_multiple: bool = True, error_context_label: Optional[str] = None, recursive: bool = True, raise_on_none_found: bool = True) -> Optional[Path]:
+    """Find the first existing file matching ``filename`` under ``search_root``.
+
+    When ``recursive`` is True (default), searches all subdirectories via ``rglob``.
+    When False, searches only the immediate directory via ``glob``.
+
+    When no match is found, raises ``FileNotFoundError`` if ``raise_on_none_found`` is True (default),
+    otherwise returns ``None``. When multiple matches exist, prints a warning and returns the first (glob order).
+    """
+    search_root = Path(search_root)
+    context = error_context_label or search_root.as_posix()
+    globber = search_root.rglob if recursive else search_root.glob
+    found_files: List[Path] = [p for p in globber(filename) if p.is_file()]
+    if len(found_files) == 0:
+        if not raise_on_none_found:
+            return None
+        scope = 'subdirectory' if recursive else 'directory'
+        raise FileNotFoundError(f'ERROR: found no valid {filename!r} files in the {scope}: "{context}"!!')
+    if len(found_files) > 1 and warn_on_multiple:
+        scope = 'subdirectory' if recursive else 'directory'
+        print(f'WARNING: found multiple {filename!r} files in the {scope}: "{context}"\n\tfound_files: {found_files}\n\tusing the FIRST.')
+    return found_files[0]
 
 
 
@@ -240,12 +274,7 @@ class RawDataInitializationMixin:
                     all_found_files_dict['recording_folder'].append(a_parent_recording_folder)
 
                     ## try to parse the number of channels from the continuous.xml file:
-                    found_continuous_xml_files = [continuous_xml for continuous_xml in Path(a_parent_recording_folder).rglob('continuous.xml') if (continuous_xml.exists() and continuous_xml.is_file())]
-                    assert (len(found_continuous_xml_files) > 0), f'ERROR: found no valid continuous.xml files in the subdirectory: "{a_parent_recording_folder.as_posix()}"!!'
-                    if len(found_continuous_xml_files) > 1:
-                        print(f'WARNING: found multiple continuous.xml files in the subdirectory: "{a_parent_recording_folder.as_posix()}"\n\tfound_continuous_xml_files: {found_continuous_xml_files}\n\tusing the FIRST.')
-                    a_continuous_xml: Path = found_continuous_xml_files[0]
-                    assert (a_continuous_xml.exists() and a_continuous_xml.is_file()), f"a_continuous_xml: {a_continuous_xml} does not exist!"
+                    a_continuous_xml: Path = find_first_file_rglob(a_parent_recording_folder, 'continuous.xml')
                     parsed_n_channels: int = int(ET.parse(a_continuous_xml).findtext('.//acquisitionSystem/nChannels'))
 
                     ## try to parse the number of channels from the settings.xml file:
@@ -262,13 +291,7 @@ class RawDataInitializationMixin:
                         raise ValueError(f'number of channels parsed from one of the .xml files is {parsed_n_channels}, differing from the specified n_channels: {n_channels}.') 
 
 
-                    found_binary_file_paths: List[Path] = [file_path for file_path in a_parent_recording_folder.rglob('continuous.dat') if (file_path.exists() and file_path.is_file)]
-                    assert (len(found_binary_file_paths) > 0), f'ERROR: found no valid continuous.dat files in the subdirectory: "{a_parent_recording_folder.as_posix()}"!!'
-                    if len(found_binary_file_paths) > 1:
-                        print(f'WARNING: found multiple continuous.dat files in the subdirectory: "{a_parent_recording_folder.as_posix()}"\n\tfound_binary_file_paths: {found_binary_file_paths}\n\tusing the FIRST.')
-
-                    a_binary_file_path: Path = found_binary_file_paths[0]
-                    assert (a_binary_file_path.exists() and a_binary_file_path.is_file()), f"a_binary_file_path: {a_binary_file_path} does not exist!"
+                    a_binary_file_path: Path = find_first_file_rglob(a_parent_recording_folder, 'continuous.dat')
 
                     found_raw_data_paths.append(a_binary_file_path)
 
@@ -552,7 +575,7 @@ class RawDataInitializationMixin:
 
 
     @classmethod
-    def step_deploy_spyking_circus_files_from_template(cls, valid_reference_session_basepath: Path, ref_basename: str,
+    def step_deploy_session_root_xml_template(cls, valid_reference_session_basepath: Path, ref_basename: str,
                                     target_session_basepath: Path, target_basename: str = 'RatS-Day1Openfield'):
         """ copies the potentially missing probe file from an existing valid session's.
 
@@ -565,11 +588,15 @@ class RawDataInitializationMixin:
         # from neuropy.core.probe import Shank, Probe, ProbeGroup
         from neuropy.io.neuroscopeio import NeuroscopeIO
 
+        xml_path = target_session_basepath.joinpath(f"{target_basename}.xml").resolve()
+
         ## Reference Object
         # nrs_path = Path(r"W:\Data\Bapun\RatK\Day4Openfield\RatK_Day4_2019-08-16_04-42-36.nrs").resolve()
         # ref_nrs_path = Path(r"W:\Data\Bapun\RatS\Day5TwoNovel\RatS-Day5TwoNovel-2020-12-04_07-55-09.nrs").resolve()
         # ref_xml_path = Path(r"W:\Data\Bapun\RatS\Day5TwoNovel\RatS-Day5TwoNovel-2020-12-04_07-55-09.xml").resolve()
         ref_xml_path = valid_reference_session_basepath.joinpath(f"{ref_basename}.xml")
+        did_copy_new_session_xml_file: bool = subfn_copy_if_needed(ref_xml_path, xml_path)
+
 
         ref_neuroscope_obj: NeuroscopeIO = NeuroscopeIO(xml_filename=ref_xml_path)
         ref_good_channels = ref_neuroscope_obj.good_channels
@@ -578,7 +605,7 @@ class RawDataInitializationMixin:
         ref_channel_groups_dict
 
         ## Target to update
-        xml_path = target_session_basepath.joinpath(f"{target_basename}.xml").resolve()
+        
         
         # xml_path = Path(r"W:\Data\Bapun\RatS\Day1Openfield\RatS-Day1Openfield.xml").resolve()
         neuroscope_obj: NeuroscopeIO = NeuroscopeIO(xml_filename=xml_path)
@@ -602,18 +629,33 @@ class RawDataInitializationMixin:
         neuroscope_obj.update_xml_file()
 
 
-        def subfn_copy_if_needed(ref_file: Path, target_file: Path) -> bool:
-            ref_file, target_file = Path(ref_file), Path(target_file)
-            if target_file.exists():
-                print(f'target_file: "{target_file.as_posix()}" already exists.')
-                return False
-            assert ref_file.exists(), f'ref_file: {ref_file} does not exist (and it is needed because target_file: "{target_file.as_posix()}" does not exist either)!'
-            target_file.parent.mkdir(exist_ok=True, parents=True)
-            print(f'copying: "{ref_file.as_posix()}" -> "{target_file.as_posix()}"...')
-            shutil.copy2(ref_file, target_file)
-            print(f'\tdone.')
-            return True
+        # probe_file = sess.filePrefix.with_suffix('.probegroup.npy')
+        # probe_file = Path(r"W:\Data\Bapun\RatS\Day5TwoNovel\RatS-Day5TwoNovel-2020-12-04_07-55-09.probegroup.npy").resolve()
+        # assert target_probe_file.exists(), f"probe_file: '{target_probe_file.as_posix()}'"
+        # probe_group: ProbeGroup = ProbeGroup.from_file(target_probe_file)
+        # probe_group
 
+        return neuroscope_obj
+
+
+    # ==================================================================================================================================================================================================================================================================================== #
+    # spyking_circus functions                                                                                                                                                                                                                                                             #
+    # ==================================================================================================================================================================================================================================================================================== #
+    @classmethod
+    def step_deploy_spyking_circus_files_from_template(cls, valid_reference_session_basepath: Path, ref_basename: str,
+                                    target_session_basepath: Path, target_basename: str = 'RatS-Day1Openfield'):
+        """ copies the potentially missing probe file from an existing valid session's.
+
+        Usage:
+
+            neuroscope_obj = cls.step_deploy_spyking_circus_files_from_template(valid_reference_session_basepath='', ref_basename = 'RatS-Day5TwoNovel-2020-12-04_07-55-09',
+                                                target_session_basepath=sess.basepath, target_basename = 'RatS-Day1Openfield')
+
+        """
+        # from neuropy.core.probe import Shank, Probe, ProbeGroup
+        from neuropy.io.neuroscopeio import NeuroscopeIO
+
+        ## Reference Object
         ref_spykcirc_path = valid_reference_session_basepath.joinpath('spyk-circ')
         target_spykcirc_path = target_session_basepath.joinpath('spyk-circ')
         target_spykcirc_path.mkdir(exist_ok=True)
@@ -635,19 +677,7 @@ class RawDataInitializationMixin:
         target_probe_file = target_spykcirc_path.joinpath(f"{target_basename}.prb")
         subfn_copy_if_needed(ref_probe_file, target_probe_file)
 
-
-        # probe_file = sess.filePrefix.with_suffix('.probegroup.npy')
-        # probe_file = Path(r"W:\Data\Bapun\RatS\Day5TwoNovel\RatS-Day5TwoNovel-2020-12-04_07-55-09.probegroup.npy").resolve()
-        # assert target_probe_file.exists(), f"probe_file: '{target_probe_file.as_posix()}'"
-        # probe_group: ProbeGroup = ProbeGroup.from_file(target_probe_file)
-        # probe_group
-
-
         return neuroscope_obj
-
-
-
-
 
 
     @classmethod
@@ -753,7 +783,9 @@ class RawDataInitializationMixin:
 
 
     @classmethod
-    def prepare_for_spyking_circus(cls, basedir: Path, basename: str, n_channels: int, dry_run: bool = False, debug_print: bool = True) -> Dict[str, int]:
+    def prepare_for_spyking_circus(cls, basedir: Path, basename: str, n_channels: int, 
+        valid_reference_session_basepath: Optional[Path]=None, ref_basename: Optional[str]=None,
+        dry_run: bool = False, debug_print: bool = True) -> Dict[str, int]:
         """Set channel count in Spyking Circus / Neuroscope session config files.
 
         Parameters
@@ -781,25 +813,30 @@ class RawDataInitializationMixin:
             _out = cls.prepare_for_spyking_circus(basedir=basedir, basename = sess.name, n_channels=n_channels)
 
         """
-        ## copy probe/xml as needed
-        neuroscope_obj = cls.step_deploy_spyking_circus_files_from_template(valid_reference_session_basepath=windows_to_wsl_path_if_needed(Path("W:/Data/Bapun/RatS/Day5TwoNovel")), ref_basename = 'RatS-Day5TwoNovel-2020-12-04_07-55-09',
-                                            target_session_basepath=basedir, target_basename = basename)
-        neuroscope_obj
-
+        if (valid_reference_session_basepath is not None) and (ref_basename is not None):
+            ## copy probe/xml as needed
+            neuroscope_obj = cls.step_deploy_spyking_circus_files_from_template(valid_reference_session_basepath=valid_reference_session_basepath, ref_basename = ref_basename,
+                                                target_session_basepath=basedir, target_basename = basename)
+            
+        else:
+            print(f'WARNING: require valid_reference_session_basepath to copy files, but valid_reference_session_basepath is None')
 
         ## Replace the number of channels in the session's files to make them correct for the session
         ## INPUTS: basedir
         replace_dict = RawDataInitializationMixin.step_update_session_files_n_channels(basedir=basedir, basename=basename, n_channels=n_channels, dry_run=dry_run, debug_print=debug_print)
         print(replace_dict)
 
-        return neuroscope_obj, replace_dict
+        return replace_dict
 
 
 
-
+    # ==================================================================================================================================================================================================================================================================================== #
+    # Main run function                                                                                                                                                                                                                                                                    #
+    # ==================================================================================================================================================================================================================================================================================== #
     @classmethod
     def run_all(cls, basedir: Path,
              basename: str = 'RatS-Day1Openfield', n_channels: int = 195, dat_file_sampling_rate: int = 30000, excluded_data_datetimes: List[str]=None,
+             valid_reference_session_basepath: Optional[Path]=None, ref_basename: Optional[str]=None,
         ):
         """ runs all needed steps 
 
@@ -821,6 +858,31 @@ class RawDataInitializationMixin:
         
         """
         from neuropy.core.session.data_session_loader import DataSessionLoader
+
+        basedir = Path(basedir)
+        session_xml_path: Path = find_first_file_rglob(basedir, '*.xml', recursive=False, raise_on_none_found=False)
+        
+        needs_session_xml_create: bool = (session_xml_path is None) or (not session_xml_path.exists())
+        if needs_session_xml_create:
+            print(f'session_xml_path: {session_xml_path.as_posix()} does not yet exist! Must copy from template session! Trying...')
+            if basename is None:
+                basename = session_xml_path.stem # 'Data/Bapun/RatS/Day1Openfield/RatS-Day1Openfield.xml' -> 'RatS-Day1Openfield'
+
+            if (valid_reference_session_basepath is not None) and (ref_basename is not None):
+                ## copy probe/xml as needed
+                assert basename is not None
+                neuroscope_obj = cls.step_deploy_session_root_xml_template(valid_reference_session_basepath=valid_reference_session_basepath, ref_basename = ref_basename,
+                                                    target_session_basepath=basedir, target_basename = basename)
+                
+            else:
+                print(f'WARNING: require valid_reference_session_basepath to copy files, but valid_reference_session_basepath is None')
+        ## END if needs_session_xml_create...
+
+        _out = cls.step_deploy_session_root_xml_template(basedir=basedir, basename = sess.name, n_channels=n_channels, 
+                                            valid_reference_session_basepath=windows_to_wsl_path_if_needed(Path("W:/Data/Bapun/RatS/Day5TwoNovel")), ref_basename = 'RatS-Day5TwoNovel-2020-12-04_07-55-09',
+                                            dry_run=False, debug_print=True)
+
+
 
         ## INPUTS: basedir
         sess = DataSessionLoader.bapun_data_session(basedir, enable_continue_on_required_path_failure=True)
@@ -896,6 +958,8 @@ class RawDataInitializationMixin:
         position
 
 
-        _out = cls.prepare_for_spyking_circus(basedir=basedir, basename = sess.name, n_channels=n_channels, dry_run=False, debug_print=True)
+        _out = cls.prepare_for_spyking_circus(basedir=basedir, basename = sess.name, n_channels=n_channels, 
+                                            valid_reference_session_basepath=valid_reference_session_basepath, ref_basename=ref_basename,
+                                            dry_run=False, debug_print=True)
 
         return sess
