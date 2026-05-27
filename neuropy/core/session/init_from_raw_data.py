@@ -565,13 +565,6 @@ class RawDataInitializationMixin:
         from neuropy.core.probe import Shank, Probe, ProbeGroup
         from neuropy.io.neuroscopeio import NeuroscopeIO
 
-        # probe_file = valid_reference_probe_file
-
-        # # probe_file = sess.filePrefix.with_suffix('.probegroup.npy')
-        # # probe_file = Path(r"W:\Data\Bapun\RatS\Day5TwoNovel\RatS-Day5TwoNovel-2020-12-04_07-55-09.probegroup.npy").resolve()
-        # assert probe_file.exists(), f"probe_file: '{probe_file.as_posix()}'"
-        # probe_group: ProbeGroup = ProbeGroup.from_file(probe_file)
-        # probe_group
 
 
         ## Reference Object
@@ -609,6 +602,49 @@ class RawDataInitializationMixin:
         neuroscope_obj.channel_groups = ref_neuroscope_obj.channel_groups
         _bak_xml_path = neuroscope_obj.backup_xml_file()
         neuroscope_obj.update_xml_file()
+
+
+        def subfn_copy_if_needed(ref_file: Path, target_file: Path) -> bool:
+            ref_file, target_file = Path(ref_file), Path(target_file)
+            if target_file.exists():
+                print(f'target_file: "{target_file.as_posix()}" already exists.')
+                return False
+            assert ref_file.exists(), f'ref_file: {ref_file} does not exist (and it is needed because target_file: "{target_file.as_posix()}" does not exist either)!'
+            target_file.parent.mkdir(exist_ok=True, parents=True)
+            print(f'copying: "{ref_file.as_posix()}" -> "{target_file.as_posix()}"...')
+            shutil.copy2(ref_file, target_file)
+            print(f'\tdone.')
+            return True
+
+        ref_spykcirc_path = valid_reference_session_basepath.joinpath('spyk-circ')
+        target_spykcirc_path = target_session_basepath.joinpath('spyk-circ')
+        target_spykcirc_path.mkdir(exist_ok=True)
+
+        ## Params File - "W:/Data/Bapun/RatS/Day1Openfield/spyk-circ/RatS-Day1Openfield.params":
+        ref_params_file = ref_spykcirc_path.joinpath(f"{ref_basename}.params")
+        target_params_file = target_spykcirc_path.joinpath(f"{target_basename}.params")
+        did_copy_params_file: bool = subfn_copy_if_needed(ref_params_file, target_params_file)
+        if did_copy_params_file and (ref_basename != target_basename) and target_params_file.exists():
+            params_text = target_params_file.read_text()
+            params_text_updated = params_text.replace(ref_basename, target_basename)
+            if params_text_updated != params_text:
+                target_params_file.write_text(params_text_updated)
+                print(f'updated basenames in params file: "{target_params_file.as_posix()}"')
+
+
+        ## Probe File - "W:/Data/Bapun/RatS/Day1Openfield/spyk-circ/RatS-Day1Openfield.prb"
+        ref_probe_file = ref_spykcirc_path.joinpath(f"{ref_basename}.prb")
+        target_probe_file = target_spykcirc_path.joinpath(f"{target_basename}.prb")
+        subfn_copy_if_needed(ref_probe_file, target_probe_file)
+
+
+        # probe_file = sess.filePrefix.with_suffix('.probegroup.npy')
+        # probe_file = Path(r"W:\Data\Bapun\RatS\Day5TwoNovel\RatS-Day5TwoNovel-2020-12-04_07-55-09.probegroup.npy").resolve()
+        # assert target_probe_file.exists(), f"probe_file: '{target_probe_file.as_posix()}'"
+        # probe_group: ProbeGroup = ProbeGroup.from_file(target_probe_file)
+        # probe_group
+
+
         return neuroscope_obj
 
 
@@ -617,7 +653,7 @@ class RawDataInitializationMixin:
 
 
     @classmethod
-    def update_session_n_channels(cls, basedir: Path, n_channels: int, *, session_stem: str | None = None, dry_run: bool = False, debug_print: bool = True) -> Dict[str, int]:
+    def update_session_n_channels(cls, basedir: Path, n_channels: int, *, basename: str | None = None, dry_run: bool = False, debug_print: bool = True) -> Dict[str, int]:
         """Set channel count in Spyking Circus / Neuroscope session config files.
 
         Parameters
@@ -676,7 +712,7 @@ class RawDataInitializationMixin:
         base = Path(basedir)
         if not base.is_dir():
             raise FileNotFoundError(f'session basedir not found: {base}')
-        stem = session_stem or f'RatS-{base.name}'
+        stem = basename or f'RatS-{base.name}'
         updates: List[_ChannelFileUpdate] = [
             (f'{stem}.prb', _replace_prb_total_nb_channels),
             (f'{stem}.params', _replace_params_nb_channels),
@@ -717,6 +753,50 @@ class RawDataInitializationMixin:
 
         return replace_dict
 
+
+    @classmethod
+    def prepare_for_spyking_circus(cls, basedir: Path, basename: str, n_channels: int, dry_run: bool = False, debug_print: bool = True) -> Dict[str, int]:
+        """Set channel count in Spyking Circus / Neuroscope session config files.
+
+        Parameters
+        ----------
+        basedir : Path
+            Session folder (e.g. .../RatS/Day1Openfield).
+        n_channels : int
+            Value written to each target file that exists.
+        session_stem : str, optional
+            File prefix; default RatS-{basedir.name}.
+        dry_run : bool
+            If True, print would-be updates without writing.
+        debug_print : bool
+            If True, print when an expected target file is not found.
+
+        Returns
+        -------
+        dict
+            relative_path -> previous integer for files that existed and were changed.
+        Prints each changed file; missing targets are reported when debug_print is True.
+
+
+        Usage:
+            # Example:
+            _out = cls.prepare_for_spyking_circus(basedir=basedir, basename = sess.name, n_channels=n_channels)
+
+        """
+        ## copy probe/xml as needed
+        neuroscope_obj = cls.step_copy_probe_files(
+                                            # valid_reference_session_basepath=Path("/mnt/w/Data/Bapun/RatS/Day5TwoNovel"), ref_basename = 'RatS-Day5TwoNovel-2020-12-04_07-55-09',
+                                            valid_reference_session_basepath=windows_to_wsl_path_if_needed(Path("W:/Data/Bapun/RatS/Day5TwoNovel")), ref_basename = 'RatS-Day5TwoNovel-2020-12-04_07-55-09',
+                                            target_session_basepath=basedir, target_basename = basename)
+        neuroscope_obj
+
+
+        ## Replace the number of channels in the session's files to make them correct for the session
+        ## INPUTS: basedir
+        replace_dict = RawDataInitializationMixin.update_session_n_channels(basedir=basedir, basename=basename, n_channels=n_channels, dry_run=dry_run, debug_print=debug_print)
+        print(replace_dict)
+
+        return neuroscope_obj, replace_dict
 
 
 
@@ -819,18 +899,7 @@ class RawDataInitializationMixin:
         position: Position = RawDataInitializationMixin.build_initial_position_data(sess, position_csvs_path=position_csvs_path)
         position
 
-        ## copy probe/xml as needed
-        neuroscope_obj = cls.step_copy_probe_files(
-                                            # valid_reference_session_basepath=Path("/mnt/w/Data/Bapun/RatS/Day5TwoNovel"), ref_basename = 'RatS-Day5TwoNovel-2020-12-04_07-55-09',
-                                            valid_reference_session_basepath=windows_to_wsl_path_if_needed(Path("W:/Data/Bapun/RatS/Day5TwoNovel")), ref_basename = 'RatS-Day5TwoNovel-2020-12-04_07-55-09',
-                                            target_session_basepath=sess.basepath, target_basename = sess.name)
-        neuroscope_obj
 
-
-        ## Replace the number of channels in the session's files to make them correct for the session
-        ## INPUTS: basedir
-        replace_dict = RawDataInitializationMixin.update_session_n_channels(basedir=basedir, session_stem=basename, n_channels=n_channels, dry_run=False, debug_print=True)
-        print(replace_dict)
-
+        _out = cls.prepare_for_spyking_circus(basedir=basedir, basename = sess.name, n_channels=n_channels, dry_run=False, debug_print=True)
 
         return sess
