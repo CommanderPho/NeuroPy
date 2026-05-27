@@ -426,7 +426,11 @@ class RawDataInitializationMixin:
     def step_perform_concat(cls, found_raw_data_paths: List[Path], spyk_circ_output_dir: Path, basename: str='continuous_combined', force_overwrite: bool=False):
         """ performs the concatenation, creates the output directory if needed
 
-        When ``force_overwrite`` is True and the output file already exists, the user is prompted to back up the
+        When the output file already exists, its size is compared to the sum of the input file sizes.
+        If they match, concatenation is skipped. If they do not match, a warning is printed and
+        concatenation is skipped by default unless ``force_overwrite`` is True.
+
+        When ``force_overwrite`` is True and the output file already exists with a size mismatch, the user is prompted to back up the
         existing file by renaming it with a ``.bak`` suffix before concatenation proceeds. If the ``.bak`` file
         already exists, an error is raised.
 
@@ -443,8 +447,16 @@ class RawDataInitializationMixin:
         
         ## Copy the concatenated files to the output directory
         concatenated_file_output_path: Path = spyk_circ_output_dir.joinpath(f'{basename}.dat').resolve() ## do I need to do anything with the adjacent `timestamps.npy` or anything??
+        expected_size_bytes: int = sum(input_path.stat().st_size for input_path in found_raw_data_paths)
         if concatenated_file_output_path.exists():
+            existing_size_bytes: int = concatenated_file_output_path.stat().st_size
+            if existing_size_bytes == expected_size_bytes:
+                return concatenated_file_output_path
+            size_difference_bytes: int = existing_size_bytes - expected_size_bytes
+            print(f'WARNING: Existing output file size ({existing_size_bytes} bytes) does not match expected sum of input files ({expected_size_bytes} bytes). Difference: {size_difference_bytes:+d} bytes.')
+            print(f'\tExisting file: "{concatenated_file_output_path.as_posix()}"')
             if not force_overwrite:
+                print(f'\tSkipping concatenation. Pass force_overwrite=True to re-concatenate.')
                 return concatenated_file_output_path
             backup_path: Path = concatenated_file_output_path.with_suffix(concatenated_file_output_path.suffix + '.bak')
             backup_response: str = input(f'Output file already exists: "{concatenated_file_output_path.as_posix()}". Back up existing file to "{backup_path.as_posix()}"? [y/N]: ').strip().lower()
