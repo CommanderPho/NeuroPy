@@ -216,6 +216,9 @@ class RawDataInitializationMixin:
         """
         import xml.etree.ElementTree as ET
         
+        csv_output_path: Path = search_dir.parent
+        csv_out_path: Path = csv_output_path.joinpath(f'{basename}.datetime.csv')
+
         all_datetime_df = []
         all_found_files_dict = {'settings_xml': [], 'continuous_xml': [], 'dat': [], 'recording_folder': []}
         found_raw_data_paths = []
@@ -320,8 +323,16 @@ class RawDataInitializationMixin:
         included_only_datetime_df = all_datetime_df[all_datetime_df['is_included']].reset_index(drop=True)
         found_raw_data_paths = [v for i, v in enumerate(found_raw_data_paths) if i in included_indicies]
 
-        csv_output_path: Path = search_dir.parent
-        csv_out_path: Path = csv_output_path.joinpath(f'{basename}.datetime.csv')
+        ## sanity check the number of channels
+        raw_data_derived_n_channels_list: List[int] = included_only_datetime_df['n_channels'].tolist()
+        if len(raw_data_derived_n_channels_list) == 0:
+            print(f'WARNING: raw_data_derived_n_channels_list is empty!')
+            raise ValueError(f'raw_data_derived_n_channels_list is empty!')
+        raw_data_derived_n_channels: int = raw_data_derived_n_channels_list[0]
+        assert np.all(raw_data_derived_n_channels_list) == raw_data_derived_n_channels, f"raw_data_derived_n_channels_list entires must all be the same but: {raw_data_derived_n_channels_list}, n_channels: {n_channels}"
+        assert raw_data_derived_n_channels == n_channels, f"raw_data_derived_n_channels: {raw_data_derived_n_channels} != n_channels: {n_channels}"
+
+
         print(f'output csv path: "{csv_out_path.as_posix()}"')
         included_only_datetime_df.to_csv(csv_out_path)
 
@@ -783,7 +794,6 @@ class RawDataInitializationMixin:
         ## could assert that they all exist... but let's NOT!
         # excluded_data_datetimes = ['2020-11-25_10-24-24']
         
-
         included_only_datetime_df, datetime_csv_out_path, found_raw_data_paths, all_datetime_df, all_found_files_dict = cls.build_session_datetime_csv(raw_data_path, basename=basename, excluded_data_datetimes=excluded_data_datetimes,
                                                                                                                         n_channels=n_channels, sampling_rate=dat_file_sampling_rate,
                                                                                                 )
@@ -815,6 +825,12 @@ class RawDataInitializationMixin:
                                             valid_reference_session_basepath=windows_to_wsl_path_if_needed(Path("W:/Data/Bapun/RatS/Day5TwoNovel")), ref_basename = 'RatS-Day5TwoNovel-2020-12-04_07-55-09',
                                             target_session_basepath=sess.basepath, target_basename = sess.name)
         neuroscope_obj
+
+
+        ## Replace the number of channels in the session's files to make them correct for the session
+        ## INPUTS: basedir
+        replace_dict = RawDataInitializationMixin.update_session_n_channels(basedir=basedir, session_stem=basename, n_channels=n_channels, dry_run=False, debug_print=True)
+        print(replace_dict)
 
 
         return sess
