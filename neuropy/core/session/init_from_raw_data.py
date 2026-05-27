@@ -207,7 +207,7 @@ class RawDataInitializationMixin:
             basename: str = 'RatS-Day1Openfield'
             excluded_data_datetimes = ['2020-11-25_10-24-24']
 
-            datetime_df, datetime_csv_out_path, found_raw_data_paths = RawDataInitializationMixin.build_session_datetime_csv(raw_data_path, basename=basename, excluded_data_datetimes=excluded_data_datetimes, n_channels=n_channels, sampling_rate=sampling_rate)
+            included_only_datetime_df, datetime_csv_out_path, found_raw_data_paths, all_datetime_df, all_found_files_dict = RawDataInitializationMixin.build_session_datetime_csv(raw_data_path, basename=basename, excluded_data_datetimes=excluded_data_datetimes, n_channels=n_channels, sampling_rate=sampling_rate)
             datetime_df
             found_raw_data_paths
 
@@ -294,7 +294,9 @@ class RawDataInitializationMixin:
         all_datetime_df = pd.DataFrame.from_records(all_datetime_df, columns=columns) 
 
         # Convert just the 'startTime' column to the desired string format
-        all_datetime_df['startTime'] = all_datetime_df['startTime'].dt.strftime('%Y-%m-%d_%H-%M-%S')
+        if len(all_datetime_df) > 0:
+            all_datetime_df['startTime'] = all_datetime_df['startTime'].dt.strftime('%Y-%m-%d_%H-%M-%S')
+            
         all_datetime_df['is_included'] = True ## all true by default
         is_included = all_datetime_df['is_included'].to_numpy()
         
@@ -412,14 +414,21 @@ class RawDataInitializationMixin:
         """ concatenates the binary files in input_paths to a single joined output_path.
         When there is only one input file, creates a symlink at output_path instead of copying,
         unless ``disable_single_file_symlink`` is True.
+
+        Raises ``RuntimeError`` if the output file size does not equal the sum of input file sizes.
         """
+        expected_size_bytes: int = sum(input_path.stat().st_size for input_path in input_paths)
         if len(input_paths) == 1 and not disable_single_file_symlink:
             output_path.symlink_to(input_paths[0].resolve())
-            return
-        with open(output_path, "wb") as outfile:
-            for path in input_paths:
-                with open(path, "rb") as infile:
-                    shutil.copyfileobj(infile, outfile)
+        else:
+            with open(output_path, "wb") as outfile:
+                for path in input_paths:
+                    with open(path, "rb") as infile:
+                        shutil.copyfileobj(infile, outfile)
+        output_size_bytes: int = output_path.stat().st_size
+        if output_size_bytes != expected_size_bytes:
+            size_difference_bytes: int = output_size_bytes - expected_size_bytes
+            raise RuntimeError(f'Concatenated output file size ({output_size_bytes} bytes) does not match expected sum of input files ({expected_size_bytes} bytes). Difference: {size_difference_bytes:+d} bytes. Output path: "{output_path.as_posix()}"')
                 
 
     @classmethod
@@ -660,10 +669,10 @@ class RawDataInitializationMixin:
         # excluded_data_datetimes = ['2020-11-25_10-24-24']
         
 
-        datetime_df, datetime_csv_out_path, found_raw_data_paths = cls.build_session_datetime_csv(raw_data_path, basename=basename, excluded_data_datetimes=excluded_data_datetimes,
+        included_only_datetime_df, datetime_csv_out_path, found_raw_data_paths, all_datetime_df, all_found_files_dict = cls.build_session_datetime_csv(raw_data_path, basename=basename, excluded_data_datetimes=excluded_data_datetimes,
                                                                                                                         n_channels=n_channels, sampling_rate=dat_file_sampling_rate,
                                                                                                 )
-        datetime_df
+        included_only_datetime_df
         found_raw_data_paths
         
 
