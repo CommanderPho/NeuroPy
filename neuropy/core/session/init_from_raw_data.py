@@ -511,6 +511,8 @@ class RawDataInitializationMixin:
 
         ## Copy the concatenated files to the output directory
         concatenated_file_output_path: Path = basedir.joinpath(f'{basename}.dat').resolve() ## do I need to do anything with the adjacent `timestamps.npy` or anything??
+        if concatenated_file_output_path.exists() and len(found_raw_data_paths) == 0:
+            return concatenated_file_output_path
         expected_size_bytes: int = sum(input_path.stat().st_size for input_path in found_raw_data_paths)
         if concatenated_file_output_path.exists():
             existing_size_bytes: int = concatenated_file_output_path.stat().st_size
@@ -1064,40 +1066,36 @@ class RawDataInitializationMixin:
         print(f'eeg_sampling_rate: {eeg_sampling_rate}')
 
         raw_data_path: Path = basedir.joinpath('Raw_data')
-        assert raw_data_path.exists(), f"raw_data_path: '{raw_data_path.as_posix()}' does not exist!"
-        print(f'raw_data_path: "{raw_data_path.as_posix()}"')
+        datetime_csv_out_path: Path = basedir.joinpath(f'{basename}.datetime.csv')
+        concatenated_file_output_path: Path = basedir.joinpath(f'{basename}.dat').resolve()
+        all_datetime_df = None
+        all_found_files_dict = None
+
+        if datetime_csv_out_path.exists():
+            print(f'Skipping datetime CSV build; loading existing file: "{datetime_csv_out_path.as_posix()}"')
+            included_only_datetime_df = pd.read_csv(datetime_csv_out_path)
+            found_raw_data_paths: List[Path] = []
+            if 'dat_file' in included_only_datetime_df.columns:
+                found_raw_data_paths = [Path(v).resolve() for v in included_only_datetime_df['dat_file'].dropna().tolist() if Path(v).exists()]
+        elif raw_data_path.exists():
+            print(f'raw_data_path: "{raw_data_path.as_posix()}"')
+            included_only_datetime_df, datetime_csv_out_path, found_raw_data_paths, all_datetime_df, all_found_files_dict = cls.build_session_datetime_csv(raw_data_path, basename=basename, excluded_data_datetimes=excluded_data_datetimes, n_channels=n_channels, sampling_rate=dat_file_sampling_rate)
+        else:
+            raise FileNotFoundError(f"Neither Raw_data directory ('{raw_data_path.as_posix()}') nor datetime CSV ('{datetime_csv_out_path.as_posix()}') exists.")
+
+        included_only_datetime_df
+        found_raw_data_paths
 
         ## make the "spyk-circ" output directory
         spyk_circ_output_dir: Path = basedir.joinpath('spyk-circ')
         spyk_circ_output_dir.mkdir(exist_ok=True, parents=True) ## dang I sure hope we're on Windows or I'll add some garbage paths :P
 
-        # ## INPUTS: raw_data_path: Path # Path(r'W:/Data/Bapun/RatS/Day1Openfield/Raw_data').resolve()
-        # print(f'raw_data_path: "{raw_data_path.as_posix()}"')
-
-        # ## find all constitutent "continuous.dat" files recurrsively in all subdirectories: "W:\Data\Bapun\RatS\Day1Openfield\Raw_data\2020-11-25_10-24-24\experiment1\recording1\continuous\Rhythm_FPGA-100.0\continuous.dat"
-        # found_raw_data_paths = ["W:/Data/Bapun/RatS/Day1Openfield/Raw_data/2020-11-25_10-20-27/experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat",
-        #                         # "W:/Data/Bapun/RatS/Day1Openfield/Raw_data/2020-11-25_10-24-24/experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat", ## BAD ONE, only has 32 channels, skip
-        #                         "W:/Data/Bapun/RatS/Day1Openfield/Raw_data/2020-11-25_13-02-47/experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat",
-        #                         "W:/Data/Bapun/RatS/Day1Openfield/Raw_data/2020-11-25_14-30-32/experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat",
-        #                         "W:/Data/Bapun/RatS/Day1Openfield/Raw_data/2020-11-25_15-06-02/experiment1/recording1/continuous/Rhythm_FPGA-100.0/continuous.dat",
-        # ]    
-        # ## *-24-24 is a bad one with only 30 good channels!
-
-        # ## Iterate through and make proper paths, check their existance
-        # found_raw_data_paths: List[Path] = [Path(v).resolve() for v in found_raw_data_paths]
-        ## could assert that they all exist... but let's NOT!
-        # excluded_data_datetimes = ['2020-11-25_10-24-24']
-        
-        included_only_datetime_df, datetime_csv_out_path, found_raw_data_paths, all_datetime_df, all_found_files_dict = cls.build_session_datetime_csv(raw_data_path, basename=basename, excluded_data_datetimes=excluded_data_datetimes,
-                                                                                                                        n_channels=n_channels, sampling_rate=dat_file_sampling_rate,
-                                                                                                )
-        included_only_datetime_df
-        found_raw_data_paths
-        
-
-
-        ## Copy the concatenated files to the output directory
-        concatenated_file_output_path: Path = cls.step_perform_concat(found_raw_data_paths=found_raw_data_paths, basedir=basedir, basename=basename)
+        if concatenated_file_output_path.exists():
+            print(f'Skipping concatenation; existing .dat found: "{concatenated_file_output_path.as_posix()}"')
+        elif len(found_raw_data_paths) > 0:
+            concatenated_file_output_path = cls.step_perform_concat(found_raw_data_paths=found_raw_data_paths, basedir=basedir, basename=basename)
+        else:
+            print(f'Skipping concatenation; no output .dat and no available source files. Expected path: "{concatenated_file_output_path.as_posix()}"')
         print(f'have concatenated_file_output_path: "{concatenated_file_output_path.as_posix()}"')
         concatenated_file_output_path
 
