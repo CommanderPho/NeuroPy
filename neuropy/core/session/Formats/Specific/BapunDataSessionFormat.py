@@ -701,7 +701,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         # Define subfunctions that capture and modify most just for conveninece                                                                                                                                                                                                                #
         # ==================================================================================================================================================================================================================================================================================== #
 
-        def _perform_position_comps():
+        def _perform_position_comps(session):
             # ['.neurons.npy','.probegroup.npy','.position.npy','.paradigm.npy']
             # session = DataSessionLoader.__default_compute_bapun_flattened_spikes(session)
             # active_session_computation_configs[0].pf_params.linearization_method = "umap"
@@ -756,7 +756,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 print('linearized position loaded from file.')
 
 
-        def _perform_spike_comps():
+        def _perform_spike_comps(session):
             ## Load or compute flattened spikes since this format of data has the spikes ordered only by cell_id:
             ## flattened.spikes:
             active_file_suffix = '.flattened.spikes.npy'
@@ -780,29 +780,29 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 print('\t done.\n')
 
 
-        def _perform_postload_comps():
+        def _perform_postload_comps(session):
             # Common Extended properties:
             session = cls._default_extended_postload(session.filePrefix, session)
         
 
         if not enable_continue_on_required_path_failure:
             ## perform all three without handling failures:
-            _perform_position_comps()
-            _perform_spike_comps()
-            _perform_postload_comps()
+            _perform_position_comps(session)
+            _perform_spike_comps(session)
+            _perform_postload_comps(session)
         else:
             try:
-                _perform_position_comps()
+                _perform_position_comps(session)
             except Exception as e:
                 print(f'_perform_position_comps failed with err: {e} but enable_continue_on_required_path_failure == True so continuing...')
 
             try:
-                _perform_spike_comps()
+                _perform_spike_comps(session)
             except Exception as e:
                 print(f'_perform_spike_comps failed with err: {e} but enable_continue_on_required_path_failure == True so continuing...')
 
             try:
-                _perform_postload_comps()
+                _perform_postload_comps(session)
             except Exception as e:
                 print(f'_perform_postload_comps failed with err: {e} but enable_continue_on_required_path_failure == True so continuing...')
 
