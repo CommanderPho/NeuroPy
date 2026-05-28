@@ -444,6 +444,8 @@ class RawDataInitializationMixin:
         position = opti_data.updating_position_obj(position)
         # pos_df = position.to_dataframe()
 
+        # position.compute_speed_info() ## make sure we have computed fields (I guess.. we don't have to store these actually)
+
         ## Save out to file:
         position.filename = sess.filePrefix.with_suffix('.position.npy')
         print(f'saving out to {position.filename.as_posix()}...')
@@ -856,30 +858,58 @@ class RawDataInitializationMixin:
 
         phy_basename: str = sess.name
         phy_path: Path = basedir.joinpath('spyk-circ', phy_basename, f'{phy_basename}-merged.GUI')
-        assert phy_path.exists(), f'phy_path: "{phy_path.as_posix()}" does not exist.'
+        if not phy_path.exists():
+            print(f'WARNING: build_neurons_from_phy: phy_path does not exist: "{phy_path.as_posix()}"')
+            return None
 
-        phy_data: PhyIO = PhyIO(phy_path)
+        try:
+            phy_data: PhyIO = PhyIO(phy_path)
+        except Exception as e:
+            print(f'WARNING: build_neurons_from_phy: failed to load Phy data from "{phy_path.as_posix()}": {e}')
+            return None
 
-        neurons: Neurons = Neurons(
-            np.array(phy_data.spiketrains, dtype=object),
-            t_stop=sess.eegfile.duration,
-            sampling_rate=phy_data.sampling_rate,
-            peak_channels=phy_data.peak_channels,
-            waveforms=np.array(phy_data.peak_waveforms, dtype='object'),
-            shank_ids=np.array([int(v) for v in phy_data.shank_ids])
-        )
+        if phy_data.spiketrains is None or len(phy_data.spiketrains) == 0:
+            print(f'WARNING: build_neurons_from_phy: no spiketrains found in Phy output at "{phy_path.as_posix()}"')
+            return None
 
-        if neurons is not None:
-            sess.neurons = neurons
+        if sess.eegfile is None:
+            print(f'WARNING: build_neurons_from_phy: sess.eegfile is None; cannot determine t_stop for Neurons')
+            return None
 
+        try:
+            neurons: Neurons = Neurons(
+                np.array(phy_data.spiketrains, dtype=object),
+                t_stop=sess.eegfile.duration,
+                sampling_rate=phy_data.sampling_rate,
+                peak_channels=phy_data.peak_channels,
+                waveforms=np.array(phy_data.peak_waveforms, dtype='object'),
+                shank_ids=np.array([int(v) for v in phy_data.shank_ids])
+            )
+        except Exception as e:
+            print(f'WARNING: build_neurons_from_phy: failed to build Neurons object from Phy data at "{phy_path.as_posix()}": {e}')
+            return None
+
+        if neurons is None:
+            print(f'WARNING: build_neurons_from_phy: Neurons object is None after construction')
+            return None
+
+        sess.neurons = neurons
+
+        try:
             from neuropy.utils import neurons_util
             neuron_type = neurons_util.estimate_neuron_type(sess.neurons)
             neuron_type = neuron_type[0]
             neurons.neuron_type = neuron_type
-            sess.neurons.filename = sess.filePrefix.with_suffix('.neurons')
+        except Exception as e:
+            print(f'WARNING: build_neurons_from_phy: failed to estimate neuron type: {e}')
+
+        sess.neurons.filename = sess.filePrefix.with_suffix('.neurons')
+        try:
             print(f'saving out to {sess.neurons.filename.as_posix()}...')
             sess.neurons.save()
             print(f'\tdone.')
+        except Exception as e:
+            print(f'WARNING: build_neurons_from_phy: failed to save neurons to "{sess.neurons.filename.as_posix()}": {e}')
 
         return neurons
 
@@ -1093,5 +1123,35 @@ class RawDataInitializationMixin:
         cls.build_neurons_from_phy(sess, basedir=basedir)
 
         cls.build_mua_pbe_artifact_epochs(sess)
+
+
+        # ==================================================================================================================================================================================================================================================================================== #
+        # `.paradigm.npy`                                                                                                                                                                                                                                                                      #
+        # ==================================================================================================================================================================================================================================================================================== #
+
+        if (sess.paradigm is None): #  or (sess.paradigm != epochs_obj)
+
+            ## Unless otherwise provided, try to get the latest common timestamp for all of the session's data fields for the t_start and the earliest for the t_stop
+            session_t_start: float = np.nanmax([sess.position.t_start, sess.neurons.t_start])
+            session_t_stop: float = np.nanmin([sess.position.t_stop, sess.neurons.t_stop])
+            # (session_t_start, session_t_stop)
+            # 0.0, 5511.2575
+
+            # art_by_hand = Epoch(pd.DataFrame({"start": [246*60 + 31.1], "stop": [247*60 + 32.766], "label": "by_hand"}))
+            epochs_df: pd.DataFrame = pd.DataFrame({'start':[session_t_start],'stop':[session_t_stop],'label':['maze']})
+            epochs_df['duration'] = epochs_df['stop'] - epochs_df['start']
+            epochs_obj: Epoch = Epoch(epochs_df)
+            epochs_obj
+
+            sess.paradigm = epochs_obj
+
+            if epochs_obj is not None:
+                epochs_obj.filename = sess.filePrefix.with_suffix('.paradigm.npy')
+                print(f'saving out to {epochs_obj.filename.as_posix()}...')
+                epochs_obj.save()
+                print(f'\tdone.')
+
+
+
 
         return sess
