@@ -53,7 +53,7 @@ class Neurons(HDF_SerializationMixin, NeuronUnitSlicableObjectProtocol, StartSto
         if waveforms is not None:
             assert (
                 waveforms.shape[0] == self.n_neurons
-            ), "Waveforms first dimension should match number of neurons"
+            ), f"Waveforms first dimension should match number of neurons\n\tself.n_neurons: {self.n_neurons} != waveforms.shape[0]: {waveforms.shape[0]}"
 
         self.waveforms = waveforms
         self.shank_ids = shank_ids
