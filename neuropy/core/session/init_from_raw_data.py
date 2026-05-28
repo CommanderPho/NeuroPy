@@ -840,6 +840,51 @@ class RawDataInitializationMixin:
 
 
     @classmethod
+    def build_neurons_from_phy(cls, sess, basedir: Path):
+        """Loads neurons from Spyking Circus / Phy merged GUI output and saves session file.
+
+        Modifies:
+            sess.neurons
+
+        Usage:
+
+            cls.build_neurons_from_phy(sess, basedir=basedir)
+
+        """
+        from neuropy.io import PhyIO
+        from neuropy.core import Neurons
+
+        phy_basename: str = sess.name
+        phy_path: Path = basedir.joinpath('spyk-circ', phy_basename, f'{phy_basename}-merged.GUI')
+        assert phy_path.exists(), f'phy_path: "{phy_path.as_posix()}" does not exist.'
+
+        phy_data: PhyIO = PhyIO(phy_path)
+
+        neurons: Neurons = Neurons(
+            np.array(phy_data.spiketrains, dtype=object),
+            t_stop=sess.eegfile.duration,
+            sampling_rate=phy_data.sampling_rate,
+            peak_channels=phy_data.peak_channels,
+            waveforms=np.array(phy_data.peak_waveforms, dtype='object'),
+            shank_ids=np.array([int(v) for v in phy_data.shank_ids])
+        )
+
+        if neurons is not None:
+            sess.neurons = neurons
+
+            from neuropy.utils import neurons_util
+            neuron_type = neurons_util.estimate_neuron_type(sess.neurons)
+            neuron_type = neuron_type[0]
+            neurons.neuron_type = neuron_type
+            sess.neurons.filename = sess.filePrefix.with_suffix('.neurons')
+            print(f'saving out to {sess.neurons.filename.as_posix()}...')
+            sess.neurons.save()
+            print(f'\tdone.')
+
+        return neurons
+
+
+    @classmethod
     def build_mua_pbe_artifact_epochs(cls, sess):
         """Builds MUA, PBE, and artifact epochs from neurons and EEG; saves session files.
 
@@ -861,7 +906,9 @@ class RawDataInitializationMixin:
             mua.filename = sess.filePrefix.with_suffix(".mua.npy")
             if mua is not None:
                 sess.mua = mua
+                print(f'saving out to {mua.filename.as_posix()}...')
                 mua.save()
+                print(f'\tdone.')
 
 
         # ==================================================================================================================================================================================================================================================================================== #
@@ -874,7 +921,9 @@ class RawDataInitializationMixin:
             pbe = detect_pbe_epochs(smth_mua)
             if pbe is not None:
                 pbe.filename = sess.filePrefix.with_suffix('.pbe')
+                print(f'saving out to {pbe.filename.as_posix()}...')
                 pbe.save()
+                print(f'\tdone.')
 
 
         # ==================================================================================================================================================================================================================================================================================== #
@@ -886,20 +935,27 @@ class RawDataInitializationMixin:
         if sess.eegfile is not None:
             signal = sess.eegfile.get_signal()
             art_epochs_file = sess.filePrefix.with_suffix('.artifact.npy')
+            art_epochs_evt_path = sess.recinfo.source_file.with_suffix('.evt.art')
             art_epochs = Epoch.from_file(art_epochs_file)
             if art_epochs is None:
                 art_epochs = detect_artifact_epochs(signal, thresh=8, edge_cutoff=2, merge=6)
+                print(f'writing artifact epochs to {art_epochs_evt_path.as_posix()}...')
                 sess.recinfo.write_epochs(epochs=art_epochs, ext='art')
+                print(f'\tdone.')
                 art_epochs.filename = art_epochs_file
+                print(f'saving out to {art_epochs_file.as_posix()}...')
                 art_epochs.save()
+                print(f'\tdone.')
 
             ### Add in a buffer before and after each epoch if desired.
             _subfn_add_epoch_buffer(art_epochs.to_dataframe(), 0.2)
+            print(f'writing buffered artifact epochs to {art_epochs_evt_path.as_posix()}...')
             sess.recinfo.write_epochs(art_epochs, 'art')
+            print(f'\tdone.')
 
             ### Write `dead_times.txt` file for later processing with SpyKing Circus
             dead_times_txt_path: Path = sess.basepath / 'dead_times.txt'
-            print(f'dead_times_txt_path: {dead_times_txt_path}')
+            print(f'writing dead times to {dead_times_txt_path.as_posix()}...')
             SpykingCircusIO.write_epochs(dead_times_txt_path, epochs=art_epochs)
 
         return sess
@@ -1025,7 +1081,7 @@ class RawDataInitializationMixin:
 
         position_csvs_path: Path = sess.basepath.joinpath('Raw_data/position/CSVs')
         position: Position = RawDataInitializationMixin.build_initial_position_data(sess, position_csvs_path=position_csvs_path)
-        position
+        
 
 
         _out = cls.prepare_for_spyking_circus(basedir=basedir, basename = sess.name, n_channels=n_channels, 
@@ -1034,40 +1090,7 @@ class RawDataInitializationMixin:
 
 
 
-        # ==================================================================================================================================================================================================================================================================================== #
-        # Neurons (Spikes) from SpykingCircus                                                                                                                                                                                                                                                  #
-        # ==================================================================================================================================================================================================================================================================================== #
-        from neuropy.io import PhyIO
-        from neuropy.core import Neurons
-
-        phy_basename: str = sess.name
-        phy_path: Path = basedir.joinpath('spyk-circ', phy_basename, f'{phy_basename}-merged.GUI')
-        assert phy_path.exists(), f'phy_path: "{phy_path.as_posix()}" does not exist.'
-
-        phy_data: PhyIO = PhyIO(phy_path)
-
-        neurons: Neurons = Neurons(
-            np.array(phy_data.spiketrains, dtype=object),
-            t_stop=sess.eegfile.duration,
-            sampling_rate=phy_data.sampling_rate,
-            peak_channels=phy_data.peak_channels,
-            waveforms=np.array(phy_data.peak_waveforms,dtype='object'),
-            shank_ids=np.array([int(v) for v in phy_data.shank_ids])
-        )
-
-        if neurons is not None:
-            sess.neurons = neurons
-
-            # %matplotlib inline
-            # import matplotlib.pyplot as plt
-
-            from neuropy.utils import neurons_util
-            neuron_type = neurons_util.estimate_neuron_type(sess.neurons)
-            neuron_type = neuron_type[0]
-            neurons.neuron_type = neuron_type
-            sess.neurons.filename = sess.filePrefix.with_suffix('.neurons')
-            sess.neurons.save()
-
+        cls.build_neurons_from_phy(sess, basedir=basedir)
 
         cls.build_mua_pbe_artifact_epochs(sess)
 
