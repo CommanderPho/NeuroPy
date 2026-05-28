@@ -914,7 +914,7 @@ class RawDataInitializationMixin:
 
         try:
             from neuropy.utils import neurons_util
-            neuron_type = neurons_util.estimate_neuron_type(sess.neurons)
+            neuron_type = neurons_util.estimate_neuron_type(sess.neurons, plot=False)
             neuron_type = neuron_type[0]
             neurons.neuron_type = neuron_type
         except Exception as e:
