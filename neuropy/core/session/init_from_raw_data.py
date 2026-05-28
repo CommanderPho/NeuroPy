@@ -100,6 +100,17 @@ def subfn_copy_if_needed(ref_file: Path, target_file: Path, force_overwrite: boo
     return True
 
 
+def _subfn_add_epoch_buffer(epoch_df: pd.DataFrame, buffer_sec: float or int or tuple or list):
+    """Extend each epoch by buffer_sec before/after start/stop of each epoch"""
+    if type(buffer_sec) in [int, float]:
+        buffer_sec = (buffer_sec, buffer_sec)
+    else:
+        assert len(buffer_sec) == 2
+
+    epoch_df['start'] -= buffer_sec[0]
+    epoch_df['stop'] += buffer_sec[1]
+
+
 def find_first_file_rglob(search_root: Union[str, Path], filename: str, warn_on_multiple: bool = True, error_context_label: Optional[str] = None, recursive: bool = True, raise_on_none_found: bool = True) -> Optional[Path]:
     """Find the first existing file matching ``filename`` under ``search_root``.
 
@@ -828,6 +839,71 @@ class RawDataInitializationMixin:
         return replace_dict
 
 
+    @classmethod
+    def build_mua_pbe_artifact_epochs(cls, sess):
+        """Builds MUA, PBE, and artifact epochs from neurons and EEG; saves session files.
+
+        Modifies:
+            sess.mua
+            sess.recinfo artifact epochs
+
+        Usage:
+
+            cls.build_mua_pbe_artifact_epochs(sess)
+
+        """
+        # ==================================================================================================================================================================================================================================================================================== #
+        # MUA Epochs                                                                                                                                                                                                                                                                           #
+        # ==================================================================================================================================================================================================================================================================================== #
+
+        if sess.neurons is not None:
+            mua = sess.neurons.get_mua()
+            mua.filename = sess.filePrefix.with_suffix(".mua.npy")
+            if mua is not None:
+                sess.mua = mua
+                mua.save()
+
+
+        # ==================================================================================================================================================================================================================================================================================== #
+        # PBE Epochs                                                                                                                                                                                                                                                                           #
+        # ==================================================================================================================================================================================================================================================================================== #
+        from neuropy.analyses.spkepochs import detect_pbe_epochs
+
+        if sess.mua is not None:
+            smth_mua = sess.mua.get_smoothed(sigma=0.02)
+            pbe = detect_pbe_epochs(smth_mua)
+            if pbe is not None:
+                pbe.filename = sess.filePrefix.with_suffix('.pbe')
+                pbe.save()
+
+
+        # ==================================================================================================================================================================================================================================================================================== #
+        # Artifact Epochs                                                                                                                                                                                                                                                                      #
+        # ==================================================================================================================================================================================================================================================================================== #
+        from neuropy.analyses.artifact import detect_artifact_epochs
+        from neuropy.io.spykingcircusio import SpykingCircusIO
+
+        if sess.eegfile is not None:
+            signal = sess.eegfile.get_signal()
+            art_epochs_file = sess.filePrefix.with_suffix('.artifact.npy')
+            art_epochs = Epoch.from_file(art_epochs_file)
+            if art_epochs is None:
+                art_epochs = detect_artifact_epochs(signal, thresh=8, edge_cutoff=2, merge=6)
+                sess.recinfo.write_epochs(epochs=art_epochs, ext='art')
+                art_epochs.filename = art_epochs_file
+                art_epochs.save()
+
+            ### Add in a buffer before and after each epoch if desired.
+            _subfn_add_epoch_buffer(art_epochs.to_dataframe(), 0.2)
+            sess.recinfo.write_epochs(art_epochs, 'art')
+
+            ### Write `dead_times.txt` file for later processing with SpyKing Circus
+            dead_times_txt_path: Path = sess.basepath / 'dead_times.txt'
+            print(f'dead_times_txt_path: {dead_times_txt_path}')
+            SpykingCircusIO.write_epochs(dead_times_txt_path, epochs=art_epochs)
+
+        return sess
+
 
     # ==================================================================================================================================================================================================================================================================================== #
     # Main run function                                                                                                                                                                                                                                                                    #
@@ -964,8 +1040,9 @@ class RawDataInitializationMixin:
         from neuropy.io import PhyIO
         from neuropy.core import Neurons
 
-        phy_path = Path("/mnt/w/Data/Bapun/RatS/Day1Openfield/spyk-circ/RatS-Day1Openfield/RatS-Day1Openfield-merged.GUI")
-        assert phy_path.exists()
+        phy_basename: str = sess.name
+        phy_path: Path = basedir.joinpath('spyk-circ', phy_basename, f'{phy_basename}-merged.GUI')
+        assert phy_path.exists(), f'phy_path: "{phy_path.as_posix()}" does not exist.'
 
         phy_data: PhyIO = PhyIO(phy_path)
 
@@ -992,71 +1069,6 @@ class RawDataInitializationMixin:
             sess.neurons.save()
 
 
-        ## BinnedSpiketrain and Mua objects using Neurons
-
-        # ==================================================================================================================================================================================================================================================================================== #
-        # MUA Epochs                                                                                                                                                                                                                                                                           #
-        # ==================================================================================================================================================================================================================================================================================== #
-        
-        if sess.neurons is not None:
-            mua = sess.neurons.get_mua()
-            mua.filename = sess.filePrefix.with_suffix(".mua.npy")
-            if mua is not None:
-                sess.mua = mua
-                mua.save() 
-
-
-
-        # ==================================================================================================================================================================================================================================================================================== #
-        # PBE Epochs                                                                                                                                                                                                                                                                           #
-        # ==================================================================================================================================================================================================================================================================================== #
-        from neuropy.analyses.spkepochs import detect_pbe_epochs
-
-        if sess.mua is not None:
-            smth_mua = sess.mua.get_smoothed(sigma=0.02)
-            pbe = detect_pbe_epochs(smth_mua)
-            if pbe is not None:
-                pbe.filename = sess.filePrefix.with_suffix('.pbe')
-                pbe.save()
-
-
-        # ==================================================================================================================================================================================================================================================================================== #
-        # Artifact Epochs                                                                                                                                                                                                                                                                      #
-        # ==================================================================================================================================================================================================================================================================================== #
-        from neuropy.analyses.artifact import detect_artifact_epochs
-        from neuropy.io.spykingcircusio import SpykingCircusIO
-
-        def _subfn_add_epoch_buffer(epoch_df: pd.DataFrame, buffer_sec: float or int or tuple or list):
-            """Extend each epoch by buffer_sec before/after start/stop of each epoch"""
-            if type(buffer_sec) in [int, float]:
-                buffer_sec = (buffer_sec, buffer_sec)
-            else:
-                assert len(buffer_sec) == 2
-                
-            epoch_df['start'] -= buffer_sec[0]
-            epoch_df['stop'] += buffer_sec[1]
-
-        if sess.eegfile is not None:
-            signal = sess.eegfile.get_signal()
-            art_epochs_file = sess.filePrefix.with_suffix('.artifact.npy')
-            art_epochs = Epoch.from_file(art_epochs_file)
-            if art_epochs is None:
-                art_epochs = detect_artifact_epochs(signal, thresh=8, edge_cutoff=2, merge=6)
-                sess.recinfo.write_epochs(epochs=art_epochs, ext='art')
-                art_epochs.filename = art_epochs_file
-                art_epochs.save()
-
-            art_epochs
-
-            ### Add in a buffer before and after each epoch if desired.
-            _subfn_add_epoch_buffer(art_epochs.to_dataframe(), 0.2)
-            sess.recinfo.write_epochs(art_epochs, 'art')
-            art_epochs.to_dataframe()
-
-            ### Write `dead_times.txt` file for later processing with SpyKing Circus
-            dead_times_txt_path: Path = sess.basepath / 'dead_times.txt'
-            print(f'dead_times_txt_path: {dead_times_txt_path}')
-            SpykingCircusIO.write_epochs(dead_times_txt_path, epochs=art_epochs)
-
+        cls.build_mua_pbe_artifact_epochs(sess)
 
         return sess
