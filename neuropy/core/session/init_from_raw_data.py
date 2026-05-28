@@ -377,6 +377,10 @@ class RawDataInitializationMixin:
     @classmethod
     def build_initial_position_data(cls, sess, position_csvs_path: Path):
         """ builds the initial position data, creating the output '*.position.npy' file.
+
+        If ``sess.position`` is already loaded or ``{basename}.position.npy`` exists, skips
+        Optitrack CSV processing and returns the existing position data.
+
         Modifies:
             sess.position
             
@@ -390,8 +394,19 @@ class RawDataInitializationMixin:
         # opti_folder = Path('W:/Data/Bapun/RatS/Day1Openfield/Raw_data/position/CSVs')
         if position_csvs_path is None:
             position_csvs_path = sess.basepath.joinpath('Raw_data/position/CSVs')
-        
-        assert position_csvs_path.exists(), f"position_csvs_path: '{position_csvs_path.as_posix()}' does not exist!"
+        position_npy_path: Path = sess.filePrefix.with_suffix('.position.npy')
+
+        if sess.position is not None:
+            print(f'Skipping position build; session already has position loaded.')
+            return sess.position
+        if position_npy_path.exists():
+            print(f'Skipping position CSV build; loading existing file: "{position_npy_path.as_posix()}"')
+            position: Position = Position.from_file(position_npy_path)
+            sess.position = position
+            return position
+        if not position_csvs_path.exists():
+            raise FileNotFoundError(f"Neither position CSV directory ('{position_csvs_path.as_posix()}') nor position file ('{position_npy_path.as_posix()}') exists.")
+
         opti_data: OptitrackIO = OptitrackIO(dirname=position_csvs_path)
 
         #---- startimes of concatenated .dat files
