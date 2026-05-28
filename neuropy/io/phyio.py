@@ -51,7 +51,7 @@ class PhyIO:
         )
         if "id" not in cluinfo:
             print(
-                "id column does not exist in cluster_info.tsv. Using cluster_id column instead."
+                "WARN: id column does not exist in cluster_info.tsv. Using cluster_id column instead."
             )
             cluinfo["id"] = cluinfo["cluster_id"]
 
