@@ -1161,7 +1161,16 @@ class FormattedFigureText:
 
 
 def plot_position_curves_figure(position_obj, include_velocity=True, include_accel=False, figsize=(24, 10), axes_list=None):
-    """ Renders a figure with a position curve and optionally its higher-order derivatives """
+    """ Renders a figure with a position curve and optionally its higher-order derivatives
+
+    Usage:
+        from neuropy.utils.matplotlib_helpers import plot_position_curves_figure
+
+        sess.position.compute_speed_info() ## make sure we have velocity
+        fig, out_axes_list = plot_position_curves_figure(sess.position)
+
+
+    """
     num_subplots = 1
     out_axes_list = []
     if include_velocity:
