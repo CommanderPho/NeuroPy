@@ -17,8 +17,7 @@ from neuropy.utils.result_context import IdentifyingContext as Ctx
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_field, serialized_attribute_field, non_serialized_field, custom_define
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
 
-from pyphocorehelpers.programming_helpers import metadata_attributes
-from pyphocorehelpers.function_helpers import function_attributes
+# from pyphocorehelpers.function_helpers import function_attributes
 
 # ==================================================================================================================== #
 # 2023-06-21 User Annotations                                                                      #
@@ -84,7 +83,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             # annotation_man.annotations[a_ctx.overwriting_context(user_annotation='session_cell_exclusivity')] = a_val
 
 
-    @function_attributes(short_name=None, tags=['XxC','LxC', 'SxC'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2023-10-05 16:18', related_items=[])
+    # @function_attributes(short_name=None, tags=['XxC','LxC', 'SxC'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2023-10-05 16:18', related_items=[])
     def add_neuron_exclusivity_column(self, neuron_indexed_df: pd.DataFrame, included_session_contexts: List[IdentifyingContext], neuron_uid_column_name: str = 'neuron_uid', neuron_added_XdC_column_name: str = 'XxC_status'):
         """ adds 'XxC_status' column to the `neuron_indexed_df`: the user-labeled cell exclusivity (LxC/SxC/Shared) status {'LxC', 'SxC', 'Shared'}
         
@@ -817,8 +816,10 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         # ==================================================================================================================== #
         user_annotations[IdentifyingContext(format_name='bapun',animal='RatN', session_name='Day4OpenField')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-120.0, 120.0), (-120.0, 120.0))))
         # user_annotations[IdentifyingContext(format_name='bapun',animal='RatN', session_name='Day4OpenField')].update(track_start_t=8.9677370000004, track_end_t=1139.771152)
-
-
+        
+        user_annotations[IdentifyingContext(format_name='bapun',animal='RatK', session_name='Day4OpenField')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-120.0, 120.0), (-120.0, 120.0)))) ## ADDED 2026-05-06 -- not sure if used for Bapun-type sessions
+        user_annotations[IdentifyingContext(format_name='bapun',animal='RatU', session_name='Day5OpenFieldSD')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((0.0, 142.0), (0.0, 30.0)))) ## ADDED 2026-05-06 -- not sure if used for Bapun-type sessions
+        
 
         # ==================================================================================================================== #
         # 2024-11-05 16:05 Produced programmatically from exported matlab csv                                                 #
@@ -1169,7 +1170,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
     # Helper/Utility Functions                                                                                             #
     # ==================================================================================================================== #
         
-    @function_attributes(short_name=None, tags=['utility', 'importer', 'batch', 'matlab_mat_file', 'multi-session', 'grid_bin_bounds'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2024-04-10 07:41', related_items=[])
+    # @function_attributes(short_name=None, tags=['utility', 'importer', 'batch', 'matlab_mat_file', 'multi-session', 'grid_bin_bounds'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2024-04-10 07:41', related_items=[])
     @classmethod
     def batch_build_user_annotation_grid_bin_bounds_from_exported_position_info_mat_files(cls, search_parent_path: Path, platform_side_length: float = 22.0, print_user_annotations_lines_to_add:bool=True, debug_print=False):
         """ finds all *.position_info.mat files recurrsively in the search_parent_path, then try to load them and parse their parent directory as a session to build an IdentifyingContext that can be used as a key in UserAnnotations.

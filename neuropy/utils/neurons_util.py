@@ -7,7 +7,7 @@ from .ccg import correlograms
 from typing import List, Union
 
 
-def estimate_neuron_type(neurons: Union[core.Neurons, List[core.Neurons]]):
+def estimate_neuron_type(neurons: Union[core.Neurons, List[core.Neurons]], plot: bool = False):
     """Auto label cell type using firing rate, burstiness and waveform shape followed by kmeans clustering.
 
     Reference
@@ -26,17 +26,18 @@ def estimate_neuron_type(neurons: Union[core.Neurons, List[core.Neurons]]):
         n_neurons.append(neurons.n_neurons)
         spikes = neurons.spiketrains
         sampling_rate = neurons.sampling_rate
-        ccgs = calculate_neurons_acg(neurons, bin_size=0.001, window_size=0.05)
+        ccgs = calculate_neurons_acg(neurons, bin_size=0.001, window_size=0.05, plot=False)
         ccg_width = ccgs.shape[-1]
         ccg_center_ind = int(ccg_width / 2)
 
         # -- calculate burstiness (mean duration of right ccg)------
         ccg_right = ccgs[:, ccg_center_ind + 1 :]
         t_ccg_right = np.arange(ccg_right.shape[1])  # timepoints
-        mean_isi = np.sum(ccg_right * t_ccg_right, axis=1) / np.sum(ccg_right, axis=1)
+        ccg_right_sum = np.maximum(np.sum(ccg_right, axis=1), 1e-16)
+        mean_isi = np.sum(ccg_right * t_ccg_right, axis=1) / ccg_right_sum
 
         # --- calculate frate ------------
-        frate = np.asarray([len(cell) / np.ptp(cell) for cell in spikes])
+        frate = np.asarray([len(cell) / max(np.ptp(cell), 1e-16) if len(cell) > 1 else 0.0 for cell in spikes])
 
         # ------ calculate peak ratio of waveform ----------
         waveform = neurons.waveforms
@@ -93,27 +94,31 @@ def estimate_neuron_type(neurons: Union[core.Neurons, List[core.Neurons]]):
     neuron_type[good_id[intneur_id]] = "inter"
     neuron_type[good_id[pyr_id]] = "pyr"
 
-    colors = np.ones(np.sum(n_neurons), dtype=object)
-    colors[mua_id] = "#bcb8b8"
-    colors[good_id[intneur_id]] = "#5da42d"
-    colors[good_id[pyr_id]] = "#222020"
+    if plot:
+        plot_features = np.nan_to_num(features.astype(float), nan=0.0, posinf=0.0, neginf=0.0)
+        fig = plt.figure()
+        ax = fig.add_subplot(121)
+        bins = np.arange(0, 1, 0.01)
+        ax.plot(bins[:-1], np.histogram(ref_period_ratios, bins=bins)[0], "gray")
+        ax.axvline(ref_period_thresh, ls="--", color="r")
+        ax.set_xlabel("Refractory period ratio (#spikes in 2ms)/max_peak_isi)")
+        ax.set_ylabel("No. of neurons")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
 
-    fig = plt.figure()
-    ax = fig.add_subplot(121)
-    bins = np.arange(0, 1, 0.01)
-    ax.plot(bins[:-1], np.histogram(ref_period_ratios, bins=bins)[0], "gray")
-    ax.axvline(ref_period_thresh, ls="--", color="r")
-    ax.set_xlabel("Refractory period ratio (#spikes in 2ms)/max_peak_isi)")
-    ax.set_ylabel("No. of neurons")
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
+        ax = fig.add_subplot(122, projection="3d")
+        for neuron_ids, color, label in (
+            (mua_id, "#bcb8b8", "mua"),
+            (good_id[intneur_id], "#5da42d", "inter"),
+            (good_id[pyr_id], "#222020", "pyr"),
+        ):
+            if len(neuron_ids) == 0:
+                continue
+            ax.scatter(plot_features[neuron_ids, 0], plot_features[neuron_ids, 1], plot_features[neuron_ids, 2], c=color, s=50, label=label)
 
-    ax = fig.add_subplot(122, projection="3d")
-    ax.scatter(features[:, 0], features[:, 1], features[:, 2], c=colors, s=50)
-
-    ax.set_xlabel("Firing rate (Hz)")
-    ax.set_ylabel("Mean isi (ms)")
-    ax.set_zlabel("Difference of \narea under shoulders")
+        ax.set_xlabel("Firing rate (Hz)")
+        ax.set_ylabel("Mean isi (ms)")
+        ax.set_zlabel("Difference of \narea under shoulders")
 
     return np.split(neuron_type, np.cumsum(n_neurons)[:-1])
 

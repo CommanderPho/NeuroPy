@@ -43,6 +43,8 @@ dependencies = [
     "hmmlearn>=0.3.3",
     "rdp>=0.8",
     "numba>=0.65.0",
+    "ipykernel",
+    "shapely>=2.0.7",
 ]
 
 [project.optional-dependencies]

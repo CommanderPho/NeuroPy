@@ -34,8 +34,7 @@ def detect_artifact_epochs(signal: Signal, thresh=4, edge_cutoff=2, merge=5, fil
     sampling_rate = signal.sampling_rate
 
     if signal.n_channels > 1:
-        sig = np.mean(signal.traces, axis=0)
-
+        sig_raw = np.mean(signal.traces, axis=0)
     else:
         sig_raw = signal.traces.reshape((-1))
 

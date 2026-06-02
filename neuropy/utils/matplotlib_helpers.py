@@ -1161,7 +1161,16 @@ class FormattedFigureText:
 
 
 def plot_position_curves_figure(position_obj, include_velocity=True, include_accel=False, figsize=(24, 10), axes_list=None):
-    """ Renders a figure with a position curve and optionally its higher-order derivatives """
+    """ Renders a figure with a position curve and optionally its higher-order derivatives
+
+    Usage:
+        from neuropy.utils.matplotlib_helpers import plot_position_curves_figure
+
+        sess.position.compute_speed_info() ## make sure we have velocity
+        fig, out_axes_list = plot_position_curves_figure(sess.position)
+
+
+    """
     num_subplots = 1
     out_axes_list = []
     if include_velocity:
@@ -1737,7 +1746,7 @@ def interactive_select_grid_bin_bounds_2D(curr_active_pipeline, epoch_name='maze
     """
     # from neuropy.utils.matplotlib_helpers import add_rectangular_selector # interactive_select_grid_bin_bounds_2D
     computation_result = curr_active_pipeline.computation_results[epoch_name]
-    grid_bin_bounds = computation_result.computation_config['pf_params'].grid_bin_bounds
+    grid_bin_bounds = kwargs.pop('grid_bin_bounds', computation_result.computation_config['pf_params'].grid_bin_bounds)
     epoch_context = curr_active_pipeline.filtered_contexts[epoch_name]
                     
     fig, ax = computation_result.computed_data.pf2D.plot_occupancy(identifier_details_list=[epoch_name], active_context=epoch_context) 
