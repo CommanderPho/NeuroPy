@@ -1038,8 +1038,11 @@ class RawDataInitializationMixin:
         from neuropy.core.session.data_session_loader import DataSessionLoader
 
         basedir = Path(basedir)
+        assert basedir.exists(), f"basedir: {basedir.as_posix()} does not exist! Is this the path for this computer?"
+
         session_xml_path: Path = find_first_file_rglob(basedir, '*.xml', recursive=False, raise_on_none_found=False)
         
+
         needs_session_xml_create: bool = (session_xml_path is None) or (not session_xml_path.exists())
         if needs_session_xml_create:
             print(f'session_xml_path: {session_xml_path.as_posix()} does not yet exist! Must copy from template session! Trying...')
