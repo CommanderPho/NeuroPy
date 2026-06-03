@@ -17,7 +17,8 @@ from neuropy.utils.result_context import IdentifyingContext as Ctx
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_field, serialized_attribute_field, non_serialized_field, custom_define
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
 
-# from pyphocorehelpers.function_helpers import function_attributes
+from pyphocorehelpers.programming_helpers import metadata_attributes
+from pyphocorehelpers.function_helpers import function_attributes
 
 # ==================================================================================================================== #
 # 2023-06-21 User Annotations                                                                      #

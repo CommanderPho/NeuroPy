@@ -1,8 +1,8 @@
 import numpy as np
-import pathlib
 from pathlib import Path
 
 from neuropy.utils.mixins.dict_representable import DictRepresentable
+from neuropy.utils.npy_pickle_compat import load_npy_pickled_item
 from neuropy.utils.mixins.file_representable import FileRepresentable
 from neuropy.utils.mixins.print_helpers import SimplePrintable
 
@@ -68,17 +68,7 @@ class DataWriter(FileRepresentable, DictRepresentable, LegacyDataLoadingMixin, S
     @classmethod
     def from_file(cls, f):
         if f.is_file():
-            dict_rep = None
-            try:
-                dict_rep = np.load(f, allow_pickle=True).item()
-                # return dict_rep
-            except NotImplementedError:
-                print("Issue with pickled POSIX_PATH on windows for path {}, falling back to non-pickled version...".format(f))
-                temp = pathlib.PosixPath
-                # pathlib.PosixPath = pathlib.WindowsPath # Bad hack
-                pathlib.PosixPath = pathlib.PurePosixPath # Bad hack
-                dict_rep = np.load(f, allow_pickle=True).item()
-            
+            dict_rep = load_npy_pickled_item(f)
             if dict_rep is not None:
                 # Convert to object
                 try:

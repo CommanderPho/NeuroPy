@@ -191,7 +191,43 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 zone2 = box(65.0, 0.0, xmax, 45.0), # box(minx, miny, maxx, maxy, ccw=True)
             )
             return bapun_Day4OpenField_reward_zones
-        
+
+
+
+
+
+        def _subfn_rat_S_Day1Openfield_reward_zones(session) -> Dict[str, Polygon]:
+            """ captures: None """
+            xmin: float = -109.52
+            xmax: float = 92.963
+            ymin: float = -76.865
+            ymax: float = 124.45
+            bapun_OpenField_reward_zones = dict(    ## Define the two reward zones
+                zone1 = box(xmin, 0.0, -80.0, 50.0),  # box(minx, miny, maxx, maxy, ccw=True)
+                zone2 = box(65.0, 0.0, xmax, 45.0), # box(minx, miny, maxx, maxy, ccw=True)
+            )
+            return bapun_OpenField_reward_zones
+
+        def _subfn_rat_S_Day4Openfield_reward_zones(session) -> Dict[str, Polygon]:
+            """ captures: None """
+            return _subfn_rat_S_Day1Openfield_reward_zones(session=session) ## keep the same for RatS between Day1 and Day4 open field
+            # xmin: float = -109.52
+            # xmax: float = 92.963
+            # ymin: float = -76.865
+            # ymax: float = 124.45
+            # bapun_OpenField_reward_zones = dict(    ## Define the two reward zones
+            #     zone1 = box(xmin, 0.0, -80.0, 50.0),  # box(minx, miny, maxx, maxy, ccw=True)
+            #     zone2 = box(65.0, 0.0, xmax, 45.0), # box(minx, miny, maxx, maxy, ccw=True)
+            # )
+            # return bapun_OpenField_reward_zones
+
+
+
+
+
+
+
+
 
         # bapun_open_field_grid_bin_bounds_rat_U = (((0.0, 142.0), (0.0, 30.0)))
         bapun_open_field_grid_bin_bounds_rat_U = (((0.0, 142.0), (-35.0, 175.0)))
@@ -230,6 +266,19 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             """ captures: cls, _subfn_rat_K_Day4Openfield_reward_zones """
             bapun_Day4OpenField_reward_zones = _subfn_rat_K_Day4Openfield_reward_zones(session=session)
             return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+
+        def _subfn_rat_S_Day1Openfield_build_Bapun_laps_from_reward_zones(session):
+            """ captures: cls, _subfn_rat_K_Day4Openfield_reward_zones """
+            bapun_Day4OpenField_reward_zones = _subfn_rat_S_Day1Openfield_reward_zones(session=session)
+            return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+
+        def _subfn_rat_S_Day4Openfield_build_Bapun_laps_from_reward_zones(session):
+            """ captures: cls, _subfn_rat_K_Day4Openfield_reward_zones """
+            bapun_Day4OpenField_reward_zones = _subfn_rat_S_Day4Openfield_reward_zones(session=session)
+            return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
+
+
+
 
         def _subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones(session):
             """ captures: cls, _subfn_rat_U_Day5OpenfieldSD_reward_zones """
@@ -275,6 +324,21 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 lap_estimation_parameters=dict(reward_zones=_subfn_rat_K_Day4Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_K_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
+            IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name='Day1Openfield'): HardcodedProcessingParameters(decoder_building_session_names=['maze'],
+                global_session_name='maze',
+                non_global_activity_session_names=['maze'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_S_Day1Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_S_Day1Openfield_build_Bapun_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
+            ),
+            IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name='Day4Openfield'): HardcodedProcessingParameters(decoder_building_session_names=['maze'],
+                global_session_name='maze',
+                non_global_activity_session_names=['maze'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_S_Day4Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_S_Day4Openfield_build_Bapun_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
+            ),
+
             IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
@@ -316,7 +380,10 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             ('RatU', 'Day5OpenfieldSD', None),
             ('RatU', 'RatUDay5OpenfieldSD', 'Day5OpenfieldSD'),
             ('RatK', 'Day4Openfield', None),
+            ('RatS', 'Day1Openfield', None),
+            ('RatS', 'Day4Openfield', None),
             ('RatS', 'Day5TwoNovel', None),
+
         ]
         out: Dict[IdentifyingContext, Path] = {}
         for animal, session_name, disk_folder in session_specs:
@@ -469,6 +536,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         is_bapun_Day4OpenField_sess: bool = False
         needs_update: bool = True
         if curr_sess_context is not None:
+            is_bapun_Day1OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'Day1OpenField'}) ## all must match, 'animal': 'RatN'
             is_bapun_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'Day4OpenField'}) ## all must match, 'animal': 'RatN'
             is_bapun_ratK_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatK', 'session_name': 'Day4Openfield'}) ## all must match, 'animal': 'RatK'
             # is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'RatUDay5OpenfieldSD'}) ## all must match, 'animal': 'RatN'
@@ -482,6 +550,12 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                     enable_global_epoch = False
                 # assert (len(bapun_epochs_df) == 4), f"{len(bapun_epochs_df)}"
                 # needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
+            elif is_bapun_Day1OpenField_sess:
+                #TODO 2026-06-03 03:10: - [ ] Fix the epochs
+                assert (len(bapun_epochs_df) == 1), f"{len(bapun_epochs_df)}"
+                print(f'overrinding enable_global_epoch == False since this session only has one maze epoch')
+                enable_global_epoch = False
+
             elif is_bapun_Day4OpenField_sess:
                 assert (len(bapun_epochs_df) == 4), f"{len(bapun_epochs_df)}"
                 needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
@@ -559,7 +633,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         if enable_global_epoch:
             # maze_epochs_df = deepcopy(curr_active_pipeline.sess.epochs).to_dataframe()
             if 'maze_GLOBAL' not in bapun_epochs_df['label']:
-                assert len(bapun_params.non_global_activity_session_names) >= 2, f"bapun_params.non_global_activity_session_names: {non_global_activity_session_names}"
+                assert len(bapun_params.non_global_activity_session_names) >= 2, f"bapun_params.non_global_activity_session_names: {bapun_params.non_global_activity_session_names}"
                 bapun_epochs_df = bapun_epochs_df.epochs.adding_global_epoch_row(global_epoch_name='maze_GLOBAL',
                                              first_included_epoch_name=bapun_params.non_global_activity_session_names[0], last_included_epoch_name=bapun_params.non_global_activity_session_names[-1], inplace=False)
 
