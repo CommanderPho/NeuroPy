@@ -152,13 +152,35 @@ class TestIdentifyingContext(unittest.TestCase):
         # Test 1: Query for a single attribute
         self.assertTrue(self.ic1.query({'exper_name': 'one'}))
         self.assertFalse(self.ic1.query({'exper_name': 'two'}))
-        
+
         # Test 2: Query for multiple attributes
         self.assertTrue(self.ic1.query({'exper_name': 'one', 'animal': 'gor01'}))
         self.assertFalse(self.ic1.query({'exper_name': 'one', 'animal': 'vvp01'}))
-        
+
         # Test 3: Query for non-existent attribute
         self.assertFalse(self.ic1.query({'nonexistent_attribute': 'value'}))
+
+        # Test 4: List criteria — match any session_name in collection
+        self.assertTrue(self.ic1.query({'session_name': ['2006-6-08_14-26-15', 'other']}))
+        self.assertFalse(self.ic1.query({'session_name': ['other', 'missing']}))
+
+        # Test 5: Case-insensitive list criteria
+        self.assertTrue(self.ic1.query({'exper_name': ['ONE', 'two']}))
+        self.assertFalse(self.ic1.query({'exper_name': ['TWO', 'three']}))
+
+        # Test 6: Empty list criteria never matches
+        self.assertFalse(self.ic1.query({'session_name': []}))
+
+        # Test 7: Tuple and set criteria
+        self.assertTrue(self.ic1.query({'animal': ('gor01', 'vvp01')}))
+        self.assertTrue(self.ic1.query({'animal': {'gor01', 'vvp01'}}))
+
+        # Test 8: Bapun RatU Day5 session_name aliases (original bug)
+        rat_u_day5 = IdentifyingContext(format_name='bapun', animal='RatU', session_name='Day5OpenfieldSD')
+        rat_u_criteria = {'format_name': 'bapun', 'animal': 'RatU', 'session_name': ['RatUDay5OpenfieldSD', 'Day5OpenfieldSD']}
+        self.assertTrue(rat_u_day5.query(rat_u_criteria))
+        rat_u_legacy = IdentifyingContext(format_name='bapun', animal='RatU', session_name='RatUDay5OpenfieldSD')
+        self.assertTrue(rat_u_legacy.query(rat_u_criteria))
     
     def test_init_from_dict(self):
         # Test: Check that init_from_dict initializes an IdentifyingContext instance correctly

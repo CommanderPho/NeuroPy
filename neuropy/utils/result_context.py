@@ -384,7 +384,8 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         ----------
         criteria : Dict[str, Any]
             A dictionary where keys are attribute names and values are attribute values that an
-            IdentifyingContext instance should have to match the criteria.
+            IdentifyingContext instance should have to match the criteria. Scalar values require
+            equality; list, tuple, or set values require the attribute to match any element (OR).
         is_case_sensitive : bool, default=False
             If False, string comparisons are case-insensitive. If True, all comparisons are
             case-sensitive. Non-string values are always compared normally.
@@ -397,16 +398,22 @@ class IdentifyingContext(GetAccessibleMixin, DiffableObject, SubsettableDictRepr
         for key, value in criteria.items():
             if not hasattr(self, key):
                 return False
-            
+
             attr_value = getattr(self, key)
-            
-            # Handle case-insensitive string comparison
-            if not is_case_sensitive and isinstance(attr_value, str) and isinstance(value, str):
+
+            if isinstance(value, (list, tuple, set)):
+                if not value:
+                    return False
+                if not is_case_sensitive and isinstance(attr_value, str) and all(isinstance(v, str) for v in value):
+                    if attr_value.lower() not in {v.lower() for v in value}:
+                        return False
+                elif attr_value not in value:
+                    return False
+            elif not is_case_sensitive and isinstance(attr_value, str) and isinstance(value, str):
                 if attr_value.lower() != value.lower():
                     return False
-            else:
-                if attr_value != value:
-                    return False
+            elif attr_value != value:
+                return False
         return True
 
 
