@@ -23,6 +23,7 @@ from neuropy.utils.result_context import IdentifyingContext
 ## Pho's Custom Libraries:
 # from pyphocorehelpers.Filesystem.path_helpers import find_first_extant_path
 from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
+from neuropy.utils.npy_pickle_compat import load_npy_pickled_item
 
 
 def find_data_files(project_path, glob_str: str = f"**/*.npy", exclude_dirs=[]):
@@ -768,12 +769,13 @@ class RachelDataSessionFormat(BapunDataSessionFormatRegisteredClass):
         
         for f in position_npy_paths:
             key = Path(f).stem.split('.')[-1]
+            dict_rep = load_npy_pickled_item(f)
             try:
-                a_pos = Position.init(**np.load(f, allow_pickle=True).item())
+                a_pos = Position.init(**dict_rep)
                 pos_dict[key] = a_pos
             except TypeError as e:
                 # TypeError: init() got an unexpected keyword argument 'df'
-                a_pos = Position(pos_df=np.load(f, allow_pickle=True).item()['df']) ## newer way? something wrong with how I saved it?
+                a_pos = Position(pos_df=dict_rep['df']) ## newer way? something wrong with how I saved it?
                 pos_dict[key] = a_pos
             except Exception as e:
                 print(f'FAILED for path f: "{f}" with error {e}')
