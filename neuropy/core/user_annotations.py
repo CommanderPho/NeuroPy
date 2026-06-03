@@ -820,7 +820,11 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         
         user_annotations[IdentifyingContext(format_name='bapun',animal='RatK', session_name='Day4OpenField')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-120.0, 120.0), (-120.0, 120.0)))) ## ADDED 2026-05-06 -- not sure if used for Bapun-type sessions
         user_annotations[IdentifyingContext(format_name='bapun',animal='RatU', session_name='Day5OpenFieldSD')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((0.0, 142.0), (0.0, 30.0)))) ## ADDED 2026-05-06 -- not sure if used for Bapun-type sessions
-        
+
+
+        user_annotations[IdentifyingContext(format_name='bapun',animal='RatS', session_name='Day1OpenField')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-120.0, 120.0), (-120.0, 120.0)))) ## ADDED 2026-06-03 -- not sure if used for Bapun-type sessions
+        user_annotations[IdentifyingContext(format_name='bapun',animal='RatS', session_name='Day4OpenField')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-120.0, 120.0), (-120.0, 120.0)))) ## ADDED 2026-06-03 -- not sure if used for Bapun-type sessions
+
 
         # ==================================================================================================================== #
         # 2024-11-05 16:05 Produced programmatically from exported matlab csv                                                 #
