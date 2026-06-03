@@ -540,8 +540,8 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             is_bapun_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'Day4OpenField'}) ## all must match, 'animal': 'RatN'
             is_bapun_ratK_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatK', 'session_name': 'Day4Openfield'}) ## all must match, 'animal': 'RatK'
             # is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'RatUDay5OpenfieldSD'}) ## all must match, 'animal': 'RatN'
-            is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatU', 'session_name': ['RatUDay5OpenfieldSD', 'Day5OpenfieldSD']}) ## all must match, 'animal': 'RatU'
-            is_bapun_RatSOpenfield_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatS', 'session_name': ['Day1OpenField', 'Day4Openfield']}) ## all must match, 'animal': 'RatS'
+            is_bapun_RatU_Day5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatU', 'session_name': ['RatUDay5OpenfieldSD', 'Day5OpenfieldSD']}) ## all must match, 'animal': 'RatU'
+            is_bapun_RatS_Openfield_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatS', 'session_name': ['Day1OpenField', 'Day4Openfield', 'Day1OpenField', 'Day4OpenField']}) ## all must match, 'animal': 'RatS'
 
             if is_bapun_ratK_Day4OpenField_sess:
                 assert (len(bapun_epochs_df) == 3), f"{len(bapun_epochs_df)}"
@@ -551,7 +551,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                     enable_global_epoch = False
                 # assert (len(bapun_epochs_df) == 4), f"{len(bapun_epochs_df)}"
                 # needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
-            elif is_bapun_Day1OpenField_sess:
+            elif (is_bapun_Day1OpenField_sess or is_bapun_RatS_Openfield_sess): ## is_bapun_RatSOpenfield_sess is sufficient
                 #TODO 2026-06-03 03:10: - [ ] Fix the epochs
                 assert (len(bapun_epochs_df) == 1), f"{len(bapun_epochs_df)}"
                 print(f'overrinding enable_global_epoch == False since this session only has one maze epoch')
@@ -560,13 +560,13 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             elif is_bapun_Day4OpenField_sess:
                 assert (len(bapun_epochs_df) == 4), f"{len(bapun_epochs_df)}"
                 needs_update = (len(bapun_epochs_df) == 4) and ('roam' not in bapun_epochs_df['label'].to_list())
-            elif is_bapun_RatUDay5OpenfieldSD_sess:
+            elif is_bapun_RatU_Day5OpenfieldSD_sess:
                 assert (len(bapun_epochs_df) >= 6), f"{len(bapun_epochs_df)}"
                 needs_update = (len(bapun_epochs_df) >= 6) and ('roam' not in bapun_epochs_df['label'].to_list())
 
 
         # if ((is_bapun_Day4OpenField_sess or is_bapun_RatUDay5OpenfieldSD_sess) and needs_update):
-        if (is_bapun_Day4OpenField_sess and needs_update):
+        if (is_bapun_Day4OpenField_sess and needs_update and (not is_bapun_RatS_Openfield_sess)): ## Not RatS
             ## Applicable to Day4OpenField only: add the 'roam' row if it doesn't already exist
             # bapun_epochs_arr = bapun_epochs_df.to_numpy()
             # new_roam_row = [bapun_epochs_arr[1, 0], (bapun_epochs_arr[2, 0]-1), 'roam', 0.0] # ['start', 'stop', 'label', 'duration']
@@ -581,7 +581,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             bapun_epochs_df[['start', 'stop', 'duration']] = bapun_epochs_df[['start', 'stop', 'duration']].astype(float)
             bapun_epochs_df['duration'] = bapun_epochs_df['stop'] - bapun_epochs_df['start'] ## recompute duration
             
-        elif (is_bapun_RatUDay5OpenfieldSD_sess and needs_update):
+        elif (is_bapun_RatU_Day5OpenfieldSD_sess and needs_update):
             
             # if not hasattr(curr_active_pipeline.sess, '_BAK_paradigm'):
             #     curr_active_pipeline.sess._BAK_paradigm = deepcopy(curr_active_pipeline.sess.paradigm) ## make backup of existing epochs/paradigm
