@@ -25,7 +25,7 @@ def test_load_npy_pickled_item_roundtrip(tmp_path):
 @pytest.mark.parametrize('legacy_path', [
     Path(r'W:\Data\Bapun\RatS\Day1Openfield\RatS-Day1Openfield.position.npy'),
 ])
-def test_load_npy_pickled_item_real_legacy_session_file(legacy_path):
+def test_load_npy_pickled_item_real_legacy_pandas_session_file(legacy_path):
     """Load a pandas-1.x session .npy that fails under plain np.load on pandas 2."""
     if not legacy_path.is_file():
         pytest.skip(f'legacy fixture not available: {legacy_path}')
@@ -36,3 +36,19 @@ def test_load_npy_pickled_item_real_legacy_session_file(legacy_path):
     assert 'df' in loaded
     assert isinstance(loaded['df'], pd.DataFrame)
     assert len(loaded['df']) > 0
+
+
+@pytest.mark.parametrize('neurons_path', [
+    Path(r'W:\Data\Bapun\RatS\Day1Openfield\RatS-Day1Openfield.neurons.npy'),
+])
+def test_load_npy_pickled_item_numpy2_neurons_on_numpy1(neurons_path):
+    """Load a NumPy-2-pickled neurons .npy that fails under plain np.load on NumPy 1."""
+    if not neurons_path.is_file():
+        pytest.skip(f'fixture not available: {neurons_path}')
+    if int(np.__version__.split('.')[0]) >= 2:
+        pytest.skip('numpy._core shim only applies when running on NumPy 1.x')
+    with pytest.raises(ModuleNotFoundError, match='numpy._core'):
+        np.load(neurons_path, allow_pickle=True).item()
+    loaded = load_npy_pickled_item(neurons_path)
+    assert isinstance(loaded, dict)
+    assert 'spiketrains' in loaded
