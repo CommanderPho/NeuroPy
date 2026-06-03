@@ -37,7 +37,7 @@ def find_first_extant_column(df: pd.DataFrame, columns_list: List[str], raise_er
     else:
         return None
 
-def windows_to_wsl_path_if_needed(path: str | Path) -> Path:
+def windows_to_wsl_path_if_needed(path: Union[str, Path]) -> Path:
     """
     Converts a Windows path to a WSL-compatible path only when useful:
     - If the original path exists, returns it unchanged.
@@ -710,7 +710,7 @@ class RawDataInitializationMixin:
 
 
     @classmethod
-    def step_update_session_files_n_channels(cls, basedir: Path, n_channels: int, *, basename: str | None = None, dry_run: bool = False, debug_print: bool = True) -> Dict[str, int]:
+    def step_update_session_files_n_channels(cls, basedir: Path, n_channels: int, *, basename: Optional[str] = None, dry_run: bool = False, debug_print: bool = True) -> Dict[str, int]:
         """Set channel count in Spyking Circus / Neuroscope session config files.
 
         Parameters
