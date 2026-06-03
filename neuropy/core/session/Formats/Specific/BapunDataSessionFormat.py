@@ -541,6 +541,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             is_bapun_ratK_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatK', 'session_name': 'Day4Openfield'}) ## all must match, 'animal': 'RatK'
             # is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'RatUDay5OpenfieldSD'}) ## all must match, 'animal': 'RatN'
             is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatU', 'session_name': ['RatUDay5OpenfieldSD', 'Day5OpenfieldSD']}) ## all must match, 'animal': 'RatU'
+            is_bapun_RatSOpenfield_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatS', 'session_name': ['Day1OpenField', 'Day4Openfield']}) ## all must match, 'animal': 'RatS'
 
             if is_bapun_ratK_Day4OpenField_sess:
                 assert (len(bapun_epochs_df) == 3), f"{len(bapun_epochs_df)}"
@@ -627,8 +628,6 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             #     modified.filename = paradigm_path.resolve()    
             #     modified.save(status_print=True)
                 
-
-
 
         if enable_global_epoch:
             # maze_epochs_df = deepcopy(curr_active_pipeline.sess.epochs).to_dataframe()
