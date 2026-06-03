@@ -46,13 +46,13 @@ def estimate_neuron_type(neurons: Union[core.Neurons, List[core.Neurons]], plot:
         # )
 
         n_t = waveform.shape[1]  # waveform width
-        center = np.int(n_t / 2)
+        center = int(n_t / 2)
         wave_window = int(0.25 * (sampling_rate / 1000))
         from_peak = int(0.18 * (sampling_rate / 1000))
-        left_peak = np.trapz(
+        left_peak = np.trapezoid(
             waveform[:, center - from_peak - wave_window : center - from_peak], axis=1
         )
-        right_peak = np.trapz(
+        right_peak = np.trapezoid(
             waveform[:, center + from_peak : center + from_peak + wave_window], axis=1
         )
 

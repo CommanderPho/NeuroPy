@@ -56,7 +56,7 @@ def verify_non_overlapping(start_stop_times_arr):
 
     """
     is_non_overlapping = _compiled_verify_non_overlapping(start_stop_times_arr)
-    are_all_non_overlapping = np.alltrue(is_non_overlapping)
+    are_all_non_overlapping = np.all(is_non_overlapping)
     return are_all_non_overlapping
 
 def get_non_overlapping_epochs(start_stop_times_arr):

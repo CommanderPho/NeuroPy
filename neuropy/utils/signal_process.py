@@ -986,7 +986,7 @@ def psd_auc(signal: core.Signal, freq_band: tuple, window=10, overlap=5):
             axis=-1,
         )
         f_theta = np.where((f > freq_band[0]) & (f < freq_band[1]))[0]
-        area_in_freq = np.trapz(pxx[f_theta], x=f[f_theta])
+        area_in_freq = np.trapezoid(pxx[f_theta], x=f[f_theta])
 
         aucChans.append(area_in_freq)
 
