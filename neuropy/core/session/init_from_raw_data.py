@@ -7,7 +7,25 @@ import shutil
 import subprocess
 import sys
 import re
-from typing import List, Dict, Tuple, Union, Set, Optional, Callable
+from dataclasses import dataclass
+from typing import List, Dict, Tuple, Union, Set, Optional, Callable, Literal
+
+_PHY_REQUIRED_FILES = ("params.py", "spike_times.npy", "spike_clusters.npy", "cluster_info.tsv")
+NeuronSourceType = Literal["auto", "spyk_circ", "sorting"]
+NeuronSourceTypeResolved = Literal["spyk_circ", "sorting"]
+PhyFolderKind = Literal["invalid", "si_phy_export", "spyk_circ_phy_export"]
+
+
+@dataclass
+class NeuronLoadConfig:
+    source_type: NeuronSourceType = "auto"
+    phy_folder: Path | None = None
+    curation_review_path: Path | None = None
+    run_name: str | None = None
+    include_groups: tuple[str, ...] = ("good", "mua")
+    unit_filter: str = 'prediction == "sua"'
+    save_neurons: bool = True
+    estimate_neuron_type: bool = True
 
 ## Neuropy Imports:
 from neuropy.io import OptitrackIO
@@ -859,77 +877,148 @@ class RawDataInitializationMixin:
 
 
     @classmethod
-    def _build_neurons_from_phy_legacy(cls, sess, basedir: Path, *, phy_folder: Optional[Path] = None):
-        """Legacy inline loader for spyk-circ merged.GUI when spikeinterface_pipeline is unavailable."""
+    def _inspect_phy_folder(cls, phy_folder: Path) -> PhyFolderKind:
+        if not phy_folder.is_dir():
+            return "invalid"
+        for filename in _PHY_REQUIRED_FILES:
+            if not (phy_folder / filename).is_file():
+                return "invalid"
+        if (phy_folder / "cluster_si_unit_ids.tsv").is_file():
+            return "si_phy_export"
+        return "spyk_circ_phy_export"
+
+
+    @classmethod
+    def _detect_neuron_source_type(cls, phy_folder: Path, curation_review_path: Optional[Path] = None) -> NeuronSourceTypeResolved:
+        if curation_review_path is not None and curation_review_path.is_file():
+            return "sorting"
+        if cls._inspect_phy_folder(phy_folder) == "invalid":
+            raise FileNotFoundError(f"phy_folder is not a valid Phy export: {phy_folder}")
+        return "spyk_circ"
+
+
+    @classmethod
+    def _resolve_neuron_load_paths(cls, config: NeuronLoadConfig, basedir: Path, basename: str) -> tuple[Path, Optional[Path], NeuronSourceTypeResolved]:
+        basedir = windows_to_wsl_path_if_needed(basedir).resolve()
+        if config.run_name is not None:
+            sorting_root = basedir.joinpath("SORTING")
+            phy_folder = config.phy_folder.resolve() if config.phy_folder is not None else sorting_root.joinpath(f"{config.run_name}_phy_curated").resolve()
+            curation_review_path = config.curation_review_path.resolve() if config.curation_review_path is not None else sorting_root.joinpath(f"{config.run_name}_curation_review.csv").resolve()
+            if not curation_review_path.is_file():
+                raise FileNotFoundError(f"sorting neuron source requires curation_review_path; phy_folder={phy_folder}")
+            return phy_folder, curation_review_path, "sorting"
+        phy_folder = config.phy_folder
+        curation_review_path = config.curation_review_path
+        if phy_folder is None:
+            phy_folder = basedir.joinpath("spyk-circ", basename, f"{basename}-merged.GUI").resolve()
+        else:
+            phy_folder = windows_to_wsl_path_if_needed(phy_folder).resolve()
+        if curation_review_path is not None:
+            curation_review_path = windows_to_wsl_path_if_needed(curation_review_path).resolve()
+        if config.source_type == "sorting":
+            if curation_review_path is None or not curation_review_path.is_file():
+                raise FileNotFoundError(f"sorting neuron source requires curation_review_path; phy_folder={phy_folder}")
+            return phy_folder, curation_review_path, "sorting"
+        if config.source_type == "spyk_circ":
+            if cls._inspect_phy_folder(phy_folder) == "invalid":
+                raise FileNotFoundError(f"phy_folder is not a valid Phy export: {phy_folder}")
+            return phy_folder, None, "spyk_circ"
+        source_type = cls._detect_neuron_source_type(phy_folder, curation_review_path)
+        return phy_folder, curation_review_path if source_type == "sorting" else None, source_type
+
+
+    @classmethod
+    def _read_phy_params(cls, phy_folder: Path) -> dict[str, str]:
+        params: dict[str, str] = {}
+        with (phy_folder / "params.py").open("r") as f:
+            for line in f:
+                line_values = line.replace("\n", "").replace('r"', '"').replace('"', "").split("=")
+                params[line_values[0].strip()] = line_values[1].strip()
+        return params
+
+
+    @classmethod
+    def _load_neurons_from_phyio(cls, phy_folder: Path, *, t_stop: float, include_groups: tuple[str, ...] = ("good", "mua")) -> object:
+        from neuropy.core import Neurons
         from neuropy.io import PhyIO
+
+        if cls._inspect_phy_folder(phy_folder) == "invalid":
+            raise FileNotFoundError(f"phy_folder is not a valid Phy export: {phy_folder}")
+        phy_data = PhyIO(phy_folder, include_groups=include_groups)
+        if phy_data.spiketrains is None or len(phy_data.spiketrains) == 0:
+            raise ValueError(f"no spiketrains found in Phy output at {phy_folder}")
+        neuron_ids = phy_data.cluster_info["si_unit_id"].astype(int).values if "si_unit_id" in phy_data.cluster_info.columns else None
+        return Neurons(np.array(phy_data.spiketrains, dtype=object), t_stop=t_stop, sampling_rate=phy_data.sampling_rate, peak_channels=phy_data.peak_channels, waveforms=np.array(phy_data.peak_waveforms, dtype="object"), shank_ids=np.array([int(v) for v in phy_data.shank_ids]), neuron_ids=neuron_ids)
+
+
+    @classmethod
+    def _load_neurons_from_sorting_phy_csv(cls, phy_folder: Path, curation_review_path: Path, *, t_stop: float, unit_filter: str) -> object:
         from neuropy.core import Neurons
 
-        phy_basename: str = sess.name
-        phy_path: Path = Path(phy_folder).resolve() if phy_folder is not None else basedir.joinpath('spyk-circ', phy_basename, f'{phy_basename}-merged.GUI')
-        if not phy_path.exists():
-            print(f'WARNING: build_neurons_from_phy: phy_path does not exist: "{phy_path.as_posix()}"')
-            return None
+        if cls._inspect_phy_folder(phy_folder) == "invalid":
+            raise FileNotFoundError(f"phy_folder is not a valid Phy export: {phy_folder}")
+        if not curation_review_path.is_file():
+            raise FileNotFoundError(f"curation_review_path does not exist: {curation_review_path}")
+        review = pd.read_csv(curation_review_path, index_col=0)
+        review.index.name = "si_unit_id"
+        selected_review = review.query(unit_filter)
+        if selected_review.empty:
+            raise ValueError(f"unit_filter={unit_filter!r} matched no units in {curation_review_path}")
+        selected_si_unit_ids = selected_review.index.astype(int)
+        params = cls._read_phy_params(phy_folder)
+        sampling_rate = int(float(params["sample_rate"]))
+        spktime = np.load(phy_folder / "spike_times.npy")
+        clu_ids = np.load(phy_folder / "spike_clusters.npy")
+        spk_templates_id = np.load(phy_folder / "spike_templates.npy")
+        spk_templates = np.load(phy_folder / "templates.npy")
+        cluster_info = pd.read_csv(phy_folder / "cluster_info.tsv", sep="\t")
+        cluster_si = pd.read_csv(phy_folder / "cluster_si_unit_ids.tsv", sep="\t")
+        selected_clusters = cluster_si[cluster_si["si_unit_id"].isin(selected_si_unit_ids)]
+        missing_ids = set(selected_si_unit_ids) - set(selected_clusters["si_unit_id"].astype(int))
+        if missing_ids:
+            raise ValueError(f"Missing cluster mappings for si_unit_ids: {sorted(missing_ids)}")
+        spiketrains, peak_waveforms, peak_channels, shank_ids, neuron_ids = [], [], [], [], []
+        for row in selected_clusters.itertuples():
+            clu_id, si_unit_id = int(row.cluster_id), int(row.si_unit_id)
+            info_rows = cluster_info[cluster_info["si_unit_id"] == si_unit_id]
+            if info_rows.empty:
+                raise ValueError(f"cluster_info missing si_unit_id={si_unit_id}")
+            info = info_rows.iloc[0]
+            spike_locs = np.where(clu_ids == clu_id)[0]
+            cell_template_id, counts = np.unique(spk_templates_id[spike_locs], return_counts=True)
+            template = spk_templates[cell_template_id[np.argmax(counts)]].squeeze().T
+            spiketrains.append(spktime[spike_locs] / sampling_rate)
+            peak_waveforms.append(template[np.argmax(np.max(template, axis=1))])
+            peak_channels.append(int(info["ch"]))
+            shank_ids.append(int(info["sh"]))
+            neuron_ids.append(si_unit_id)
+        return Neurons(np.array(spiketrains, dtype=object), t_stop=t_stop, sampling_rate=sampling_rate, peak_channels=np.array(peak_channels), waveforms=np.array(peak_waveforms, dtype=object), shank_ids=np.array(shank_ids), neuron_ids=np.array(neuron_ids), extended_neuron_properties_df=selected_review.copy())
 
-        try:
-            phy_data: PhyIO = PhyIO(phy_path)
-        except Exception as e:
-            print(f'WARNING: build_neurons_from_phy: failed to load Phy data from "{phy_path.as_posix()}": {e}')
-            return None
 
-        if phy_data.spiketrains is None or len(phy_data.spiketrains) == 0:
-            print(f'WARNING: build_neurons_from_phy: no spiketrains found in Phy output at "{phy_path.as_posix()}"')
-            return None
-
-        if sess.eegfile is None:
-            print(f'WARNING: build_neurons_from_phy: sess.eegfile is None; cannot determine t_stop for Neurons')
-            return None
-
-
-
-        try:
-            neurons: Neurons = Neurons(
-                np.array(phy_data.spiketrains, dtype=object),
-                t_stop=sess.eegfile.duration,
-                sampling_rate=phy_data.sampling_rate,
-                peak_channels=phy_data.peak_channels,
-                waveforms=np.array(phy_data.peak_waveforms, dtype='object'),
-                shank_ids=np.array([int(v) for v in phy_data.shank_ids])
-            )
-            
-
-        except Exception as e:
-            print(f'WARNING: build_neurons_from_phy: failed to build Neurons object from Phy data at "{phy_path.as_posix()}": {e}')
-            return None
-
-        if neurons is None:
-            print(f'WARNING: build_neurons_from_phy: Neurons object is None after construction')
-            return None
-
+    @classmethod
+    def _finalize_loaded_neurons(cls, sess, neurons: object, *, estimate_neuron_type: bool = True, save_neurons: bool = True) -> object:
         sess.neurons = neurons
-
-        try:
-            from neuropy.utils import neurons_util
-            
-            neurons.spiketrains = np.array([np.squeeze(a_spike_train) for a_spike_train in neurons.spiketrains.tolist()], dtype=object) ## fix dimensionality post-hoc
-            neuron_type = neurons_util.estimate_neuron_type(sess.neurons, plot=False)
-            neuron_type = neuron_type[0]
-            neurons.neuron_type = neuron_type
-        except Exception as e:
-            print(f'WARNING: build_neurons_from_phy: failed to estimate neuron type: {e}')
-
-        sess.neurons.filename = sess.filePrefix.with_suffix('.neurons')
-        try:
-            print(f'saving out to {sess.neurons.filename.as_posix()}...')
-            sess.neurons.save()
-            print(f'\tdone.')
-        except Exception as e:
-            print(f'WARNING: build_neurons_from_phy: failed to save neurons to "{sess.neurons.filename.as_posix()}": {e}')
-
+        if estimate_neuron_type:
+            try:
+                from neuropy.utils import neurons_util
+                neurons.spiketrains = np.array([np.squeeze(a_spike_train) for a_spike_train in neurons.spiketrains.tolist()], dtype=object)
+                neuron_type = neurons_util.estimate_neuron_type(sess.neurons, plot=False)
+                neurons.neuron_type = neuron_type[0]
+            except Exception as e:
+                print(f'WARNING: build_neurons_from_phy: failed to estimate neuron type: {e}')
+        if save_neurons:
+            neurons.filename = sess.filePrefix.with_suffix('.neurons')
+            try:
+                print(f'saving out to {neurons.filename.as_posix()}...')
+                neurons.save()
+                print(f'\tdone.')
+            except Exception as e:
+                print(f'WARNING: build_neurons_from_phy: failed to save neurons to "{neurons.filename.as_posix()}": {e}')
         return neurons
 
 
     @classmethod
-    def build_neurons_from_phy(cls, sess, basedir: Path, *, phy_folder: Optional[Path] = None, curation_review_path: Optional[Path] = None, sorting_run_name: Optional[str] = None, neuron_load_config: Optional[object] = None):
+    def build_neurons_from_phy(cls, sess, basedir: Path, *, phy_folder: Optional[Path] = None, curation_review_path: Optional[Path] = None, sorting_run_name: Optional[str] = None, neuron_load_config: Optional[NeuronLoadConfig] = None):
         """Loads neurons from Phy output and saves session file.
 
         Accepts a direct phy_folder path; folder type is determined by on-disk Phy export contents.
@@ -945,15 +1034,36 @@ class RawDataInitializationMixin:
             cls.build_neurons_from_phy(sess, basedir=basedir, sorting_run_name="folder_KS4_v1")
 
         """
+        config = neuron_load_config or NeuronLoadConfig(phy_folder=Path(phy_folder) if phy_folder is not None else None, curation_review_path=Path(curation_review_path) if curation_review_path is not None else None, run_name=sorting_run_name)
+        basename = getattr(sess, "name", None) or getattr(getattr(sess, "config", None), "session_name", None)
+        if basename is None and config.phy_folder is None and config.run_name is None:
+            print('WARNING: build_neurons_from_phy: sess must have .name when phy_folder and run_name are not set')
+            return None
+        if basename is None:
+            basename = "session"
+        if sess.eegfile is None:
+            print('WARNING: build_neurons_from_phy: sess.eegfile is None; cannot determine t_stop for Neurons')
+            return None
+        t_stop = sess.eegfile.duration
         try:
-            from spikeinterface_pipeline.config import NeuronLoadConfig
-            from spikeinterface_pipeline.neuron_loading import build_neurons_for_session
-        except ImportError:
-            if sorting_run_name is not None or neuron_load_config is not None or curation_review_path is not None:
-                print('WARNING: build_neurons_from_phy: spikeinterface_pipeline not available; cannot load SORTING neurons. Falling back to legacy spyk-circ loader.')
-            return cls._build_neurons_from_phy_legacy(sess, basedir=basedir, phy_folder=phy_folder)
-        config = neuron_load_config or NeuronLoadConfig(phy_folder=phy_folder, curation_review_path=curation_review_path, run_name=sorting_run_name)
-        return build_neurons_for_session(sess, basedir=Path(basedir), config=config)
+            resolved_phy_folder, resolved_review_path, source_type = cls._resolve_neuron_load_paths(config, basedir=Path(basedir), basename=basename)
+        except FileNotFoundError as exc:
+            print(f'WARNING: build_neurons_from_phy: {exc}')
+            return None
+        try:
+            if source_type == "sorting":
+                if resolved_review_path is None:
+                    raise FileNotFoundError(f"sorting source requires curation_review_path; phy_folder={resolved_phy_folder}")
+                neurons = cls._load_neurons_from_sorting_phy_csv(resolved_phy_folder, resolved_review_path, t_stop=t_stop, unit_filter=config.unit_filter)
+                print(f"Loaded {neurons.n_neurons} neurons from sorting phy ({resolved_phy_folder.name}) using filter {config.unit_filter!r}")
+            else:
+                folder_kind = cls._inspect_phy_folder(resolved_phy_folder)
+                neurons = cls._load_neurons_from_phyio(resolved_phy_folder, t_stop=t_stop, include_groups=config.include_groups)
+                print(f"Loaded {neurons.n_neurons} neurons from phy export ({resolved_phy_folder.name}, kind={folder_kind}) groups={config.include_groups}")
+        except (FileNotFoundError, ValueError) as exc:
+            print(f'WARNING: build_neurons_from_phy: failed to load neurons from {resolved_phy_folder}: {exc}')
+            return None
+        return cls._finalize_loaded_neurons(sess, neurons, estimate_neuron_type=config.estimate_neuron_type, save_neurons=config.save_neurons)
 
 
     @classmethod
@@ -1041,7 +1151,7 @@ class RawDataInitializationMixin:
              basename: str = 'RatS-Day1Openfield', n_channels: int = 195, dat_file_sampling_rate: int = 30000, excluded_data_datetimes: List[str]=None,
              valid_reference_session_basepath: Optional[Path]=None, ref_basename: Optional[str]=None,
              phy_folder: Optional[Path] = None, curation_review_path: Optional[Path] = None,
-             sorting_run_name: Optional[str] = None, neuron_load_config: Optional[object] = None,
+             sorting_run_name: Optional[str] = None, neuron_load_config: Optional[NeuronLoadConfig] = None,
         ):
         """ runs all needed steps 
 
