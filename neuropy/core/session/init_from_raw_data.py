@@ -884,6 +884,8 @@ class RawDataInitializationMixin:
             print(f'WARNING: build_neurons_from_phy: sess.eegfile is None; cannot determine t_stop for Neurons')
             return None
 
+
+
         try:
             neurons: Neurons = Neurons(
                 np.array(phy_data.spiketrains, dtype=object),
@@ -893,6 +895,8 @@ class RawDataInitializationMixin:
                 waveforms=np.array(phy_data.peak_waveforms, dtype='object'),
                 shank_ids=np.array([int(v) for v in phy_data.shank_ids])
             )
+            
+
         except Exception as e:
             print(f'WARNING: build_neurons_from_phy: failed to build Neurons object from Phy data at "{phy_path.as_posix()}": {e}')
             return None
@@ -905,6 +909,8 @@ class RawDataInitializationMixin:
 
         try:
             from neuropy.utils import neurons_util
+            
+            neurons.spiketrains = np.array([np.squeeze(a_spike_train) for a_spike_train in neurons.spiketrains.tolist()], dtype=object) ## fix dimensionality post-hoc
             neuron_type = neurons_util.estimate_neuron_type(sess.neurons, plot=False)
             neuron_type = neuron_type[0]
             neurons.neuron_type = neuron_type
