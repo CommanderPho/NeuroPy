@@ -859,22 +859,13 @@ class RawDataInitializationMixin:
 
 
     @classmethod
-    def build_neurons_from_phy(cls, sess, basedir: Path):
-        """Loads neurons from Spyking Circus / Phy merged GUI output and saves session file.
-
-        Modifies:
-            sess.neurons
-
-        Usage:
-
-            cls.build_neurons_from_phy(sess, basedir=basedir)
-
-        """
+    def _build_neurons_from_phy_legacy(cls, sess, basedir: Path, *, phy_folder: Optional[Path] = None):
+        """Legacy inline loader for spyk-circ merged.GUI when spikeinterface_pipeline is unavailable."""
         from neuropy.io import PhyIO
         from neuropy.core import Neurons
 
         phy_basename: str = sess.name
-        phy_path: Path = basedir.joinpath('spyk-circ', phy_basename, f'{phy_basename}-merged.GUI')
+        phy_path: Path = Path(phy_folder).resolve() if phy_folder is not None else basedir.joinpath('spyk-circ', phy_basename, f'{phy_basename}-merged.GUI')
         if not phy_path.exists():
             print(f'WARNING: build_neurons_from_phy: phy_path does not exist: "{phy_path.as_posix()}"')
             return None
@@ -929,6 +920,34 @@ class RawDataInitializationMixin:
             print(f'WARNING: build_neurons_from_phy: failed to save neurons to "{sess.neurons.filename.as_posix()}": {e}')
 
         return neurons
+
+
+    @classmethod
+    def build_neurons_from_phy(cls, sess, basedir: Path, *, phy_folder: Optional[Path] = None, curation_review_path: Optional[Path] = None, sorting_run_name: Optional[str] = None, neuron_load_config: Optional[object] = None):
+        """Loads neurons from Phy output and saves session file.
+
+        Accepts a direct phy_folder path; folder type is determined by on-disk Phy export contents.
+        CSV-filtered loading is used only when curation_review_path or sorting_run_name is explicitly provided.
+
+        Modifies:
+            sess.neurons
+
+        Usage:
+
+            cls.build_neurons_from_phy(sess, basedir=basedir)
+            cls.build_neurons_from_phy(sess, basedir=basedir, phy_folder=basedir / "SORTING/folder_KS4_v1_phy_curated")
+            cls.build_neurons_from_phy(sess, basedir=basedir, sorting_run_name="folder_KS4_v1")
+
+        """
+        try:
+            from spikeinterface_pipeline.config import NeuronLoadConfig
+            from spikeinterface_pipeline.neuron_loading import build_neurons_for_session
+        except ImportError:
+            if sorting_run_name is not None or neuron_load_config is not None or curation_review_path is not None:
+                print('WARNING: build_neurons_from_phy: spikeinterface_pipeline not available; cannot load SORTING neurons. Falling back to legacy spyk-circ loader.')
+            return cls._build_neurons_from_phy_legacy(sess, basedir=basedir, phy_folder=phy_folder)
+        config = neuron_load_config or NeuronLoadConfig(phy_folder=phy_folder, curation_review_path=curation_review_path, run_name=sorting_run_name)
+        return build_neurons_for_session(sess, basedir=Path(basedir), config=config)
 
 
     @classmethod
@@ -1015,6 +1034,8 @@ class RawDataInitializationMixin:
     def run_all(cls, basedir: Path,
              basename: str = 'RatS-Day1Openfield', n_channels: int = 195, dat_file_sampling_rate: int = 30000, excluded_data_datetimes: List[str]=None,
              valid_reference_session_basepath: Optional[Path]=None, ref_basename: Optional[str]=None,
+             phy_folder: Optional[Path] = None, curation_review_path: Optional[Path] = None,
+             sorting_run_name: Optional[str] = None, neuron_load_config: Optional[object] = None,
         ):
         """ runs all needed steps 
 
@@ -1136,7 +1157,7 @@ class RawDataInitializationMixin:
 
 
 
-        cls.build_neurons_from_phy(sess, basedir=basedir)
+        cls.build_neurons_from_phy(sess, basedir=basedir, phy_folder=phy_folder, curation_review_path=curation_review_path, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config)
 
         cls.build_mua_pbe_artifact_epochs(sess)
 
