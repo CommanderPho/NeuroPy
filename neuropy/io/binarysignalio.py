@@ -1,22 +1,41 @@
+from __future__ import annotations
+
 import numpy as np
-from ..core import Signal
 from pathlib import Path
+from typing import Union
+
+from ..core import Signal
 
 
 class BinarysignalIO:
-    def __init__(
-        self, filename, dtype="int16", n_channels=2, sampling_rate=30000
-    ) -> None:
-        pass
+    """ manages loading binary signal files, such as .eeg or .dat files direct from ephys-recordings 
+    """
+    def __init__(self, filename, dtype="int16", n_channels=2, sampling_rate=30000) -> None:
+        self._raw_traces = np.memmap(filename, dtype=dtype, mode="r").reshape(-1, n_channels).T
+        self._sampling_rate = sampling_rate
+        self._n_channels = n_channels
+        self._dtype = dtype
+        self._source_file = filename
 
-        self._raw_traces = (
-            np.memmap(filename, dtype=dtype, mode="r").reshape(-1, n_channels).T
-        )
+    @property
+    def sampling_rate(self) -> int:
+        return self._sampling_rate
 
-        self.sampling_rate = sampling_rate
-        self.n_channels = n_channels
-        self.dtype = dtype
-        self.source_file = filename
+
+    @property
+    def n_channels(self) -> int:
+        return self._n_channels
+
+
+    @property
+    def dtype(self) -> Union[str, np.dtype]:
+        return self._dtype
+
+
+    @property
+    def source_file(self) -> Union[Path, str]:
+        return self._source_file
+
 
     def __str__(self) -> str:
         return (
@@ -24,13 +43,16 @@ class BinarysignalIO:
             f"duration: {self.duration/3600:.2f} hours \n"
         )
 
-    @property
-    def duration(self):
-        return self._raw_traces.shape[1] / self.sampling_rate
 
     @property
-    def n_frames(self):
+    def duration(self) -> float:
+        return self._raw_traces.shape[1] / self.sampling_rate
+
+
+    @property
+    def n_frames(self) -> int:
         return self._raw_traces.shape[1]
+
 
     def get_signal(self, channel_indx=None, t_start=None, t_stop=None):
 
@@ -52,6 +74,7 @@ class BinarysignalIO:
             sig = self._raw_traces[channel_indx, frame_start:frame_stop]
 
         return Signal(sig, self.sampling_rate, t_start, channel_id=channel_indx)
+
 
     def write_time_slice(self, write_filename, t_start, t_stop):
 
@@ -90,12 +113,16 @@ class BinarysignalIO:
             
         return state
 
+
     def __setstate__(self, state):
+        for legacy_key, private_key in (("sampling_rate", "_sampling_rate"), ("n_channels", "_n_channels"), ("dtype", "_dtype"), ("source_file", "_source_file")):
+            if legacy_key in state and private_key not in state:
+                state[private_key] = state.pop(legacy_key)
         # Restore instance attributes (i.e., filename and lineno).
         self.__dict__.update(state)
         # self.source_file = _raw_traces
-        if (not self.source_file.exists()):
-            original_source_file: Path = self.source_file.resolve()
+        if (not Path(self._source_file).exists()):
+            original_source_file: Path = Path(self._source_file).resolve()
             try:
                 relative_source_file: Path = original_source_file.relative_to('/media/MAX/Data') # ValueError: '/nfs/turbo/umms-kdiba/Data/KDIBA/gor01/two/2006-6-07_16-40-19/2006-6-07_16-40-19.eeg' is not in the subpath of '/media/MAX/Data' OR one path is relative and the other is absolute.
                 new_root: Path = Path('/media/halechr/MAX/Data').resolve()
@@ -103,7 +130,7 @@ class BinarysignalIO:
                     proposed_new_source_path = new_root.joinpath(relative_source_file).resolve()
                     if proposed_new_source_path.exists():
                         print(f'updated source_file with {proposed_new_source_path}')
-                        self.source_file = proposed_new_source_path
+                        self._source_file = proposed_new_source_path
 
                 # Re-load the raw traces from file on load from the saved properties. The same file must exist, meaning this solution isn't portable.
                 self._raw_traces = (
