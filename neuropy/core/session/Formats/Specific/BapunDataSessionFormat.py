@@ -394,7 +394,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             ('RatS', 'Day1Openfield', None),
             ('RatS', 'Day4Openfield', None),
             ('RatS', 'Day5TwoNovel', None),
-
+            ('RatK', 'Day3TwoNovel', None),
         ]
         out: Dict[IdentifyingContext, Path] = {}
         for animal, session_name, disk_folder in session_specs:
