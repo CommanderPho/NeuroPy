@@ -52,21 +52,25 @@ Day5TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollection(sh
 )   
 
 
-def plot_shapely_maze(grid_bin_bounds: Tuple[Tuple[float, float], Tuple[float, float]], reward_zones_dict: Dict[str, Polygon], ax=None):
+def plot_shapely_maze(grid_bin_bounds: Tuple[Tuple[float, float], Tuple[float, float]], reward_zones_dict: Dict[str, Polygon], position_df: Optional[pd.DataFrame]=None, ax=None):
     """ plots the generic shapely maze extracted from the hardcoded parameters for this session
 
     Usage:
     
         from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
-        from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass
+        from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass, plot_shapely_maze
 
         hardcoded_params: HardcodedProcessingParameters = BapunDataSessionFormatRegisteredClass._get_session_specific_parameters(session_context=curr_active_pipeline.get_session_context())
         active_reward_zones_dict = hardcoded_params.lap_estimation_parameters['reward_zones'](curr_active_pipeline.filtered_sessions['roam'])
+        pos_df: pd.DataFrame = curr_active_pipeline.filtered_sessions['roam'].position.to_dataframe()[['t', 'x', 'y']] ## only care about x, y columns really
+
         _out = plot_shapely_maze(grid_bin_bounds=hardcoded_params.grid_bin_bounds, 
                                 reward_zones_dict=active_reward_zones_dict,
+                                position_df=pos_df,
                                 ax=None)
                                 
     """
+    import matplotlib.pyplot as plt
     from shapely import box, Polygon
     from shapely.geometry import LineString, Point
     from shapely.plotting import plot_polygon, patch_from_polygon
@@ -92,7 +96,7 @@ def plot_shapely_maze(grid_bin_bounds: Tuple[Tuple[float, float], Tuple[float, f
         grid_bin_bounds_box = grid_bin_bounds ## already a box or Polygon object
                 
             
-    _out = {'maze': None, 'reward_zones': {}}
+    _out = {'maze': None, 'reward_zones': {}, 'pos_line': None}
 
     ## Plot maze sections:
     if ax is None:
@@ -106,6 +110,13 @@ def plot_shapely_maze(grid_bin_bounds: Tuple[Tuple[float, float], Tuple[float, f
     # perform_update_title_subtitle(
     for k, a_zone in reward_zones_dict.items():
         _out['reward_zones'][k] = plot_polygon(a_zone, ax=ax, color='orange', add_points=False)
+
+
+    if position_df is not None:
+        assert len(position_df) > 0
+        assert 'x' in position_df.columns
+        assert 'y' in position_df.columns
+        _out['pos_line'] = _out['ax'].plot(position_df['x'], position_df['y'], alpha=0.2)
 
     return _out
 
