@@ -357,6 +357,14 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='shapely', all_session_mazes=Day5TwoNovel_all_session_mazes),
             ),
+            IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day3TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze1', 'maze2'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                # linearization_parameters=dict(method='shapely', all_session_mazes=Day5TwoNovel_all_session_mazes), ## TODO: Annotate maze using shapely
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
+            ),
             ## Fallback defaults:
             IdentifyingContext(format_name= 'bapun'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
