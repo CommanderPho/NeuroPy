@@ -49,7 +49,27 @@ Day5TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollection(sh
     ]),
 },
     valid_epochs =  {'maze1': (11070.0, 13970.0), 'maze2': (20756.0, 24004.0)}, # 'maze_GLOBAL': (0.0, 42305.0), 
-)   
+)
+
+
+RatK_Day3TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollection(shapelyMazes = {
+    # Define the skeletons (re-using the coordinates identified earlier)
+    'maze1': ShapelyMaze(nodes=[
+        (-88.0,  58.0),   # TL — top-left hub
+        (-66.0, -54.0),   # BL — bottom-left hub
+        ( 26.0,  86.0),   # TR — top-center/right hub
+        (108.0, -18.0),   # BR — bottom-right hub
+    ]),
+    # Blue = maze2 ("U"-shaped): TL -> BL -> BM -> BR -> TR
+    'maze2': ShapelyMaze(nodes=[
+        (-135.35897298, 58.64455010),   # Top-Left  (left arm top; gap in ring is between TL and TR)
+        (-29.46830373, -62.98060411),   # Bot-Left
+        (-17.93761552, 101.89932855),   # Top-Mid   (tp[most point)
+        (128.88129774, -43.31796770),   # Bot-Right
+    ]),
+},
+    valid_epochs =  {'maze1': (8950.11800747698, 12441.993530592174), 'maze2': (23253.12015019876, 26010.99556335396)}, # 'maze_GLOBAL': (0.0, 42305.0), 
+)
 
 
 def plot_shapely_maze(grid_bin_bounds: Tuple[Tuple[float, float], Tuple[float, float]], reward_zones_dict: Dict[str, Polygon], position_df: Optional[pd.DataFrame]=None, ax=None):
@@ -108,8 +128,10 @@ def plot_shapely_maze(grid_bin_bounds: Tuple[Tuple[float, float], Tuple[float, f
             
     _out['maze'] = plot_polygon(grid_bin_bounds_box, ax=ax, color='darkgrey', add_points=False)
     # perform_update_title_subtitle(
-    for k, a_zone in reward_zones_dict.items():
-        _out['reward_zones'][k] = plot_polygon(a_zone, ax=ax, color='orange', add_points=False)
+
+    if reward_zones_dict is not None:
+        for k, a_zone in reward_zones_dict.items():
+            _out['reward_zones'][k] = plot_polygon(a_zone, ax=ax, color='orange', add_points=False)
 
 
     if position_df is not None:
@@ -264,6 +286,37 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             )
             
             return bapun_OpenField_reward_zones
+
+
+
+        bapun_grid_bin_bounds_rat_U_Day3TwoNovel = (((-120.0, 120.0), (-100.0, 120.0)))
+        
+        def _subfn_rat_U_Day3TwoNovel_reward_zones(session) -> Dict[str, Polygon]:
+            """ captures: None """
+            ## maze1
+            bapun_OpenField_reward_zones_maze1 = dict(    ## Define the two reward zones
+                zone1 = box(10.82278481, 22.03218646, 34.74683544, 62.94006659), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
+                zone2 = box(-19.55696203, 21.49944506, 3.6919831199999997, 62.94006659), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
+            )
+
+            bapun_OpenField_reward_zones_maze2 = dict(    ## Define the two reward zones
+                zone1 = box(-113.97079277, 36.68257492, -66.61335188000001, 75.99223086), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
+                zone2 = box(66.94714882, -56.54716981, 145.34770515, 13.927857939999996), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
+            )
+
+            bapun_OpenField_reward_zones = {
+                'maze1': bapun_OpenField_reward_zones_maze1,
+                'maze2': bapun_OpenField_reward_zones_maze2,
+            }
+
+            # a_pos = deepcopy(session.position)
+            sess_epoch_labels = session.epochs.labels
+            if len(sess_epoch_labels) == 1:
+                active_label: str = sess_epoch_labels[0]
+                return bapun_OpenField_reward_zones[active_label]
+            else:        
+                return bapun_OpenField_reward_zones ## return the dict of dicts
+
         
 
 
@@ -287,8 +340,6 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             """ captures: cls, _subfn_rat_K_Day4Openfield_reward_zones """
             bapun_Day4OpenField_reward_zones = _subfn_rat_S_Day4Openfield_reward_zones(session=session)
             return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
-
-
 
 
         def _subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones(session):
@@ -360,10 +411,10 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day3TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
-                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
-                # linearization_parameters=dict(method='shapely', all_session_mazes=Day5TwoNovel_all_session_mazes), ## TODO: Annotate maze using shapely
-                linearization_parameters=dict(method='umap', all_session_mazes=None),
+                grid_bin_bounds=bapun_grid_bin_bounds_rat_U_Day3TwoNovel,
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_U_Day3TwoNovel_reward_zones, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='shapely', all_session_mazes=RatK_Day3TwoNovel_all_session_mazes), ## TODO: Annotate maze using shapely
+                # linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
             ## Fallback defaults:
             IdentifyingContext(format_name= 'bapun'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
