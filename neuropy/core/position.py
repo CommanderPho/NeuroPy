@@ -614,33 +614,71 @@ class PositionComputedDataMixin(PositionSlicedMixin):
 
 
     @classmethod
-    def circular_mean_deg(cls, angle_rad: NDArray) -> Union[float, NDArray]:
-        """Returns the mean of angles (in radians), in degrees in ``[0, 360)``, handling wrapping.
+    def circular_mean_angle_to_degrees(cls, angle_rad_or_deg: Union[pd.Series, NDArray], input_angles_are_radians: bool = True) -> Union[float, pd.Series, NDArray]:
+        """Returns the circular mean of angles in degrees in ``[0, 360)``, handling wrapping.
 
         - If ``angle_rad`` is a 1D :class:`~pandas.Series` (e.g. from ``groupby``), returns a scalar float.
         - If ``angle_rad`` is a 2D :class:`~numpy.ndarray` of shape ``(n, m)``, returns a length-``n``
           vector of row-wise circular means (NaNs ignored per row).
         - If ``angle_rad`` is a 1D ndarray, returns a scalar float (non-finite values are ignored).
+        - Set ``input_angles_are_radians=False`` when input values are already in degrees.
 
-        segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_deg)
+        segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(Position.circular_mean_angle_to_degrees)
         """
-        if isinstance(angle_rad, pd.Series):
-            vals = angle_rad.dropna().to_numpy(dtype=np.float64)
+        # 1. Handle the new kwarg by standardizing the input to radians
+        # np.deg2rad safely handles both pandas Series and numpy arrays
+        angles = angle_rad_or_deg if input_angles_are_radians else np.deg2rad(angle_rad_or_deg)
+
+        # 2. Existing logic continues using 'angles' instead of 'angle_rad'
+        if isinstance(angles, pd.Series):
+            vals = angles.dropna().to_numpy(dtype=np.float64)
             if vals.size == 0:
                 return float('nan')
             return float(np.mod(np.rad2deg(np.angle(np.mean(np.exp(1j * vals)))), 360.0))
-        arr = np.asarray(angle_rad, dtype=np.float64)
+            
+        arr = np.asarray(angles, dtype=np.float64)
         if arr.ndim == 2:
             if arr.shape[0] == 0:
                 return np.zeros((0,), dtype=np.float64)
             masked = np.where(np.isfinite(arr), arr, np.nan)
             mean_c = np.nanmean(np.exp(1j * masked), axis=1)
             return np.mod(np.rad2deg(np.angle(mean_c)), 360.0).astype(np.float64)
+            
         vals = arr.ravel()
         vals = vals[np.isfinite(vals)]
         if vals.size == 0:
             return float('nan')
         return float(np.mod(np.rad2deg(np.angle(np.mean(np.exp(1j * vals)))), 360.0))
+
+
+
+    @classmethod
+    def circular_mean_radians_to_degrees(cls, angle_rad: Union[pd.Series, NDArray]) -> Union[float, pd.Series, NDArray]:
+        """Returns the circular mean of angles in degrees in ``[0, 360)``, handling wrapping.
+
+        - If ``angle_rad`` is a 1D :class:`~pandas.Series` (e.g. from ``groupby``), returns a scalar float.
+        - If ``angle_rad`` is a 2D :class:`~numpy.ndarray` of shape ``(n, m)``, returns a length-``n``
+          vector of row-wise circular means (NaNs ignored per row).
+        - If ``angle_rad`` is a 1D ndarray, returns a scalar float (non-finite values are ignored).
+        - Set ``input_angles_are_radians=False`` when input values are already in degrees.
+
+        segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(Position.circular_mean_radians_to_degrees)
+        """
+        return cls.circular_mean_angle_to_degrees(angle_rad_or_deg=angle_rad, input_angles_are_radians=True)
+
+
+
+
+
+    @classmethod
+    def circular_mean_degrees_to_degrees(cls, angle_degrees: Union[pd.Series, NDArray]) -> Union[float, pd.Series, NDArray]:
+        """Returns the circular mean of angles in degrees in ``[0, 360)``, handling wrapping.
+
+        segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(Position.circular_mean_degrees_to_degrees)
+        """
+        return cls.circular_mean_angle_to_degrees(angle_rad_or_deg=angle_degrees, input_angles_are_radians=False)
+
+
 
 
     @classmethod
@@ -706,7 +744,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             pos_df['Vp_rad'] = vp_rad
 
             # Compute the mean direction for each segment
-            segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_deg)
+            segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_radians_to_degrees)
             segment_R = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_scatteredness_R) # R = 1 → perfectly aligned, R → 0 → very scattered
 
             # Map back onto df
@@ -1167,8 +1205,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         corresponding helper are available (spatial columns, quaternion columns, bin edges, etc.).
 
         Usage:
-            pos_df = PositionComputedDataMixin.compute_all_missing(pos_df, smooth_N=20)
-            pos_df = pos_df.position.compute_all_missing_as_needed(pos_df)  # equivalent via mixin inheritance
+            pos_df: pd.DataFrame = pos_df.position.compute_all_missing_as_needed(pos_df)  # equivalent via mixin inheritance
         """
         pos_acc = pos_df.position
         dim_columns: List[str] = pos_acc.dim_columns
