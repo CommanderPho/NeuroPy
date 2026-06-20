@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 from copy import deepcopy
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Optional, Callable, Union, Any
+from typing import Dict, List, Tuple, Set, Optional, Callable, Union, Any
 from pathlib import Path
 from neuropy.core.epoch import Epoch, EpochsAccessor, NamedTimerange, ensure_dataframe, ensure_Epoch
 from neuropy.core.session.Formats.BaseDataSessionFormats import DataSessionFormatBaseRegisteredClass
@@ -484,34 +484,69 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             ('RatJ', 'Day4Openfield', None),
             ('RatK', 'Day4Openfield', None),
             ('RatN', 'Day4OpenField', None),
-            ('RatS', 'Day1OpenField', 'Day1Openfield'),
-            ('RatS', 'Day1Openfield', None),
-            ('RatS', 'Day4OpenField', 'Day4Openfield'),
-            ('RatS', 'Day4Openfield', None),
-            ('RatU', 'Day5Openfield', 'RatUDay5OpenfieldSD'),
-            ('RatU', 'Day5OpenfieldSD', None),
-            ('RatU', 'RatUDay5OpenfieldSD', 'Day5OpenfieldSD'), 
+            ('RatS', 'Day1OpenField', ('Day1OpenField', 'Day1Openfield')),
+            ('RatS', 'Day1Openfield', ('Day1OpenField', 'Day1Openfield')),
+            ('RatS', 'Day4OpenField', ('Day4OpenField','Day4Openfield')),
+            # ('RatS', 'Day4Openfield', None),
+            ('RatU', 'Day5Openfield', ('Day5Openfield', 'Day5OpenfieldSD', 'RatUDay5OpenfieldSD')),
+            ('RatU', 'Day5OpenfieldSD', ('Day5Openfield', 'Day5OpenfieldSD', 'RatUDay5OpenfieldSD')),
+            ('RatU', 'RatUDay5OpenfieldSD', ('Day5Openfield', 'Day5OpenfieldSD', 'RatUDay5OpenfieldSD')), 
             # VALIDATE path: on-disk folder is RatJ/Day3TwoNovel (not RatJDay3TwoNovel); session_name in IdentifyingContext stays Day3TwoNovel
-            ('RatJ', 'Day3TwoNovel', None), # ('RatJ', 'Day3TwoNovel', 'RatJDay3TwoNovel'),
+            ('RatJ', 'Day3TwoNovel', ('Day3TwoNovel', 'RatJDay3TwoNovel')), # ('RatJ', 'Day3TwoNovel', 'RatJDay3TwoNovel'),
             ('RatK', 'Day3TwoNovel', None),
             ('RatS', 'Day5TwoNovel', None),
-            ('RatU', 'Day3TwoNovel', 'RatUDay3TwoNovel'),
+            ('RatU', 'Day3TwoNovel', ('Day3TwoNovel', 'RatUDay3TwoNovel')),
+            # ('RatU', 'Day3TwoNovel', None),
         ]
         out: Dict[IdentifyingContext, Path] = {}
         for animal, session_name, disk_folder in session_specs:
-            disk_folder = disk_folder or session_name
             ctx = IdentifyingContext(format_name=fmt, animal=animal, session_name=session_name)
-            nested = bapun_root.joinpath(animal, disk_folder)
-            flat = bapun_root.joinpath(disk_folder)
-            if nested.is_dir():
-                chosen = nested
-            elif flat.is_dir():
-                chosen = flat
+            disk_folder = disk_folder or session_name
+            
+
+            def _subfn_try_find_path(a_disk_folder): 
+                """ captures: bapun_root, animal """
+                nested = bapun_root.joinpath(animal, a_disk_folder)
+                flat = bapun_root.joinpath(a_disk_folder)
+                is_valid: bool = False
+                if nested.is_dir():
+                    chosen = nested
+                    is_valid = True
+                elif flat.is_dir():
+                    chosen = flat
+                    is_valid = True
+                else:
+                    chosen = nested
+
+                return (chosen, is_valid)
+            
+                
+                                
+            is_valid: bool = False
+            if isinstance(disk_folder, (List, Tuple, Set)):
+                
+                for a_folder in disk_folder:
+                    if not is_valid:
+                        chosen, is_valid = _subfn_try_find_path(a_disk_folder=a_folder)
+                        if is_valid:
+                            out[ctx] = chosen.resolve() ## add the context
+                            if debug_print:
+                                print(f'Bapun build_session_basedirs_dict: found valid folder for {ctx}; using default path {chosen}')
+                        else:
+                            if debug_print:
+                                print(f'Bapun build_session_basedirs_dict: no extant folder for {ctx}; using default path {chosen}')
+                            continue
+                        
             else:
-                chosen = nested
-                if debug_print:
-                    print(f'Bapun build_session_basedirs_dict: no extant folder for {ctx}; using default path {chosen}')
-            out[ctx] = chosen.resolve()
+                chosen, is_valid = _subfn_try_find_path(a_disk_folder=disk_folder)
+                if is_valid:
+                    out[ctx] = chosen.resolve()
+                else:
+                    if debug_print:
+                        print(f'Bapun build_session_basedirs_dict: no extant folder for {ctx}; using default path {chosen}')
+                        
+        ## END for animal, session_name, disk_folder in session_specs....
+        
         return out
 
 
