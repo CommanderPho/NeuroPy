@@ -446,14 +446,20 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         fmt = cls._session_class_name
         # (animal, logical session_name as in IdentifyingContext, optional on-disk folder name if it differs)
         session_specs: List[Tuple[str, str, Optional[str]]] = [
+            ('RatJ', 'Day4Openfield', None),
+            ('RatK', 'Day4Openfield', None),
             ('RatN', 'Day4OpenField', None),
+            ('RatS', 'Day1OpenField', 'Day1Openfield'),
+            ('RatS', 'Day1Openfield', None),
+            ('RatS', 'Day4OpenField', 'Day4Openfield'),
+            ('RatS', 'Day4Openfield', None),
+            ('RatU', 'Day5Openfield', 'RatUDay5OpenfieldSD'),
             ('RatU', 'Day5OpenfieldSD', None),
             ('RatU', 'RatUDay5OpenfieldSD', 'Day5OpenfieldSD'),
-            ('RatK', 'Day4Openfield', None),
-            ('RatS', 'Day1Openfield', None),
-            ('RatS', 'Day4Openfield', None),
-            ('RatS', 'Day5TwoNovel', None),
+            ('RatJ', 'Day3TwoNovel', 'RatJDay3TwoNovel'),
             ('RatK', 'Day3TwoNovel', None),
+            ('RatS', 'Day5TwoNovel', None),
+            ('RatU', 'Day3TwoNovel', 'RatUDay3TwoNovel'),
         ]
         out: Dict[IdentifyingContext, Path] = {}
         for animal, session_name, disk_folder in session_specs:
