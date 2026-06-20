@@ -22,7 +22,7 @@ from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epoch
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta
 from neuropy.utils.result_context import IdentifyingContext
 from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
-from neuropy.utils.position_util import ShapelyMaze, ShapelyMazeCollection
+from neuropy.utils.position_util import ShapelyMaze, ShapelyMazeCollection, build_shapely_maze_collection_for_session
 from shapely import box ## used by `build_Bapun_Day4OpenField_laps_from_reward_zones`
 # from shapely.geometry import LineString, Point 
 
@@ -30,6 +30,7 @@ from shapely import box ## used by `build_Bapun_Day4OpenField_laps_from_reward_z
 # linearization_method: str = 'umap'
 
 # linearization_method: str = 'shapely'
+# Geometry templates for TwoNovel shapely linearization. valid_epochs are RatS/RatK reference bounds used only as fallback when dynamic resolution fails (see build_shapely_maze_collection_for_session).
 Day5TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollection(shapelyMazes = {
     # Define the skeletons (re-using the coordinates identified earlier)
     # "N"-shaped maze
@@ -48,10 +49,11 @@ Day5TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollection(sh
         (52.74, 76.34)    # Top-Right
     ]),
 },
-    valid_epochs =  {'maze1': (11070.0, 13970.0), 'maze2': (20756.0, 24004.0)}, # 'maze_GLOBAL': (0.0, 42305.0), 
+    valid_epochs =  {'maze1': (11070.0, 13970.0), 'maze2': (20756.0, 24004.0)}, # fallback only (RatS Day5TwoNovel reference); resolved per-session at linearization time - 'maze_GLOBAL': (0.0, 42305.0), 
 )
 
 
+# RatK/U-style TwoNovel geometry template; valid_epochs are fallback bounds only (RatK Day3TwoNovel reference).
 RatK_Day3TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollection(shapelyMazes = {
     # Define the skeletons (re-using the coordinates identified earlier)
     'maze1': ShapelyMaze(nodes=[
@@ -68,7 +70,7 @@ RatK_Day3TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollecti
         (128.88129774, -43.31796770),   # Bot-Right
     ]),
 },
-    valid_epochs =  {'maze1': (8950.11800747698, 12441.993530592174), 'maze2': (23253.12015019876, 26010.99556335396)}, # 'maze_GLOBAL': (0.0, 42305.0), 
+    valid_epochs =  {'maze1': (8950.11800747698, 12441.993530592174), 'maze2': (23253.12015019876, 26010.99556335396)}, # fallback only (RatK Day3TwoNovel reference); resolved per-session at linearization time - 'maze_GLOBAL': (0.0, 42305.0), 
 )
 
 
@@ -805,6 +807,17 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
             
         return updated_epochs
+
+
+    @classmethod
+    def build_shapely_maze_collection_for_session(cls, sess, hardcoded_params: HardcodedProcessingParameters, valid_epochs_override: Optional[Dict[str, Tuple[float, float]]] = None, debug_print: bool = True) -> ShapelyMazeCollection:
+        """Build session-specific ShapelyMazeCollection: geometry from hardcoded template, valid_epochs resolved from sess.epochs with fallbacks."""
+        linearization_parameters = hardcoded_params.linearization_parameters or {}
+        geometry_template = linearization_parameters.get('all_session_mazes', None)
+        assert geometry_template is not None, "hardcoded_params.linearization_parameters must include all_session_mazes for shapely linearization."
+        if valid_epochs_override is None:
+            valid_epochs_override = linearization_parameters.get('valid_epochs_override', None)
+        return build_shapely_maze_collection_for_session(pos_df=sess.position.to_dataframe(), geometry_template=geometry_template, maze_epoch_keys=hardcoded_params.non_global_activity_session_names, epochs_df=sess.epochs.to_dataframe(), valid_epochs_override=valid_epochs_override, debug_print=debug_print)
 
 
 

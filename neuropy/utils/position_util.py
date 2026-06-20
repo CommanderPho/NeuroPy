@@ -62,6 +62,155 @@ class ShapelyMazeCollection:
     valid_epochs: Dict[str, Tuple[float, float]] = field(default=Factory(dict))    
 
 
+def resolve_shapely_valid_epochs(pos_df: pd.DataFrame, shapely_maze_collection: ShapelyMazeCollection, maze_epoch_keys: List[str], epochs_df: Optional[pd.DataFrame] = None, valid_epochs_override: Optional[Dict[str, Tuple[float, float]]] = None, min_position_samples: int = 100, min_epoch_duration_sec: float = 60.0, min_on_track_fraction: float = 0.3, max_track_distance_cm: float = 25.0, enable_position_occupancy_refinement: bool = True, debug_print: bool = True) -> Tuple[Dict[str, Tuple[float, float]], Dict[str, str]]:
+    """Resolve per-maze time bounds for shapely linearization with tiered fallbacks.
+
+    Priority per key: override -> session epochs -> occupancy refinement -> template fallback -> omit.
+    Returns (valid_epochs, provenance) where provenance values are one of:
+    'override', 'epochs', 'epochs_refined', 'occupancy', 'template_fallback', 'missing'.
+    """
+
+    def _subfn_extract_epoch_bounds_from_epochs_df(epochs_df: Optional[pd.DataFrame], label: str, start_col: str = 'start', stop_col: str = 'stop') -> Optional[Tuple[float, float]]:
+        """Return (start, stop) for a single epoch label, or None if missing."""
+        if epochs_df is None or len(epochs_df) == 0 or 'label' not in epochs_df.columns:
+            return None
+        label_rows = epochs_df[epochs_df['label'] == label]
+        if len(label_rows) == 0:
+            return None
+        if len(label_rows) > 1:
+            duration_col = 'duration' if 'duration' in label_rows.columns else None
+            if duration_col is not None:
+                label_rows = label_rows.sort_values(by=duration_col, ascending=False)
+            else:
+                label_rows = label_rows.copy()
+                label_rows['_duration'] = label_rows[stop_col].astype(float) - label_rows[start_col].astype(float)
+                label_rows = label_rows.sort_values(by='_duration', ascending=False)
+            if debug_print:
+                print(f"resolve_shapely_valid_epochs: label {label!r} has {len(label_rows)} rows; using longest duration.")
+        row = label_rows.iloc[0]
+        return (float(row[start_col]), float(row[stop_col]))
+
+    def _subfn_compute_on_track_mask(pos_df: pd.DataFrame, shapely_maze: ShapelyMaze) -> np.ndarray:
+        """Boolean mask: True where sample is within max_track_distance_cm of the maze skeleton."""
+        track_line = shapely_maze.maze_track_line
+        distances = np.array([track_line.distance(Point(x, y)) for x, y in zip(pos_df['x'].to_numpy(), pos_df['y'].to_numpy())])
+        return distances <= max_track_distance_cm
+
+    def _subfn_validate_shapely_epoch_bounds(pos_df: pd.DataFrame, shapely_maze: ShapelyMaze, t0: float, t1: float) -> bool:
+        """Return True if epoch bounds contain enough on-track position samples."""
+        if t1 <= t0:
+            return False
+        if (t1 - t0) < min_epoch_duration_sec:
+            return False
+        window_df = pos_df[(pos_df['t'] >= t0) & (pos_df['t'] <= t1)].dropna(subset=['x', 'y'], how='any')
+        if len(window_df) < min_position_samples:
+            return False
+        on_track_mask = _subfn_compute_on_track_mask(window_df, shapely_maze)
+        on_track_fraction = float(np.mean(on_track_mask)) if len(on_track_mask) > 0 else 0.0
+        return on_track_fraction >= min_on_track_fraction
+
+    def _subfn_infer_epoch_bounds_from_track_occupancy(pos_df: pd.DataFrame, shapely_maze: ShapelyMaze, search_t0: float, search_t1: float) -> Optional[Tuple[float, float]]:
+        """Infer epoch bounds from the largest contiguous on-track occupancy segment within the search window."""
+        min_segment_samples = min(min_position_samples, 50)
+        min_segment_duration_sec = min(min_epoch_duration_sec, 30.0)
+        if search_t1 <= search_t0:
+            return None
+        window_df = pos_df[(pos_df['t'] >= search_t0) & (pos_df['t'] <= search_t1)].dropna(subset=['x', 'y', 't'], how='any')
+        if len(window_df) < min_segment_samples:
+            return None
+        window_df = window_df.sort_values('t').reset_index(drop=True)
+        on_track_mask = _subfn_compute_on_track_mask(window_df, shapely_maze)
+        if not np.any(on_track_mask):
+            return None
+        regions = contiguous_regions(on_track_mask)
+        if len(regions) == 0:
+            return None
+        best_region = None
+        best_n_samples = -1
+        t_values = window_df['t'].to_numpy()
+        for region in regions:
+            start_idx, end_idx = int(region[0]), int(region[1])
+            n_samples = end_idx - start_idx
+            if n_samples < min_segment_samples:
+                continue
+            t_start, t_end = float(t_values[start_idx]), float(t_values[end_idx - 1])
+            if (t_end - t_start) < min_segment_duration_sec:
+                continue
+            if n_samples > best_n_samples:
+                best_n_samples = n_samples
+                best_region = (t_start, t_end)
+        return best_region
+
+    valid_epochs_override = valid_epochs_override or {}
+    template_valid_epochs = shapely_maze_collection.valid_epochs or {}
+    resolved_valid_epochs: Dict[str, Tuple[float, float]] = {}
+    provenance: Dict[str, str] = {}
+    pos_df = pos_df.dropna(subset=['x', 'y', 't'], how='any')
+    if len(pos_df) == 0:
+        if debug_print:
+            print("resolve_shapely_valid_epochs: empty position dataframe; no bounds resolved.")
+        return resolved_valid_epochs, provenance
+    session_t_min, session_t_max = float(pos_df['t'].min()), float(pos_df['t'].max())
+    maze_keys = [k for k in maze_epoch_keys if k in shapely_maze_collection.shapelyMazes]
+    missing_geometry_keys = set(maze_epoch_keys) - set(maze_keys)
+    if missing_geometry_keys and debug_print:
+        print(f"resolve_shapely_valid_epochs: no shapely geometry for keys {sorted(missing_geometry_keys)}; skipping.")
+    prior_maze_stop: Optional[float] = None
+    for maze_key in maze_keys:
+        shapely_maze = shapely_maze_collection.shapelyMazes[maze_key]
+        bounds: Optional[Tuple[float, float]] = None
+        source: str = 'missing'
+        if maze_key in valid_epochs_override:
+            bounds = (float(valid_epochs_override[maze_key][0]), float(valid_epochs_override[maze_key][1]))
+            source = 'override'
+        epoch_bounds = _subfn_extract_epoch_bounds_from_epochs_df(epochs_df=epochs_df, label=maze_key)
+        search_t0 = epoch_bounds[0] if epoch_bounds is not None else session_t_min
+        search_t1 = epoch_bounds[1] if epoch_bounds is not None else session_t_max
+        if prior_maze_stop is not None:
+            search_t0 = max(search_t0, prior_maze_stop)
+        if bounds is None and epoch_bounds is not None:
+            t0, t1 = epoch_bounds
+            if prior_maze_stop is not None:
+                t0 = max(t0, prior_maze_stop)
+            if _subfn_validate_shapely_epoch_bounds(pos_df, shapely_maze, t0, t1):
+                bounds = (t0, t1)
+                source = 'epochs'
+            elif enable_position_occupancy_refinement:
+                occupancy_bounds = _subfn_infer_epoch_bounds_from_track_occupancy(pos_df, shapely_maze, search_t0=max(t0, search_t0), search_t1=t1)
+                if occupancy_bounds is not None and _subfn_validate_shapely_epoch_bounds(pos_df, shapely_maze, occupancy_bounds[0], occupancy_bounds[1]):
+                    bounds = occupancy_bounds
+                    source = 'epochs_refined'
+        if bounds is None and enable_position_occupancy_refinement:
+            occupancy_bounds = _subfn_infer_epoch_bounds_from_track_occupancy(pos_df, shapely_maze, search_t0=search_t0, search_t1=search_t1)
+            if occupancy_bounds is not None and _subfn_validate_shapely_epoch_bounds(pos_df, shapely_maze, occupancy_bounds[0], occupancy_bounds[1]):
+                bounds = occupancy_bounds
+                source = 'occupancy'
+        if bounds is None and maze_key in template_valid_epochs:
+            template_bounds = (float(template_valid_epochs[maze_key][0]), float(template_valid_epochs[maze_key][1]))
+            t0, t1 = template_bounds
+            if prior_maze_stop is not None:
+                t0 = max(t0, prior_maze_stop)
+            if _subfn_validate_shapely_epoch_bounds(pos_df, shapely_maze, t0, t1):
+                bounds = (t0, t1)
+                source = 'template_fallback'
+        if bounds is not None:
+            resolved_valid_epochs[maze_key] = bounds
+            provenance[maze_key] = source
+            prior_maze_stop = bounds[1]
+            if debug_print:
+                print(f"resolve_shapely_valid_epochs: {maze_key} -> {bounds} (source={source})")
+        else:
+            provenance[maze_key] = 'missing'
+            if debug_print:
+                print(f"resolve_shapely_valid_epochs: {maze_key} -> MISSING (all tiers failed)")
+    return resolved_valid_epochs, provenance
+
+
+def build_shapely_maze_collection_for_session(pos_df: pd.DataFrame, geometry_template: ShapelyMazeCollection, maze_epoch_keys: List[str], epochs_df: Optional[pd.DataFrame] = None, valid_epochs_override: Optional[Dict[str, Tuple[float, float]]] = None, min_position_samples: int = 100, min_epoch_duration_sec: float = 60.0, min_on_track_fraction: float = 0.3, max_track_distance_cm: float = 25.0, enable_position_occupancy_refinement: bool = True, debug_print: bool = True) -> ShapelyMazeCollection:
+    """Build a session-specific ShapelyMazeCollection: geometry from template, valid_epochs resolved dynamically."""
+    valid_epochs, provenance = resolve_shapely_valid_epochs(pos_df=pos_df, shapely_maze_collection=geometry_template, maze_epoch_keys=maze_epoch_keys, epochs_df=epochs_df, valid_epochs_override=valid_epochs_override, min_position_samples=min_position_samples, min_epoch_duration_sec=min_epoch_duration_sec, min_on_track_fraction=min_on_track_fraction, max_track_distance_cm=max_track_distance_cm, enable_position_occupancy_refinement=enable_position_occupancy_refinement, debug_print=debug_print)
+    return ShapelyMazeCollection(shapelyMazes=deepcopy(geometry_template.shapelyMazes), valid_epochs=valid_epochs)
+
 
 def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", sigma=2, override_position_sampling_rate_Hz=None, regularization_approach:RegularizationApproach=RegularizationApproach.RAW_VALUES,
                           all_session_mazes: Optional[ShapelyMazeCollection]=None):

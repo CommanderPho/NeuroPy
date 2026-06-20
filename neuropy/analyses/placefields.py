@@ -2141,3 +2141,5 @@ def compute_placefields_as_needed(active_session, computation_config:PlacefieldC
         print('skipping 2D placefield plots')
     return active_placefields1D, active_placefields2D
 
+
+
