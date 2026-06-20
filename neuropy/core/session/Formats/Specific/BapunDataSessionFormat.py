@@ -351,11 +351,46 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
 
         the_dict: Dict[IdentifyingContext, HardcodedProcessingParameters]  = { #  
+            # Open Field Section _________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
+            # VALIDATE RatJ Day4Openfield: clone RatK Day4Openfield (single-maze open field, pre/maze/post); reuses _subfn_rat_K_Day4Openfield_reward_zones + _subfn_rat_K_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones; batch context ProcessBatchOutputs_Bapun_Batch.ipy OpenField list
+            IdentifyingContext(format_name= 'bapun', animal= 'RatJ', session_name= 'Day4Openfield'): HardcodedProcessingParameters(
+                decoder_building_session_names=['maze'],
+                global_session_name='maze',
+                non_global_activity_session_names=['maze'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_K_Day4Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_K_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
+            ),
+            IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day4Openfield'): HardcodedProcessingParameters(
+                # decoder_building_session_names=['maze', 'sprinkle', 'maze_GLOBAL'],
+                decoder_building_session_names=['maze'],
+                # global_session_name='maze_GLOBAL',
+                global_session_name='maze',
+                # non_global_activity_session_names=['maze', 'sprinkle'],
+                non_global_activity_session_names=['maze'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_K_Day4Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_K_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
+            ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatN', session_name= 'Day4OpenField'): HardcodedProcessingParameters(decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['roam', 'sprinkle'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
                 lap_estimation_parameters=dict(reward_zones=_subfn_rat_N_Day4Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_N_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=20.0, merging_adjacent_max_separation_sec=6.0,),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
+            ),
+            IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name='Day1Openfield'): HardcodedProcessingParameters(decoder_building_session_names=['maze'],
+                global_session_name='maze',
+                non_global_activity_session_names=['maze'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_S_Day1Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_S_Day1Openfield_build_Bapun_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
+            ),
+            IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name='Day4Openfield'): HardcodedProcessingParameters(decoder_building_session_names=['maze'],
+                global_session_name='maze',
+                non_global_activity_session_names=['maze'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_S_Day4Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_S_Day4Openfield_build_Bapun_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
             IdentifyingContext(format_name= 'bapun', animal= 'RatU', session_name= 'RatUDay5OpenfieldSD'): HardcodedProcessingParameters(
@@ -375,39 +410,21 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 lap_estimation_parameters=dict(reward_zones=_subfn_rat_U_Day5OpenfieldSD_reward_zones, custom_lap_estimation_fn=_subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
-            IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day4Openfield'): HardcodedProcessingParameters(
-                # decoder_building_session_names=['maze', 'sprinkle', 'maze_GLOBAL'],
-                decoder_building_session_names=['maze'],
-                # global_session_name='maze_GLOBAL',
-                global_session_name='maze',
-                # non_global_activity_session_names=['maze', 'sprinkle'],
-                non_global_activity_session_names=['maze'],
-                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(reward_zones=_subfn_rat_K_Day4Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_K_Day4Openfield_build_Bapun_Day4OpenField_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
-                linearization_parameters=dict(method='umap', all_session_mazes=None),
-            ),
-            IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name='Day1Openfield'): HardcodedProcessingParameters(decoder_building_session_names=['maze'],
-                global_session_name='maze',
-                non_global_activity_session_names=['maze'],
-                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(reward_zones=_subfn_rat_S_Day1Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_S_Day1Openfield_build_Bapun_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
-                linearization_parameters=dict(method='umap', all_session_mazes=None),
-            ),
-            IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name='Day4Openfield'): HardcodedProcessingParameters(decoder_building_session_names=['maze'],
-                global_session_name='maze',
-                non_global_activity_session_names=['maze'],
-                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(reward_zones=_subfn_rat_S_Day4Openfield_reward_zones, custom_lap_estimation_fn=_subfn_rat_S_Day4Openfield_build_Bapun_laps_from_reward_zones, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
-                linearization_parameters=dict(method='umap', all_session_mazes=None),
-            ),
 
-            IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+
+            # Two Novel Section __________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
+
+
+
+            # VALIDATE RatJ Day3TwoNovel: clone RatS Day5TwoNovel (N/U shapely mazes); reuses Day5TwoNovel_all_session_mazes (valid_epochs are RatS-specific — may need tuning); maze1/maze2/maze_GLOBAL epochs; notebook InteractivePipelineLoadFromPickle_Bapun_RatJ_D3TwoNovel
+            IdentifyingContext(format_name= 'bapun', animal= 'RatJ', session_name= 'Day3TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
                 grid_bin_bounds=bapun_open_field_grid_bin_bounds,
                 lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='shapely', all_session_mazes=Day5TwoNovel_all_session_mazes),
             ),
+
             IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day3TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
@@ -416,6 +433,22 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 linearization_parameters=dict(method='shapely', all_session_mazes=RatK_Day3TwoNovel_all_session_mazes), ## TODO: Annotate maze using shapely
                 # linearization_parameters=dict(method='umap', all_session_mazes=None),
             ),
+            IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze1', 'maze2'],
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='shapely', all_session_mazes=Day5TwoNovel_all_session_mazes),
+            ),
+            # VALIDATE RatU Day3TwoNovel: clone RatK Day3TwoNovel; reuses _subfn_rat_U_Day3TwoNovel_reward_zones + RatK_Day3TwoNovel_all_session_mazes + bapun_grid_bin_bounds_rat_U_Day3TwoNovel (shapely valid_epochs are RatK-specific — may need tuning)
+            IdentifyingContext(format_name= 'bapun', animal= 'RatU', session_name= 'Day3TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze1', 'maze2'],
+                grid_bin_bounds=bapun_grid_bin_bounds_rat_U_Day3TwoNovel,
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_U_Day3TwoNovel_reward_zones, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='shapely', all_session_mazes=RatK_Day3TwoNovel_all_session_mazes),
+            ),
+
             ## Fallback defaults:
             IdentifyingContext(format_name= 'bapun'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
@@ -455,8 +488,9 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             ('RatS', 'Day4Openfield', None),
             ('RatU', 'Day5Openfield', 'RatUDay5OpenfieldSD'),
             ('RatU', 'Day5OpenfieldSD', None),
-            ('RatU', 'RatUDay5OpenfieldSD', 'Day5OpenfieldSD'),
-            ('RatJ', 'Day3TwoNovel', 'RatJDay3TwoNovel'),
+            ('RatU', 'RatUDay5OpenfieldSD', 'Day5OpenfieldSD'), 
+            # VALIDATE path: on-disk folder is RatJ/Day3TwoNovel (not RatJDay3TwoNovel); session_name in IdentifyingContext stays Day3TwoNovel
+            ('RatJ', 'Day3TwoNovel', None), # ('RatJ', 'Day3TwoNovel', 'RatJDay3TwoNovel'),
             ('RatK', 'Day3TwoNovel', None),
             ('RatS', 'Day5TwoNovel', None),
             ('RatU', 'Day3TwoNovel', 'RatUDay3TwoNovel'),
@@ -614,12 +648,15 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         if curr_sess_context is not None:
             is_bapun_Day1OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'Day1OpenField'}) ## all must match, 'animal': 'RatN'
             is_bapun_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'Day4OpenField'}) ## all must match, 'animal': 'RatN'
-            is_bapun_ratK_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatK', 'session_name': 'Day4Openfield'}) ## all must match, 'animal': 'RatK'
+            # is_bapun_ratK_Day4OpenField_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatK', 'session_name': 'Day4Openfield'}) ## all must match, 'animal': 'RatK'
+            # VALIDATE epoch fixup: RatK + RatJ Day4Openfield share single-maze pre/maze/post (3 epochs); disable maze_GLOBAL when already fixed
+            is_bapun_ratK_or_ratJ_Day4Openfield_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': ['RatK', 'RatJ'], 'session_name': 'Day4Openfield'})
             # is_bapun_RatUDay5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'session_name': 'RatUDay5OpenfieldSD'}) ## all must match, 'animal': 'RatN'
-            is_bapun_RatU_Day5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatU', 'session_name': ['RatUDay5OpenfieldSD', 'Day5OpenfieldSD']}) ## all must match, 'animal': 'RatU'
+            # VALIDATE epoch fixup: RatU Day5 on-disk session; batch uses Day5Openfield context name alongside legacy Day5OpenfieldSD / RatUDay5OpenfieldSD aliases
+            is_bapun_RatU_Day5OpenfieldSD_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatU', 'session_name': ['RatUDay5OpenfieldSD', 'Day5OpenfieldSD', 'Day5Openfield']})
             is_bapun_RatS_Openfield_sess = curr_sess_context.query(criteria={'format_name':'bapun', 'animal': 'RatS', 'session_name': ['Day1OpenField', 'Day4Openfield', 'Day1OpenField', 'Day4OpenField']}) ## all must match, 'animal': 'RatS'
 
-            if is_bapun_ratK_Day4OpenField_sess:
+            if is_bapun_ratK_or_ratJ_Day4Openfield_sess:
                 assert (len(bapun_epochs_df) == 3), f"{len(bapun_epochs_df)}"
                 needs_update = not ((len(bapun_epochs_df) == 3) and (['pre', 'maze', 'post'] == bapun_epochs_df['label'].to_list()))
                 if not needs_update:
