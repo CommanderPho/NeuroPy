@@ -228,9 +228,6 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             return bapun_Day4OpenField_reward_zones
 
 
-
-
-
         def _subfn_rat_S_Day1Openfield_reward_zones(session) -> Dict[str, Polygon]:
             """ captures: None """
             xmin: float = -109.52
@@ -242,6 +239,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 zone2 = box(65.0, 0.0, xmax, 45.0), # box(minx, miny, maxx, maxy, ccw=True)
             )
             return bapun_OpenField_reward_zones
+
 
         def _subfn_rat_S_Day4Openfield_reward_zones(session) -> Dict[str, Polygon]:
             """ captures: None """
@@ -255,13 +253,6 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             #     zone2 = box(65.0, 0.0, xmax, 45.0), # box(minx, miny, maxx, maxy, ccw=True)
             # )
             # return bapun_OpenField_reward_zones
-
-
-
-
-
-
-
 
 
         # bapun_open_field_grid_bin_bounds_rat_U = (((0.0, 142.0), (0.0, 30.0)))
@@ -438,7 +429,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             IdentifyingContext(format_name= 'bapun', animal= 'RatS', session_name= 'Day5TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
-                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
+                grid_bin_bounds=bapun_open_field_grid_bin_bounds, #TODO 2026-06-21 08:13: - [ ] why using the openfield bounds instead of the TwoNovel bounds?
                 lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='shapely', all_session_mazes=Day5TwoNovel_all_session_mazes),
             ),
