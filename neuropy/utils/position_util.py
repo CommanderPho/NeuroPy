@@ -185,6 +185,16 @@ def resolve_shapely_valid_epochs(pos_df: pd.DataFrame, shapely_maze_collection: 
             if occupancy_bounds is not None and _subfn_validate_shapely_epoch_bounds(pos_df, shapely_maze, occupancy_bounds[0], occupancy_bounds[1]):
                 bounds = occupancy_bounds
                 source = 'occupancy'
+        if bounds is None and epoch_bounds is not None:
+            # A session's own epoch-label bounds are more trustworthy than another session's hardcoded template times, even when on-track geometry validation is weak (e.g. RatU/RatJ reusing RatK/RatS maze geometry whose LineString does not match this session's track). Use them (unvalidated) before falling back to the cross-session template times.
+            t0, t1 = epoch_bounds
+            if prior_maze_stop is not None:
+                t0 = max(t0, prior_maze_stop)
+            if t1 > t0:
+                bounds = (t0, t1)
+                source = 'epochs_unvalidated'
+                if debug_print:
+                    print(f"resolve_shapely_valid_epochs: {maze_key} using session epoch bounds {bounds} (unvalidated; geometry validation failed but preferred over cross-session template fallback).")
         if bounds is None and maze_key in template_valid_epochs:
             template_bounds = (float(template_valid_epochs[maze_key][0]), float(template_valid_epochs[maze_key][1]))
             t0, t1 = template_bounds

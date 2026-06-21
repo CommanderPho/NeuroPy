@@ -2087,7 +2087,15 @@ def perform_compute_placefields(active_session_spikes_df, active_pos, computatio
             except Exception as e:
                 linearization_method = 'isomap' ## fallback to isomap
                 raise e
-            active_pos.compute_linearized_position(method=linearization_method)
+            try:
+                active_pos.compute_linearized_position(method=linearization_method)
+            except Exception as lin_err:
+                # e.g. method == 'shapely' but `all_session_mazes` was not wired in for this filtered epoch; fall back to isomap so placefields still compute (avoids leaving a None computation result that crashes downstream).
+                if linearization_method != 'isomap':
+                    print(f'WARNING: compute_linearized_position(method={linearization_method!r}) failed with error: {lin_err}. Falling back to method="isomap".')
+                    active_pos.compute_linearized_position(method='isomap')
+                else:
+                    raise
                     
 
         active_epoch_placefields1D = PfND.from_config_values(spikes_df, position=deepcopy(active_pos.linear_pos_obj), epochs=included_epochs,
