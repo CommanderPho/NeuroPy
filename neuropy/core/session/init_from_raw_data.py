@@ -20,6 +20,7 @@ PhyFolderKind = Literal["invalid", "si_phy_export", "spyk_circ_phy_export"]
 class NeuronLoadConfig:
     source_type: NeuronSourceType = "auto"
     phy_folder: Path | None = None
+    sorter_folder: Path | None = None
     curation_review_path: Path | None = None
     run_name: str | None = None
     include_groups: tuple[str, ...] = ("good", "mua")
@@ -928,6 +929,37 @@ class RawDataInitializationMixin:
 
 
     @classmethod
+    def _resolve_sorter_neuron_load_paths(cls, config: NeuronLoadConfig, basedir: Path, *, sorting_run_name: Optional[str] = None, sorter_folder: Optional[Path] = None, sorting_analyzer_folder: Optional[Path] = None) -> tuple[Path, Optional[Path], Optional[Path]]:
+        basedir = windows_to_wsl_path_if_needed(basedir).resolve()
+        sorting_root = basedir.joinpath("SORTING")
+        run_name = config.run_name or sorting_run_name
+        if config.sorter_folder is not None:
+            resolved_sorter_folder = windows_to_wsl_path_if_needed(config.sorter_folder).resolve()
+        elif sorter_folder is not None:
+            resolved_sorter_folder = windows_to_wsl_path_if_needed(sorter_folder).resolve()
+        elif run_name is not None:
+            resolved_sorter_folder = sorting_root.joinpath(run_name).resolve()
+        else:
+            raise FileNotFoundError("sorter neuron source requires sorter_folder or sorting_run_name")
+        if not (resolved_sorter_folder / "spikeinterface_log.json").is_file():
+            raise FileNotFoundError(f"sorter_folder is not a valid SpikeInterface sorter output: {resolved_sorter_folder}")
+        resolved_run_name = run_name or resolved_sorter_folder.name
+        if sorting_analyzer_folder is not None:
+            resolved_analyzer_folder = windows_to_wsl_path_if_needed(sorting_analyzer_folder).resolve()
+        else:
+            resolved_analyzer_folder = sorting_root.joinpath(f"{resolved_run_name}_sorting_analyzer").resolve()
+        if not resolved_analyzer_folder.is_dir():
+            resolved_analyzer_folder = None
+        if config.curation_review_path is not None:
+            resolved_review_path = windows_to_wsl_path_if_needed(config.curation_review_path).resolve()
+        else:
+            resolved_review_path = sorting_root.joinpath(f"{resolved_run_name}_curation_review.csv").resolve()
+        if not resolved_review_path.is_file():
+            resolved_review_path = None
+        return resolved_sorter_folder, resolved_analyzer_folder, resolved_review_path
+
+
+    @classmethod
     def _read_phy_params(cls, phy_folder: Path) -> dict[str, str]:
         params: dict[str, str] = {}
         with (phy_folder / "params.py").open("r") as f:
@@ -1067,6 +1099,126 @@ class RawDataInitializationMixin:
 
 
     @classmethod
+    def _unit_template_metadata_from_analyzer(cls, sorting_analyzer: object, unit_id: object) -> tuple[int, int, np.ndarray]:
+        from spikeinterface.core.template_tools import get_template_extremum_channel
+
+        sorting = sorting_analyzer.sorting
+        templates_ext = sorting_analyzer.get_extension("templates")
+        if templates_ext is None:
+            raise RuntimeError("SortingAnalyzer has no 'templates' extension; compute templates before loading neuron waveforms.")
+        templates = templates_ext.get_data()
+        if isinstance(templates, dict):
+            templates = templates["average"] if "average" in templates else next(iter(templates.values()))
+        unit_index = sorting.id_to_index(unit_id)
+        unit_template = np.asarray(templates[unit_index])
+        if unit_template.ndim == 2 and unit_template.shape[0] > unit_template.shape[1]:
+            unit_template = unit_template.T
+        extremum_channels = get_template_extremum_channel(sorting_analyzer, peak_sign="neg", outputs="id", operator="average")
+        peak_channel = int(extremum_channels[unit_id])
+        shank_id = 0
+        if sorting_analyzer.has_extension("unit_locations"):
+            unit_locations = sorting_analyzer.get_extension("unit_locations").get_data()
+            if hasattr(unit_locations, "columns") and "shank" in unit_locations.columns:
+                shank_id = int(unit_locations.loc[unit_id, "shank"])
+            elif getattr(unit_locations, "dtype", None) is not None and unit_locations.dtype.names and "shank" in unit_locations.dtype.names:
+                shank_id = int(unit_locations[unit_index]["shank"])
+        peak_waveform = unit_template[np.argmax(np.max(unit_template, axis=1))]
+        return peak_channel, shank_id, peak_waveform
+
+
+    @classmethod
+    def _load_neurons_from_spikeinterface_sorter(cls, sorter_folder: Path, *, sorting_analyzer_folder: Optional[Path], curation_review_path: Optional[Path], t_stop: float, unit_filter: str) -> object:
+        from neuropy.core import Neurons
+
+        try:
+            import spikeinterface.full as si
+        except ImportError as exc:
+            raise ImportError("spikeinterface is required for loading neurons from a sorter folder; install spikeinterface and retry.") from exc
+        sorting = si.read_sorter_folder(sorter_folder, register_recording=False)
+        sampling_rate = int(sorting.get_sampling_frequency())
+        unit_id_lookup = {int(unit_id): unit_id for unit_id in sorting.unit_ids}
+        selected_review = None
+        if curation_review_path is not None and curation_review_path.is_file():
+            review = pd.read_csv(curation_review_path, index_col=0)
+            review.index.name = "si_unit_id"
+            selected_review = review.query(unit_filter)
+            if selected_review.empty:
+                raise ValueError(f"unit_filter={unit_filter!r} matched no units in {curation_review_path}")
+            selected_unit_ids = [unit_id_lookup[int(uid)] for uid in selected_review.index.astype(int) if int(uid) in unit_id_lookup]
+            missing_ids = set(selected_review.index.astype(int)) - set(unit_id_lookup.keys())
+            if missing_ids:
+                raise ValueError(f"Missing sorting units for si_unit_ids: {sorted(missing_ids)}")
+        else:
+            print(f"WARNING: _load_neurons_from_spikeinterface_sorter: no curation_review_path; loading all {sorting.get_num_units()} units from {sorter_folder.name}")
+            selected_unit_ids = list(sorting.unit_ids)
+        sorting_analyzer = None
+        if sorting_analyzer_folder is not None and sorting_analyzer_folder.is_dir():
+            sorting_analyzer = si.load_sorting_analyzer(sorting_analyzer_folder)
+        elif sorting_analyzer_folder is not None:
+            print(f"WARNING: _load_neurons_from_spikeinterface_sorter: sorting_analyzer_folder not found at {sorting_analyzer_folder}; waveforms/channels will be omitted")
+        else:
+            print(f"WARNING: _load_neurons_from_spikeinterface_sorter: no sorting_analyzer_folder; waveforms/channels will be omitted")
+        spiketrains, peak_waveforms, peak_channels, shank_ids, neuron_ids = [], [], [], [], []
+        for unit_id in selected_unit_ids:
+            spike_train = np.squeeze(sorting.get_unit_spike_train(unit_id) / sampling_rate)
+            spiketrains.append(spike_train)
+            neuron_ids.append(int(unit_id))
+            if sorting_analyzer is not None and sorting_analyzer.has_extension("templates"):
+                peak_channel, shank_id, peak_waveform = cls._unit_template_metadata_from_analyzer(sorting_analyzer, unit_id)
+                peak_channels.append(peak_channel)
+                shank_ids.append(shank_id)
+                peak_waveforms.append(peak_waveform)
+        neurons_kwargs = dict(t_stop=t_stop, sampling_rate=sampling_rate, neuron_ids=np.array(neuron_ids))
+        if peak_waveforms:
+            neurons_kwargs["peak_channels"] = np.array(peak_channels)
+            neurons_kwargs["waveforms"] = np.array(peak_waveforms, dtype=object)
+            neurons_kwargs["shank_ids"] = np.array(shank_ids)
+        if selected_review is not None:
+            neurons_kwargs["extended_neuron_properties_df"] = selected_review.copy()
+        return Neurons(np.array(spiketrains, dtype=object), **neurons_kwargs)
+
+
+    @classmethod
+    def build_neurons_from_spikinginterface_sorter(cls, sess, basedir: Path, *, sorter_folder: Optional[Path] = None, sorting_run_name: Optional[str] = None, sorting_analyzer_folder: Optional[Path] = None, curation_review_path: Optional[Path] = None, neuron_load_config: Optional[NeuronLoadConfig] = None):
+        """Loads neurons from a SpikeInterface sorter output folder and saves session file.
+
+        Accepts a direct sorter_folder path or sorting_run_name under {basedir}/SORTING.
+        Optional curation_review_path filters units via unit_filter (default: prediction == \"sua\").
+
+        Modifies:
+            sess.neurons
+
+        Usage:
+
+            cls.build_neurons_from_spikinginterface_sorter(sess, basedir=basedir, sorting_run_name="folder_KS4_v1")
+            cls.build_neurons_from_spikinginterface_sorter(sess, basedir=basedir, sorter_folder=basedir / "SORTING/folder_KS4_v1")
+
+        """
+        config = neuron_load_config or NeuronLoadConfig(sorter_folder=Path(sorter_folder) if sorter_folder is not None else None, curation_review_path=Path(curation_review_path) if curation_review_path is not None else None, run_name=sorting_run_name)
+        basename = getattr(sess, "name", None) or getattr(getattr(sess, "config", None), "session_name", None)
+        if basename is None and config.sorter_folder is None and config.run_name is None and sorter_folder is None and sorting_run_name is None:
+            print('WARNING: build_neurons_from_spikinginterface_sorter: sess must have .name when sorter_folder and sorting_run_name are not set')
+            return None
+        if sess.eegfile is None:
+            print('WARNING: build_neurons_from_spikinginterface_sorter: sess.eegfile is None; cannot determine t_stop for Neurons')
+            return None
+        t_stop = sess.eegfile.duration
+        try:
+            resolved_sorter_folder, resolved_analyzer_folder, resolved_review_path = cls._resolve_sorter_neuron_load_paths(config, basedir=Path(basedir), sorting_run_name=sorting_run_name, sorter_folder=sorter_folder, sorting_analyzer_folder=sorting_analyzer_folder)
+        except FileNotFoundError as exc:
+            print(f'WARNING: build_neurons_from_spikinginterface_sorter: {exc}')
+            return None
+        try:
+            neurons = cls._load_neurons_from_spikeinterface_sorter(resolved_sorter_folder, sorting_analyzer_folder=resolved_analyzer_folder, curation_review_path=resolved_review_path, t_stop=t_stop, unit_filter=config.unit_filter)
+            filter_msg = f" using filter {config.unit_filter!r}" if resolved_review_path is not None else ""
+            print(f"Loaded {neurons.n_neurons} neurons from SpikeInterface sorter ({resolved_sorter_folder.name}){filter_msg}")
+        except (FileNotFoundError, ValueError, ImportError, RuntimeError) as exc:
+            print(f'WARNING: build_neurons_from_spikinginterface_sorter: failed to load neurons from {resolved_sorter_folder}: {exc}')
+            return None
+        return cls._finalize_loaded_neurons(sess, neurons, estimate_neuron_type=config.estimate_neuron_type, save_neurons=config.save_neurons)
+
+
+    @classmethod
     def build_mua_pbe_artifact_epochs(cls, sess):
         """Builds MUA, PBE, and artifact epochs from neurons and EEG; saves session files.
 
@@ -1159,10 +1311,11 @@ class RawDataInitializationMixin:
     # ==================================================================================================================================================================================================================================================================================== #
     @classmethod
     def run_all(cls, basedir: Path,
-             basename: str = 'RatS-Day1Openfield', n_channels: int, dat_file_sampling_rate: int = 30000, excluded_data_datetimes: List[str]=None,
+             n_channels: int, dat_file_sampling_rate: int = 30000, basename: str = 'RatS-Day1Openfield', excluded_data_datetimes: List[str]=None,
              valid_reference_session_basepath: Optional[Path]=None, ref_basename: Optional[str]=None,
              phy_folder: Optional[Path] = None, curation_review_path: Optional[Path] = None,
              sorting_run_name: Optional[str] = None, neuron_load_config: Optional[NeuronLoadConfig] = None,
+             neurons_from_spikeinterface_sorter: bool = False, sorter_folder: Optional[Path] = None,
              enable_continue_on_required_path_failure: bool = True,
         ):
         """ runs all needed steps 
@@ -1293,7 +1446,10 @@ class RawDataInitializationMixin:
         _out = cls._run_processing_step_with_optional_continue('prepare_for_spyking_circus', lambda: cls.prepare_for_spyking_circus(basedir=basedir, basename=sess.name, n_channels=n_channels, valid_reference_session_basepath=valid_reference_session_basepath, ref_basename=ref_basename, dry_run=False, debug_print=True), enable_continue_on_required_path_failure)
 
 
-        cls._run_processing_step_with_optional_continue('build_neurons_from_phy', lambda: cls.build_neurons_from_phy(sess, basedir=basedir, phy_folder=phy_folder, curation_review_path=curation_review_path, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config), enable_continue_on_required_path_failure)
+        if neurons_from_spikeinterface_sorter or sorter_folder is not None:
+            cls._run_processing_step_with_optional_continue('build_neurons_from_spikinginterface_sorter', lambda: cls.build_neurons_from_spikinginterface_sorter(sess, basedir=basedir, sorter_folder=sorter_folder, sorting_run_name=sorting_run_name, curation_review_path=curation_review_path, neuron_load_config=neuron_load_config), enable_continue_on_required_path_failure)
+        else:
+            cls._run_processing_step_with_optional_continue('build_neurons_from_phy', lambda: cls.build_neurons_from_phy(sess, basedir=basedir, phy_folder=phy_folder, curation_review_path=curation_review_path, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config), enable_continue_on_required_path_failure)
 
         cls._run_processing_step_with_optional_continue('build_mua_pbe_artifact_epochs', lambda: cls.build_mua_pbe_artifact_epochs(sess), enable_continue_on_required_path_failure)
 
