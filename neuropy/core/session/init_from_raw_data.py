@@ -1159,7 +1159,7 @@ class RawDataInitializationMixin:
     # ==================================================================================================================================================================================================================================================================================== #
     @classmethod
     def run_all(cls, basedir: Path,
-             basename: str = 'RatS-Day1Openfield', n_channels: int = 195, dat_file_sampling_rate: int = 30000, excluded_data_datetimes: List[str]=None,
+             basename: str = 'RatS-Day1Openfield', n_channels: int, dat_file_sampling_rate: int = 30000, excluded_data_datetimes: List[str]=None,
              valid_reference_session_basepath: Optional[Path]=None, ref_basename: Optional[str]=None,
              phy_folder: Optional[Path] = None, curation_review_path: Optional[Path] = None,
              sorting_run_name: Optional[str] = None, neuron_load_config: Optional[NeuronLoadConfig] = None,
