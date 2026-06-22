@@ -8,7 +8,7 @@ import subprocess
 import sys
 import re
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Union, Set, Optional, Callable, Literal
+from typing import Any, List, Dict, Tuple, Union, Set, Optional, Callable, Literal
 
 _PHY_REQUIRED_FILES = ("params.py", "spike_times.npy", "spike_clusters.npy", "cluster_info.tsv")
 NeuronSourceType = Literal["auto", "spyk_circ", "sorting"]
@@ -1143,6 +1143,17 @@ class RawDataInitializationMixin:
         return sess
 
 
+    @classmethod
+    def _run_processing_step_with_optional_continue(cls, step_name: str, fn: Callable[[], Any], enable_continue_on_required_path_failure: bool) -> Any:
+        if not enable_continue_on_required_path_failure:
+            return fn()
+        try:
+            return fn()
+        except Exception as e:
+            print(f'{step_name} failed with err: {e} but enable_continue_on_required_path_failure == True so continuing...')
+            return None
+
+
     # ==================================================================================================================================================================================================================================================================================== #
     # Main run function                                                                                                                                                                                                                                                                    #
     # ==================================================================================================================================================================================================================================================================================== #
@@ -1235,9 +1246,19 @@ class RawDataInitializationMixin:
                 found_raw_data_paths = [Path(v).resolve() for v in included_only_datetime_df['dat_file'].dropna().tolist() if Path(v).exists()]
         elif raw_data_path.exists():
             print(f'raw_data_path: "{raw_data_path.as_posix()}"')
-            included_only_datetime_df, datetime_csv_out_path, found_raw_data_paths, all_datetime_df, all_found_files_dict = cls.build_session_datetime_csv(raw_data_path, basename=basename, excluded_data_datetimes=excluded_data_datetimes, n_channels=n_channels, sampling_rate=dat_file_sampling_rate)
+            datetime_csv_result = cls._run_processing_step_with_optional_continue('build_session_datetime_csv', lambda: cls.build_session_datetime_csv(raw_data_path, basename=basename, excluded_data_datetimes=excluded_data_datetimes, n_channels=n_channels, sampling_rate=dat_file_sampling_rate), enable_continue_on_required_path_failure)
+            if datetime_csv_result is None:
+                included_only_datetime_df = pd.DataFrame()
+                found_raw_data_paths = []
+            else:
+                included_only_datetime_df, datetime_csv_out_path, found_raw_data_paths, all_datetime_df, all_found_files_dict = datetime_csv_result
         else:
-            raise FileNotFoundError(f"Neither Raw_data directory ('{raw_data_path.as_posix()}') nor datetime CSV ('{datetime_csv_out_path.as_posix()}') exists.")
+            if enable_continue_on_required_path_failure:
+                print(f'ERROR: Neither Raw_data directory (\'{raw_data_path.as_posix()}\') nor datetime CSV (\'{datetime_csv_out_path.as_posix()}\') exists BUT `enable_continue_on_required_path_failure == True` so trying to continue...')
+                included_only_datetime_df = pd.DataFrame()
+                found_raw_data_paths = []
+            else:
+                raise FileNotFoundError(f"Neither Raw_data directory ('{raw_data_path.as_posix()}') nor datetime CSV ('{datetime_csv_out_path.as_posix()}') exists.")
 
         included_only_datetime_df
         found_raw_data_paths
@@ -1249,7 +1270,9 @@ class RawDataInitializationMixin:
         if concatenated_file_output_path.exists():
             print(f'Skipping concatenation; existing .dat found: "{concatenated_file_output_path.as_posix()}"')
         elif len(found_raw_data_paths) > 0:
-            concatenated_file_output_path = cls.step_perform_concat(found_raw_data_paths=found_raw_data_paths, basedir=basedir, basename=basename)
+            concat_result = cls._run_processing_step_with_optional_continue('step_perform_concat', lambda: cls.step_perform_concat(found_raw_data_paths=found_raw_data_paths, basedir=basedir, basename=basename), enable_continue_on_required_path_failure)
+            if concat_result is not None:
+                concatenated_file_output_path = concat_result
         else:
             print(f'Skipping concatenation; no output .dat and no available source files. Expected path: "{concatenated_file_output_path.as_posix()}"')
         print(f'have concatenated_file_output_path: "{concatenated_file_output_path.as_posix()}"')
@@ -1257,26 +1280,22 @@ class RawDataInitializationMixin:
 
 
         # sess.eegfile ## has an EEG file object
-        output_process_resample_cmd: Optional[str] = cls.build_process_resample_command(sess, n_channels=n_channels, dat_sampling_rate_Hz=dat_file_sampling_rate, desired_eeg_sampling_rate_Hz=eeg_sampling_rate)
+        output_process_resample_cmd: Optional[str] = cls._run_processing_step_with_optional_continue('build_process_resample_command', lambda: cls.build_process_resample_command(sess, n_channels=n_channels, dat_sampling_rate_Hz=dat_file_sampling_rate, desired_eeg_sampling_rate_Hz=eeg_sampling_rate), enable_continue_on_required_path_failure)
         output_process_resample_cmd
 
         ## POSITIONS:
         from neuropy.core import Position
 
         position_csvs_path: Path = sess.basepath.joinpath('Raw_data/position/CSVs')
-        position: Position = RawDataInitializationMixin.build_initial_position_data(sess, position_csvs_path=position_csvs_path)
-        
+        position: Position = cls._run_processing_step_with_optional_continue('build_initial_position_data', lambda: RawDataInitializationMixin.build_initial_position_data(sess, position_csvs_path=position_csvs_path), enable_continue_on_required_path_failure)
 
 
-        _out = cls.prepare_for_spyking_circus(basedir=basedir, basename = sess.name, n_channels=n_channels, 
-                                            valid_reference_session_basepath=valid_reference_session_basepath, ref_basename=ref_basename,
-                                            dry_run=False, debug_print=True)
+        _out = cls._run_processing_step_with_optional_continue('prepare_for_spyking_circus', lambda: cls.prepare_for_spyking_circus(basedir=basedir, basename=sess.name, n_channels=n_channels, valid_reference_session_basepath=valid_reference_session_basepath, ref_basename=ref_basename, dry_run=False, debug_print=True), enable_continue_on_required_path_failure)
 
 
+        cls._run_processing_step_with_optional_continue('build_neurons_from_phy', lambda: cls.build_neurons_from_phy(sess, basedir=basedir, phy_folder=phy_folder, curation_review_path=curation_review_path, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config), enable_continue_on_required_path_failure)
 
-        cls.build_neurons_from_phy(sess, basedir=basedir, phy_folder=phy_folder, curation_review_path=curation_review_path, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config)
-
-        cls.build_mua_pbe_artifact_epochs(sess)
+        cls._run_processing_step_with_optional_continue('build_mua_pbe_artifact_epochs', lambda: cls.build_mua_pbe_artifact_epochs(sess), enable_continue_on_required_path_failure)
 
 
         # ==================================================================================================================================================================================================================================================================================== #
@@ -1286,24 +1305,29 @@ class RawDataInitializationMixin:
         if (sess.paradigm is None): #  or (sess.paradigm != epochs_obj)
 
             ## Unless otherwise provided, try to get the latest common timestamp for all of the session's data fields for the t_start and the earliest for the t_stop
-            session_t_start: float = np.nanmax([sess.position.t_start, sess.neurons.t_start])
-            session_t_stop: float = np.nanmin([sess.position.t_stop, sess.neurons.t_stop])
-            # (session_t_start, session_t_stop)
-            # 0.0, 5511.2575
+            t_start_candidates = [obj.t_start for obj in (sess.position, sess.neurons) if obj is not None]
+            t_stop_candidates = [obj.t_stop for obj in (sess.position, sess.neurons) if obj is not None]
+            if t_start_candidates and t_stop_candidates:
+                session_t_start: float = np.nanmax(t_start_candidates)
+                session_t_stop: float = np.nanmin(t_stop_candidates)
+                # (session_t_start, session_t_stop)
+                # 0.0, 5511.2575
 
-            # art_by_hand = Epoch(pd.DataFrame({"start": [246*60 + 31.1], "stop": [247*60 + 32.766], "label": "by_hand"}))
-            epochs_df: pd.DataFrame = pd.DataFrame({'start':[session_t_start],'stop':[session_t_stop],'label':['maze']})
-            epochs_df['duration'] = epochs_df['stop'] - epochs_df['start']
-            epochs_obj: Epoch = Epoch(epochs_df)
-            epochs_obj
+                # art_by_hand = Epoch(pd.DataFrame({"start": [246*60 + 31.1], "stop": [247*60 + 32.766], "label": "by_hand"}))
+                epochs_df: pd.DataFrame = pd.DataFrame({'start':[session_t_start],'stop':[session_t_stop],'label':['maze']})
+                epochs_df['duration'] = epochs_df['stop'] - epochs_df['start']
+                epochs_obj: Epoch = Epoch(epochs_df)
+                epochs_obj
 
-            sess.paradigm = epochs_obj
+                sess.paradigm = epochs_obj
 
-            if epochs_obj is not None:
-                epochs_obj.filename = sess.filePrefix.with_suffix('.paradigm.npy')
-                print(f'saving out to {epochs_obj.filename.as_posix()}...')
-                epochs_obj.save()
-                print(f'\tdone.')
+                if epochs_obj is not None:
+                    epochs_obj.filename = sess.filePrefix.with_suffix('.paradigm.npy')
+                    print(f'saving out to {epochs_obj.filename.as_posix()}...')
+                    epochs_obj.save()
+                    print(f'\tdone.')
+            else:
+                print('WARNING: cannot build paradigm epochs; position and/or neurons are unavailable.')
 
 
 
