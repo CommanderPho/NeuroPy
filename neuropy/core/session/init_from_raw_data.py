@@ -259,8 +259,8 @@ class RawDataInitializationMixin:
 
 
     @classmethod
-    def build_session_datetime_csv(cls, search_dir: Path, basename: str='RatS-Day1Openfield', excluded_data_datetimes: Optional[List[str]]=None, minimum_recording_duration_hours: Optional[float]=(5.0/60.0),
-                                    n_channels: int = 195, sampling_rate: int = 30000, debug_print: bool = True):
+    def build_session_datetime_csv(cls, search_dir: Path, basename: str, n_channels: int, excluded_data_datetimes: Optional[List[str]]=None, minimum_recording_duration_hours: Optional[float]=(5.0/60.0),
+                                    sampling_rate: int = 30000, debug_print: bool = True):
         """
         Recursively finds all 'settings.xml' files in search_dir and extracts their <DATE>.
         Then tries to find the correct continuous.dat (raw recording) file, loads its nFrames and duration in hours, and then exports the dateframe to CSV in the format required by 'RatS_Day1Openfield.datetime.csv'
@@ -1152,6 +1152,7 @@ class RawDataInitializationMixin:
              valid_reference_session_basepath: Optional[Path]=None, ref_basename: Optional[str]=None,
              phy_folder: Optional[Path] = None, curation_review_path: Optional[Path] = None,
              sorting_run_name: Optional[str] = None, neuron_load_config: Optional[NeuronLoadConfig] = None,
+             enable_continue_on_required_path_failure: bool = True,
         ):
         """ runs all needed steps 
 
@@ -1198,7 +1199,7 @@ class RawDataInitializationMixin:
 
 
         ## INPUTS: basedir
-        sess = DataSessionLoader.bapun_data_session(basedir, enable_continue_on_required_path_failure=True)
+        sess = DataSessionLoader.bapun_data_session(basedir, enable_continue_on_required_path_failure=enable_continue_on_required_path_failure)
         active_sess_config = sess.config
     
         if basename is None:
