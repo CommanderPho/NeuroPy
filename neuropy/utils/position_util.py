@@ -32,14 +32,13 @@ class RegularizationApproach(Enum):
 class CircularRingLinearizationParams:
     center_x: float
     center_y: float
-    radius_cm: Optional[float] = None
-    gap_angle_start_rad: Optional[float] = None
-    gap_angle_end_rad: Optional[float] = None
+    radius_cm: float
+    gap_angle_start_rad: Optional[float]
+    gap_angle_end_rad: Optional[float]
     arc_direction: str = 'ccw'
-    max_radius_deviation_cm: Optional[float] = None
+    max_radius_deviation_cm: float = 35.0
     output_range: Tuple[float, float] = (0.0, 1.0)
-    angle_origin_rad: float = 0.0
-
+    
 
     @classmethod
     def _normalize_angles(cls, theta: np.ndarray) -> np.ndarray:
@@ -103,29 +102,18 @@ class ShapelyMaze:
         p = self.ring_params
         x = df['x'].to_numpy(dtype=float)
         y = df['y'].to_numpy(dtype=float)
-        finite_xy = np.isfinite(x) & np.isfinite(y)
         theta = p._normalize_angles(np.arctan2(y - p.center_y, x - p.center_x))
-        has_gap = (p.gap_angle_start_rad is not None) or (p.gap_angle_end_rad is not None)
-        if has_gap:
-            if (p.gap_angle_start_rad is None) or (p.gap_angle_end_rad is None):
-                raise ValueError("angular_ring gap exclusion requires both gap_angle_start_rad and gap_angle_end_rad.")
-            in_gap = p._angles_in_excluded_gap(theta, p.gap_angle_start_rad, p.gap_angle_end_rad)
-            excluded_span = p._excluded_gap_span_rad(p.gap_angle_start_rad, p.gap_angle_end_rad)
-            valid_span = (2.0 * np.pi) - excluded_span
-            arc_origin = p.gap_angle_end_rad
-        else:
-            in_gap = np.zeros(len(df), dtype=bool)
-            valid_span = 2.0 * np.pi
-            arc_origin = p.angle_origin_rad
+        r = np.hypot(x - p.center_x, y - p.center_y)
+        in_gap = p._angles_in_excluded_gap(theta, p.gap_angle_start_rad, p.gap_angle_end_rad)
+        off_ring = np.abs(r - p.radius_cm) > p.max_radius_deviation_cm
+        excluded_span = p._excluded_gap_span_rad(p.gap_angle_start_rad, p.gap_angle_end_rad)
+        valid_span = (2.0 * np.pi) - excluded_span
+        arc_origin = p.gap_angle_end_rad
         delta = p._ccw_angle_delta(arc_origin, theta)
         if p.arc_direction.lower() != 'ccw':
             delta = (valid_span - delta) % valid_span
         lin = np.full(len(df), np.nan, dtype=float)
-        off_ring = np.zeros(len(df), dtype=bool)
-        if (p.radius_cm is not None) and (p.max_radius_deviation_cm is not None):
-            r = np.hypot(x - p.center_x, y - p.center_y)
-            off_ring = np.abs(r - p.radius_cm) > p.max_radius_deviation_cm
-        valid = finite_xy & (~in_gap) & (~off_ring) & (delta <= valid_span)
+        valid = (~in_gap) & (~off_ring) & (delta <= valid_span)
         lo, hi = p.output_range
         lin[valid] = lo + (delta[valid] / valid_span) * (hi - lo)
         return pd.Series(lin, index=df.index)
@@ -134,18 +122,11 @@ class ShapelyMaze:
     def compute_on_track_mask(self, x: np.ndarray, y: np.ndarray, max_track_distance_cm: float) -> np.ndarray:
         if self.linearization_mode == 'angular_ring' and self.ring_params is not None:
             p = self.ring_params
-            finite_xy = np.isfinite(x) & np.isfinite(y)
             theta = p._normalize_angles(np.arctan2(y - p.center_y, x - p.center_x))
-            on_track = finite_xy.copy()
-            has_gap = (p.gap_angle_start_rad is not None) or (p.gap_angle_end_rad is not None)
-            if has_gap:
-                if (p.gap_angle_start_rad is None) or (p.gap_angle_end_rad is None):
-                    raise ValueError("angular_ring gap exclusion requires both gap_angle_start_rad and gap_angle_end_rad.")
-                on_track &= ~p._angles_in_excluded_gap(theta, p.gap_angle_start_rad, p.gap_angle_end_rad)
-            if p.radius_cm is not None:
-                r = np.hypot(x - p.center_x, y - p.center_y)
-                on_track &= np.abs(r - p.radius_cm) <= max_track_distance_cm
-            return on_track
+            r = np.hypot(x - p.center_x, y - p.center_y)
+            in_gap = p._angles_in_excluded_gap(theta, p.gap_angle_start_rad, p.gap_angle_end_rad)
+            radial_ok = np.abs(r - p.radius_cm) <= max_track_distance_cm
+            return radial_ok & (~in_gap)
         distances = np.array([self.maze_track_line.distance(Point(xi, yi)) for xi, yi in zip(x, y)])
         return distances <= max_track_distance_cm
 
