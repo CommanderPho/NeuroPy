@@ -22,7 +22,7 @@ from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epoch
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta
 from neuropy.utils.result_context import IdentifyingContext
 from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
-from neuropy.utils.position_util import ShapelyMaze, ShapelyMazeCollection, build_shapely_maze_collection_for_session
+from neuropy.utils.position_util import ShapelyMaze, ShapelyMazeCollection, CircularRingLinearizationParams, build_shapely_maze_collection_for_session
 from shapely import box ## used by `build_Bapun_Day4OpenField_laps_from_reward_zones`
 # from shapely.geometry import LineString, Point 
 
@@ -93,12 +93,15 @@ RatJ_Day3TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollecti
         (-368.46,  142.26),  # Left-middle hub
     ]),
     # Ring maze — LineString runs along the ring; gap is between last node and first
-    'maze2': ShapelyMaze(nodes=[
-        ( 149.84,   64.67),  # Right-up (near gap)
-        ( 187.69, -154.38),  # Right-down (gap side)
-        ( 111.17,  102.19),  # Upper-right track
-        (-205.84,  116.18),  # Left-up (arc end; gap back to node 0)
-    ]),
+    'maze2': ShapelyMaze(
+        nodes=[(149.84, 64.67), (187.69, -154.38), (111.17, 102.19), (-205.84, 116.18)],
+        linearization_mode='angular_ring',
+        ring_params=CircularRingLinearizationParams(
+            center_x=-34.0, center_y=-76.0, radius_cm=235.0,
+            gap_angle_start_rad=np.deg2rad(-25), gap_angle_end_rad=np.deg2rad(25),
+            arc_direction='ccw', output_range=(0.0, 1.0),
+        ),
+    ),
 },
     valid_epochs = {'maze1': (8950.11800747698, 12441.993530592174), 'maze2': (23253.12015019876, 26010.99556335396)}, # fallback only (RatK Day3TwoNovel reference); resolved per-session at linearization time - 'maze_GLOBAL': (0.0, 42305.0), 
 )

@@ -29,13 +29,51 @@ class RegularizationApproach(Enum):
 
 
 @define(slots=False)
+class CircularRingLinearizationParams:
+    center_x: float
+    center_y: float
+    radius_cm: float
+    gap_angle_start_rad: float
+    gap_angle_end_rad: float
+    arc_direction: str = 'ccw'
+    max_radius_deviation_cm: float = 35.0
+    output_range: Tuple[float, float] = (0.0, 1.0)
+
+
+    @classmethod
+    def _normalize_angles(cls, theta: np.ndarray) -> np.ndarray:
+        return np.arctan2(np.sin(theta), np.cos(theta))
+
+
+    @classmethod
+    def _angles_in_excluded_gap(cls, theta: np.ndarray, gap_start: float, gap_end: float) -> np.ndarray:
+        if gap_start <= gap_end:
+            return (theta >= gap_start) & (theta <= gap_end)
+        return (theta >= gap_start) | (theta <= gap_end)
+
+
+    @classmethod
+    def _ccw_angle_delta(cls, from_angle: float, to_angle: np.ndarray) -> np.ndarray:
+        return (to_angle - from_angle) % (2.0 * np.pi)
+
+
+    @classmethod
+    def _excluded_gap_span_rad(cls, gap_start: float, gap_end: float) -> float:
+        if gap_start <= gap_end:
+            return float(gap_end - gap_start)
+        return float((gap_end + 2.0 * np.pi) - gap_start)
+
+
+@define(slots=False)
 class ShapelyMaze:
     nodes: List[Tuple[float, float]] = field(default=Factory(list))
+    linearization_mode: str = 'linestring'
+    ring_params: Optional[CircularRingLinearizationParams] = None
     maze_track_line: LineString = field(default=None, init=False)
-    
+
     def __attrs_post_init__(self):
         self.maze_track_line = LineString(self.nodes)
-    
+
     def shapely_linearize_trajectory(self, df: pd.DataFrame):
         """
         Linearize trajectory points by projecting them onto a Shapely LineString.
@@ -47,14 +85,51 @@ class ShapelyMaze:
         Returns:
             pd.Series: Linearized positions (distance along the track_line).
         """
-        # Create Point objects from 'x' and 'y' columns
-        # Using .apply() with a lambda function for potentially better performance than a list comprehension on large DFs
         points = df.apply(lambda row: Point(row['x'], row['y']), axis=1)
-
-        # Project each point onto the LineString and get the distance along it
         linear_positions = [self.maze_track_line.project(p) for p in points]
         return pd.Series(linear_positions, index=df.index)
-    
+
+
+    def linearize_trajectory(self, df: pd.DataFrame) -> pd.Series:
+        if self.linearization_mode == 'angular_ring':
+            return self.angular_ring_linearize_trajectory(df)
+        return self.shapely_linearize_trajectory(df)
+
+
+    def angular_ring_linearize_trajectory(self, df: pd.DataFrame) -> pd.Series:
+        if self.ring_params is None:
+            raise ValueError("angular_ring linearization requires ring_params on ShapelyMaze.")
+        p = self.ring_params
+        x = df['x'].to_numpy(dtype=float)
+        y = df['y'].to_numpy(dtype=float)
+        theta = p._normalize_angles(np.arctan2(y - p.center_y, x - p.center_x))
+        r = np.hypot(x - p.center_x, y - p.center_y)
+        in_gap = p._angles_in_excluded_gap(theta, p.gap_angle_start_rad, p.gap_angle_end_rad)
+        off_ring = np.abs(r - p.radius_cm) > p.max_radius_deviation_cm
+        excluded_span = p._excluded_gap_span_rad(p.gap_angle_start_rad, p.gap_angle_end_rad)
+        valid_span = (2.0 * np.pi) - excluded_span
+        arc_origin = p.gap_angle_end_rad
+        delta = p._ccw_angle_delta(arc_origin, theta)
+        if p.arc_direction.lower() != 'ccw':
+            delta = (valid_span - delta) % valid_span
+        lin = np.full(len(df), np.nan, dtype=float)
+        valid = (~in_gap) & (~off_ring) & (delta <= valid_span)
+        lo, hi = p.output_range
+        lin[valid] = lo + (delta[valid] / valid_span) * (hi - lo)
+        return pd.Series(lin, index=df.index)
+
+
+    def compute_on_track_mask(self, x: np.ndarray, y: np.ndarray, max_track_distance_cm: float) -> np.ndarray:
+        if self.linearization_mode == 'angular_ring' and self.ring_params is not None:
+            p = self.ring_params
+            theta = p._normalize_angles(np.arctan2(y - p.center_y, x - p.center_x))
+            r = np.hypot(x - p.center_x, y - p.center_y)
+            in_gap = p._angles_in_excluded_gap(theta, p.gap_angle_start_rad, p.gap_angle_end_rad)
+            radial_ok = np.abs(r - p.radius_cm) <= max_track_distance_cm
+            return radial_ok & (~in_gap)
+        distances = np.array([self.maze_track_line.distance(Point(xi, yi)) for xi, yi in zip(x, y)])
+        return distances <= max_track_distance_cm
+
 
 @define(slots=False)
 class ShapelyMazeCollection:
@@ -92,9 +167,7 @@ def resolve_shapely_valid_epochs(pos_df: pd.DataFrame, shapely_maze_collection: 
 
     def _subfn_compute_on_track_mask(pos_df: pd.DataFrame, shapely_maze: ShapelyMaze) -> np.ndarray:
         """Boolean mask: True where sample is within max_track_distance_cm of the maze skeleton."""
-        track_line = shapely_maze.maze_track_line
-        distances = np.array([track_line.distance(Point(x, y)) for x, y in zip(pos_df['x'].to_numpy(), pos_df['y'].to_numpy())])
-        return distances <= max_track_distance_cm
+        return shapely_maze.compute_on_track_mask(pos_df['x'].to_numpy(), pos_df['y'].to_numpy(), max_track_distance_cm)
 
     def _subfn_validate_shapely_epoch_bounds(pos_df: pd.DataFrame, shapely_maze: ShapelyMaze, t0: float, t1: float) -> bool:
         """Return True if epoch bounds contain enough on-track position samples."""
@@ -334,7 +407,7 @@ def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", s
             else:
                 # Compute linearization on-the-fly using the ShapelyMaze
                 track_pos_df = pos_df.loc[time_mask, ['x', 'y']]
-                linearized_values = shapely_maze.shapely_linearize_trajectory(track_pos_df)
+                linearized_values = shapely_maze.linearize_trajectory(track_pos_df)
                 piecewise_lin_pos.loc[time_mask] = linearized_values.values
 
         xlinear = piecewise_lin_pos.to_numpy()

@@ -10,7 +10,7 @@ tests_folder = Path(os.path.dirname(__file__))
 root_project_folder = tests_folder.parent
 sys.path.insert(0, str(root_project_folder))
 
-from neuropy.utils.position_util import ShapelyMaze, ShapelyMazeCollection, resolve_shapely_valid_epochs, build_shapely_maze_collection_for_session
+from neuropy.utils.position_util import ShapelyMaze, ShapelyMazeCollection, CircularRingLinearizationParams, resolve_shapely_valid_epochs, build_shapely_maze_collection_for_session
 
 
 def _make_horizontal_track_maze():
@@ -91,6 +91,59 @@ class TestShapelyValidEpochs(unittest.TestCase):
         collection = build_shapely_maze_collection_for_session(pos_df=pos_df, geometry_template=self.template, maze_epoch_keys=['maze1'], epochs_df=epochs_df, debug_print=False)
         self.assertIn('maze1', collection.valid_epochs)
         self.assertIn('maze1', collection.shapelyMazes)
+
+
+class TestShapelyMazeLinearization(unittest.TestCase):
+
+    def test_linestring_mode_backwards_compatible(self):
+        maze = _make_horizontal_track_maze()
+        df = pd.DataFrame({'x': np.linspace(-40.0, 40.0, 9), 'y': np.zeros(9)})
+        linestring_lin = maze.shapely_linearize_trajectory(df)
+        dispatch_lin = maze.linearize_trajectory(df)
+        pd.testing.assert_series_equal(linestring_lin, dispatch_lin)
+        self.assertAlmostEqual(float(dispatch_lin.iloc[0]), 10.0, places=5)
+        self.assertAlmostEqual(float(dispatch_lin.iloc[-1]), 90.0, places=5)
+
+    def test_angular_ring_linearizes_valid_arc_to_unit_interval(self):
+        center_x, center_y, radius = 0.0, 0.0, 100.0
+        gap_start, gap_end = np.deg2rad(-25.0), np.deg2rad(25.0)
+        maze = ShapelyMaze(
+            nodes=[(radius, 0.0), (0.0, radius), (-radius, 0.0), (0.0, -radius)],
+            linearization_mode='angular_ring',
+            ring_params=CircularRingLinearizationParams(
+                center_x=center_x, center_y=center_y, radius_cm=radius,
+                gap_angle_start_rad=gap_start, gap_angle_end_rad=gap_end,
+                arc_direction='ccw', max_radius_deviation_cm=5.0, output_range=(0.0, 1.0),
+            ),
+        )
+        angles_deg = np.array([90.0, 180.0, -90.0, 0.0, 10.0, -10.0])
+        angles_rad = np.deg2rad(angles_deg)
+        df = pd.DataFrame({'x': center_x + radius * np.cos(angles_rad), 'y': center_y + radius * np.sin(angles_rad)})
+        lin = maze.linearize_trajectory(df)
+        self.assertTrue(np.all(np.isfinite(lin.iloc[:3])))
+        self.assertTrue(np.all((lin.iloc[:3] >= 0.0) & (lin.iloc[:3] <= 1.0)))
+        self.assertTrue(lin.iloc[1] > lin.iloc[0])
+        self.assertTrue(lin.iloc[2] > lin.iloc[1])
+        self.assertTrue(np.all(np.isnan(lin.iloc[3:])))
+
+    def test_angular_ring_on_track_mask(self):
+        center_x, center_y, radius = 0.0, 0.0, 100.0
+        maze = ShapelyMaze(
+            nodes=[(radius, 0.0), (0.0, radius), (-radius, 0.0)],
+            linearization_mode='angular_ring',
+            ring_params=CircularRingLinearizationParams(
+                center_x=center_x, center_y=center_y, radius_cm=radius,
+                gap_angle_start_rad=np.deg2rad(-25.0), gap_angle_end_rad=np.deg2rad(25.0),
+                arc_direction='ccw', max_radius_deviation_cm=5.0,
+            ),
+        )
+        x = np.array([0.0, -100.0, 0.0, 100.0])
+        y = np.array([100.0, 0.0, 130.0, 0.0])
+        mask = maze.compute_on_track_mask(x, y, max_track_distance_cm=15.0)
+        self.assertTrue(mask[0])
+        self.assertTrue(mask[1])
+        self.assertFalse(mask[2])
+        self.assertFalse(mask[3])
 
 
 if __name__ == '__main__':
