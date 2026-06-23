@@ -104,6 +104,17 @@ class TestShapelyMazeLinearization(unittest.TestCase):
         self.assertAlmostEqual(float(dispatch_lin.iloc[0]), 10.0, places=5)
         self.assertAlmostEqual(float(dispatch_lin.iloc[-1]), 90.0, places=5)
 
+    def test_angular_ring_center_only_maps_full_circle(self):
+        maze = ShapelyMaze(
+            nodes=[(0.0, 0.0), (1.0, 0.0)],
+            linearization_mode='angular_ring',
+            ring_params=CircularRingLinearizationParams(center_x=0.0, center_y=0.0),
+        )
+        df = pd.DataFrame({'x': [100.0, 0.0, -100.0, 0.0, np.nan], 'y': [0.0, 100.0, 0.0, -100.0, 0.0]})
+        lin = maze.linearize_trajectory(df)
+        np.testing.assert_allclose(lin.iloc[:4].to_numpy(), np.array([0.0, 0.25, 0.5, 0.75]), atol=1e-12)
+        self.assertTrue(np.isnan(lin.iloc[4]))
+
     def test_angular_ring_linearizes_valid_arc_to_unit_interval(self):
         center_x, center_y, radius = 0.0, 0.0, 100.0
         gap_start, gap_end = np.deg2rad(-25.0), np.deg2rad(25.0)
@@ -144,6 +155,17 @@ class TestShapelyMazeLinearization(unittest.TestCase):
         self.assertTrue(mask[1])
         self.assertFalse(mask[2])
         self.assertFalse(mask[3])
+
+    def test_angular_ring_center_only_on_track_mask_all_finite_points(self):
+        maze = ShapelyMaze(
+            nodes=[(0.0, 0.0), (1.0, 0.0)],
+            linearization_mode='angular_ring',
+            ring_params=CircularRingLinearizationParams(center_x=0.0, center_y=0.0),
+        )
+        x = np.array([0.0, -100.0, 0.0, np.nan])
+        y = np.array([100.0, 0.0, 130.0, 0.0])
+        mask = maze.compute_on_track_mask(x, y, max_track_distance_cm=15.0)
+        np.testing.assert_array_equal(mask, np.array([True, True, True, False]))
 
 
 if __name__ == '__main__':
