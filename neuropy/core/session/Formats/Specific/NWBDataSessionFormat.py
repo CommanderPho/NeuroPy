@@ -60,7 +60,7 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
 
     @classmethod
     def get_session_spec(cls, session_name) -> SessionFolderSpec:
-        return SessionFolderSpec(required=[], optional=[])
+        return SessionFolderSpec(required_files=[], optional_files=[])
 
 
     @classmethod
