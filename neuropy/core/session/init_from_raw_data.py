@@ -1,6 +1,7 @@
 import pandas as pd
 from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
+import json
 import os
 import numpy as np
 import shutil
@@ -1214,6 +1215,92 @@ class RawDataInitializationMixin:
             print(f"Loaded {neurons.n_neurons} neurons from SpikeInterface sorter ({resolved_sorter_folder.name}){filter_msg}")
         except (FileNotFoundError, ValueError, ImportError, RuntimeError) as exc:
             print(f'WARNING: build_neurons_from_spikinginterface_sorter: failed to load neurons from {resolved_sorter_folder}: {exc}')
+            return None
+        return cls._finalize_loaded_neurons(sess, neurons, estimate_neuron_type=config.estimate_neuron_type, save_neurons=config.save_neurons)
+
+
+    @classmethod
+    def _resolve_kilosort4_sorter_output_path(cls, config: NeuronLoadConfig, basedir: Path, *, sorting_run_name: Optional[str] = None, sorter_folder: Optional[Path] = None, sorter_output_folder: Optional[Path] = None) -> Path:
+        basedir = windows_to_wsl_path_if_needed(basedir).resolve()
+        sorting_root = basedir.joinpath("SORTING")
+        run_name = config.run_name or sorting_run_name
+        if sorter_output_folder is not None:
+            resolved_output = windows_to_wsl_path_if_needed(sorter_output_folder).resolve()
+            sorter_parent = resolved_output.parent if resolved_output.name == "sorter_output" else resolved_output
+        elif config.sorter_folder is not None:
+            sorter_parent = windows_to_wsl_path_if_needed(config.sorter_folder).resolve()
+            resolved_output = sorter_parent / "sorter_output" if (sorter_parent / "sorter_output").is_dir() else sorter_parent
+        elif sorter_folder is not None:
+            sorter_parent = windows_to_wsl_path_if_needed(sorter_folder).resolve()
+            resolved_output = sorter_parent / "sorter_output" if (sorter_parent / "sorter_output").is_dir() else sorter_parent
+        elif run_name is not None:
+            sorter_parent = sorting_root.joinpath(run_name).resolve()
+            resolved_output = sorter_parent / "sorter_output"
+        else:
+            raise FileNotFoundError("kilosort4 neuron source requires sorter_folder, sorter_output_folder, or sorting_run_name")
+        log_path = sorter_parent / "spikeinterface_log.json"
+        if not log_path.is_file():
+            raise FileNotFoundError(f"kilosort4 sorter folder missing spikeinterface_log.json: {sorter_parent}")
+        log = json.loads(log_path.read_text(encoding="utf-8"))
+        if log.get("sorter_name") != "kilosort4":
+            raise ValueError(f"expected kilosort4 sorter output, found sorter_name={log.get('sorter_name')!r} in {log_path}")
+        if not resolved_output.is_dir():
+            raise FileNotFoundError(f"kilosort4 sorter_output folder does not exist: {resolved_output}")
+        if not (resolved_output / "params.py").is_file() and not (resolved_output / "cluster_group.tsv").is_file():
+            raise FileNotFoundError(f"kilosort4 sorter_output is missing params.py and cluster_group.tsv: {resolved_output}")
+        return resolved_output
+
+
+    @classmethod
+    def _load_neurons_from_spikinginterface_kilosort4(cls, sorter_output_folder: Path, *, t_stop: float) -> object:
+        from neuropy.core import Neurons
+
+        try:
+            import spikeinterface.extractors as se
+        except ImportError as exc:
+            raise ImportError("spikeinterface is required for loading neurons from kilosort4 output; install spikeinterface and retry.") from exc
+        sorting = se.read_kilosort(sorter_output_folder, keep_good_only=True)
+        if sorting.get_num_units() == 0:
+            raise ValueError(f"no Kilosort good units found in {sorter_output_folder}")
+        sampling_rate = int(sorting.get_sampling_frequency())
+        spiketrains, neuron_ids = [], []
+        for unit_id in sorting.unit_ids:
+            spiketrains.append(np.squeeze(sorting.get_unit_spike_train(unit_id) / sampling_rate))
+            neuron_ids.append(int(unit_id))
+        return Neurons(np.array(spiketrains, dtype=object), t_stop=t_stop, sampling_rate=sampling_rate, neuron_ids=np.array(neuron_ids))
+
+
+    @classmethod
+    def build_neurons_from_spikinginterface_kilosort4(cls, sess, basedir: Path, *, sorter_folder: Optional[Path] = None, sorting_run_name: Optional[str] = None, sorter_output_folder: Optional[Path] = None, neuron_load_config: Optional[NeuronLoadConfig] = None):
+        """Loads neurons from Kilosort4 KSLabel=good units and saves session file.
+
+        Reads {sorter_folder}/sorter_output via read_kilosort(..., keep_good_only=True).
+        Does not use curation review CSV, SortingAnalyzer, or UnitRefine filters.
+
+        Modifies:
+            sess.neurons
+
+        Usage:
+
+            cls.build_neurons_from_spikinginterface_kilosort4(sess, basedir=basedir, sorting_run_name="folder_KS4_v1")
+            cls.build_neurons_from_spikinginterface_kilosort4(sess, basedir=basedir, sorter_folder=basedir / "SORTING/folder_KS4_v1")
+
+        """
+        config = neuron_load_config or NeuronLoadConfig(sorter_folder=Path(sorter_folder) if sorter_folder is not None else None, run_name=sorting_run_name)
+        if sess.eegfile is None:
+            print('WARNING: build_neurons_from_spikinginterface_kilosort4: sess.eegfile is None; cannot determine t_stop for Neurons')
+            return None
+        t_stop = sess.eegfile.duration
+        try:
+            resolved_output = cls._resolve_kilosort4_sorter_output_path(config, basedir=Path(basedir), sorting_run_name=sorting_run_name, sorter_folder=sorter_folder, sorter_output_folder=sorter_output_folder)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f'WARNING: build_neurons_from_spikinginterface_kilosort4: {exc}')
+            return None
+        try:
+            neurons = cls._load_neurons_from_spikinginterface_kilosort4(resolved_output, t_stop=t_stop)
+            print(f"Loaded {neurons.n_neurons} neurons from Kilosort4 good units ({resolved_output.as_posix()})")
+        except (FileNotFoundError, ValueError, ImportError) as exc:
+            print(f'WARNING: build_neurons_from_spikinginterface_kilosort4: failed to load neurons from {resolved_output}: {exc}')
             return None
         return cls._finalize_loaded_neurons(sess, neurons, estimate_neuron_type=config.estimate_neuron_type, save_neurons=config.save_neurons)
 

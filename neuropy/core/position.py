@@ -1463,15 +1463,61 @@ class Position(HDFMixin, PositionDimDataMixin, PositionComputedDataMixin, Concat
         """ Tries to load the dict using previous versions of this code. """
         # Legacy fallback:
         print(f'Position falling back to legacy loading protocol...: dict_rep: {dict_rep}')
+        # traces_rot = dict_rep.pop('traces_rot', None)
+        # if traces_rot is not None:
+        #     print(f'WARNING: Position class does not currently suppport "traces_rot", but they were passed in. Easy to implement.')
+
+        # speed = dict_rep.pop('speed', None)
+        # if speed is not None:
+        #     print(f'WARNING: Position class does not currently suppport "speed", but they were passed in. Easy to implement.')
+        # # t_start=0, sampling_rate=120, metadata=None
+
+        dict_rep = dict_rep.copy()  # avoid mutating caller's dict
+        print(f'Position falling back to legacy loading protocol... keys: {list(dict_rep.keys())}')
+        # --- Format A: separate arrays (x, y, time, datetime, trackingsRate) --- Seen in `RatJ_Day3TwoNovel_2019-06-14_04-08-48_position.npy` (with _position.npy instead of .position.npy)
+        if 'x' in dict_rep and ('time' in dict_rep or 't' in dict_rep):
+            x = dict_rep.pop('x')
+            y = dict_rep.pop('y', None)
+            z = dict_rep.pop('z', None)
+            t = dict_rep.pop('time', None)
+            if t is None:
+                t = dict_rep.pop('t', None)
+            assert t is not None
+            datetime_vals = dict_rep.pop('datetime', None)
+            sampling_rate = dict_rep.pop(
+                'trackingsRate',
+                dict_rep.pop('trackingRate', dict_rep.pop('sampling_rate', None)),
+            )
+            for legacy_key in ('traces_rot', 'speed'):
+                if dict_rep.pop(legacy_key, None) is not None:
+                    print(f'WARNING: Position does not currently support "{legacy_key}" in legacy load; ignoring.')
+            metadata = dict_rep.pop('metadata', None) or {}
+            if sampling_rate is not None:
+                metadata['sampling_rate'] = float(sampling_rate)
+            t = np.asarray(t)
+            if t.size:
+                metadata.setdefault('t_start', float(t[0]))
+                metadata.setdefault('t_stop', float(t[-1]))
+            pos_df_dict = {'t': t, 'x': np.asarray(x)}
+            if y is not None:
+                pos_df_dict['y'] = np.asarray(y)
+            if z is not None:
+                pos_df_dict['z'] = np.asarray(z)
+            if datetime_vals is not None:
+                pos_df_dict['datetime'] = datetime_vals
+            if dict_rep:
+                print(f'WARNING: unused legacy keys ignored: {list(dict_rep.keys())}')
+            return cls(pd.DataFrame(pos_df_dict), metadata=metadata or None)
+
+        # --- Format B: traces-based legacy (Position.init) ---
         traces_rot = dict_rep.pop('traces_rot', None)
         if traces_rot is not None:
-            print(f'WARNING: Position class does not currently suppport "traces_rot", but they were passed in. Easy to implement.')
-
+            print('WARNING: traces_rot passed but unused in legacy load.')
         speed = dict_rep.pop('speed', None)
         if speed is not None:
-            print(f'WARNING: Position class does not currently suppport "speed", but they were passed in. Easy to implement.')
+            print('WARNING: speed passed but unused in legacy load.')
 
-        return Position.init(**({'computed_traces': None, 't_start': 0, 'sampling_rate': 120, 'metadata': None} | dict_rep))
+        return cls.init(**({'computed_traces': None, 't_start': 0, 'sampling_rate': 120, 'metadata': None} | dict_rep))
         
     # for PositionDimDataMixin
     @property
