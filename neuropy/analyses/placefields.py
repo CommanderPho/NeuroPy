@@ -2124,6 +2124,7 @@ def perform_compute_placefields(active_session_spikes_df, active_pos, computatio
 
     return active_epoch_placefields1D, active_epoch_placefields2D
 
+
 def compute_placefields_masked_by_epochs(sess, active_config, included_epochs=None, should_display_2D_plots=False):
     """ Wrapps perform_compute_placefields to make the call simpler """
     active_session = deepcopy(sess)
@@ -2134,6 +2135,7 @@ def compute_placefields_masked_by_epochs(sess, active_config, included_epochs=No
     # active_session, active_config, good_placefield_neuronIDs = process_by_good_placefields(active_session, active_config, active_epoch_placefields)
     # debug_print_spike_counts(active_session)
     return active_epoch_placefields1D, active_epoch_placefields2D
+
 
 def compute_placefields_as_needed(active_session, computation_config:PlacefieldComputationParameters=None, general_config=None, active_placefields1D = None, active_placefields2D = None, included_epochs=None, should_force_recompute_placefields=True, should_display_2D_plots=False):
     from neuropy.plotting.placemaps import plot_all_placefields
