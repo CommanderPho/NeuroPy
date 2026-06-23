@@ -1,11 +1,25 @@
 # print_helpers.py
 import builtins
+import traceback
 from collections import defaultdict
 from typing import Callable, List, Dict, Tuple, Optional, OrderedDict  # for OrderedMeta
 from contextlib import contextmanager
 import numpy as np # for build_formatted_str_from_properties_dict
 from neuropy.utils.misc import is_iterable
 from neuropy.utils.mixins.indexing_helpers import get_dict_subset # for `build_formatted_str_from_properties_dict`
+
+
+def print_enable_continue_on_required_path_failure_error(
+    step_name: str,
+    exc: BaseException,
+    *,
+    traceback_limit: int = 10,
+) -> None:
+    print(
+        f'{step_name} failed with err: {exc} '
+        f'but enable_continue_on_required_path_failure == True so continuing...'
+    )
+    traceback.print_exception(type(exc), exc, exc.__traceback__, limit=traceback_limit)
 
 
 class SimplePrintable:

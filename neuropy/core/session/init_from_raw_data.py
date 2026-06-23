@@ -14,6 +14,7 @@ from typing import Any, List, Dict, Tuple, Union, Set, Optional, Callable, Liter
 _PHY_REQUIRED_FILES = ("params.py", "spike_times.npy", "spike_clusters.npy", "cluster_info.tsv")
 NeuronSourceType = Literal["auto", "spyk_circ", "sorting"]
 NeuronSourceTypeResolved = Literal["spyk_circ", "sorting"]
+NeuronBuildMethod = Literal["phy", "spikinginterface_sorter", "kilosort4"]
 PhyFolderKind = Literal["invalid", "si_phy_export", "spyk_circ_phy_export"]
 
 
@@ -34,6 +35,7 @@ from neuropy.io import OptitrackIO
 from neuropy.core.epoch import Epoch, EpochHelpers, ensure_dataframe, ensure_Epoch
 from neuropy.core import Position
 from neuropy.io.binarysignalio import BinarysignalIO
+from neuropy.utils.mixins.print_helpers import print_enable_continue_on_required_path_failure_error
 # from neuropy.core.session.data_session_loader import DataSessionLoader
 
 
@@ -1029,16 +1031,73 @@ class RawDataInitializationMixin:
 
 
     @classmethod
+    def _session_neurons_needs_rebuild(cls, sess) -> bool:
+        neurons = getattr(sess, "neurons", None)
+        if neurons is None:
+            return True
+        return int(getattr(neurons, "n_neurons", 0)) == 0
+
+
+    @classmethod
+    def _is_kilosort4_sorter_source(cls, basedir: Path, *, sorter_folder: Optional[Path] = None, sorting_run_name: Optional[str] = None, neuron_load_config: Optional[NeuronLoadConfig] = None) -> bool:
+        config = neuron_load_config or NeuronLoadConfig(sorter_folder=Path(sorter_folder) if sorter_folder is not None else None, run_name=sorting_run_name)
+        if config.sorter_folder is None and config.run_name is None and sorter_folder is None and sorting_run_name is None:
+            return False
+        try:
+            cls._resolve_kilosort4_sorter_output_path(config, basedir=Path(basedir), sorting_run_name=sorting_run_name, sorter_folder=sorter_folder)
+            return True
+        except (FileNotFoundError, ValueError):
+            return False
+
+
+    @classmethod
+    def _select_neuron_build_method(cls, basedir: Path, *, neurons_from_spikeinterface_kilosort4: bool = False, neurons_from_spikeinterface_sorter: bool = False, sorter_folder: Optional[Path] = None, sorting_run_name: Optional[str] = None, neuron_load_config: Optional[NeuronLoadConfig] = None) -> NeuronBuildMethod:
+        if neurons_from_spikeinterface_kilosort4:
+            return "kilosort4"
+        has_sorter_hint = sorter_folder is not None or sorting_run_name is not None
+        if has_sorter_hint and not neurons_from_spikeinterface_sorter and cls._is_kilosort4_sorter_source(basedir=basedir, sorter_folder=sorter_folder, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config):
+            return "kilosort4"
+        if neurons_from_spikeinterface_sorter or sorter_folder is not None or sorting_run_name is not None:
+            return "spikinginterface_sorter"
+        return "phy"
+
+
+    @classmethod
+    def _rebuild_flattened_spiketrains_from_neurons(cls, sess) -> None:
+        try:
+            from neuropy.core.session.Formats.BaseDataSessionFormats import DataSessionFormatRegistryHolder
+
+            format_cls = DataSessionFormatRegistryHolder.get_registry_data_session_type_class_name_dict()[sess.config.format_name]
+            time_variable_name = getattr(format_cls, "_time_variable_name", "t_seconds")
+            sess = format_cls._default_compute_flattened_spikes(sess, spike_timestamp_column_name=time_variable_name)
+            spikes_df = sess.spikes_df
+            if getattr(sess, "position", None) is not None:
+                sess, spikes_df = format_cls._default_compute_spike_interpolated_positions_if_needed(sess, spikes_df, time_variable_name=time_variable_name)
+            else:
+                print("WARNING: _rebuild_flattened_spiketrains_from_neurons: sess.position is None; skipping spike position interpolation")
+            format_cls._add_missing_spikes_df_columns(spikes_df, sess.neurons)
+            sess.flattened_spiketrains.filename = sess.filePrefix.with_suffix(".flattened.spikes.npy")
+            print(f'saving out to {sess.flattened_spiketrains.filename.as_posix()}...')
+            sess.flattened_spiketrains.save()
+            print('\tdone.')
+        except Exception as e:
+            print(f'WARNING: _rebuild_flattened_spiketrains_from_neurons: {e}')
+
+
+    @classmethod
     def _finalize_loaded_neurons(cls, sess, neurons: object, *, estimate_neuron_type: bool = True, save_neurons: bool = True) -> object:
         sess.neurons = neurons
         if estimate_neuron_type:
-            try:
-                from neuropy.utils import neurons_util
-                neurons.spiketrains = np.array([np.squeeze(a_spike_train) for a_spike_train in neurons.spiketrains.tolist()], dtype=object)
-                neuron_type = neurons_util.estimate_neuron_type(sess.neurons, plot=False)
-                neurons.neuron_type = neuron_type[0]
-            except Exception as e:
-                print(f'WARNING: build_neurons_from_phy: failed to estimate neuron type: {e}')
+            if getattr(neurons, "waveforms", None) is None:
+                print('WARNING: _finalize_loaded_neurons: skipping neuron type estimation because neurons.waveforms is None')
+            else:
+                try:
+                    from neuropy.utils import neurons_util
+                    neurons.spiketrains = np.array([np.squeeze(a_spike_train) for a_spike_train in neurons.spiketrains.tolist()], dtype=object)
+                    neuron_type = neurons_util.estimate_neuron_type(sess.neurons, plot=False)
+                    neurons.neuron_type = neuron_type[0]
+                except Exception as e:
+                    print(f'WARNING: _finalize_loaded_neurons: failed to estimate neuron type: {e}')
         if save_neurons:
             neurons.filename = sess.filePrefix.with_suffix('.neurons')
             try:
@@ -1047,6 +1106,8 @@ class RawDataInitializationMixin:
                 print(f'\tdone.')
             except Exception as e:
                 print(f'WARNING: build_neurons_from_phy: failed to save neurons to "{neurons.filename.as_posix()}": {e}')
+        if getattr(sess, "config", None) is not None:
+            cls._rebuild_flattened_spiketrains_from_neurons(sess)
         return neurons
 
 
@@ -1252,6 +1313,36 @@ class RawDataInitializationMixin:
 
 
     @classmethod
+    def _unit_template_metadata_from_kilosort_output(cls, *, cluster_id: int, spike_clusters: np.ndarray, spike_templates_id: np.ndarray, templates: np.ndarray, channel_shanks: Optional[np.ndarray] = None) -> tuple[int, int, np.ndarray]:
+        spike_locs = np.where(spike_clusters == cluster_id)[0]
+        cell_template_id, counts = np.unique(spike_templates_id[spike_locs], return_counts=True)
+        template = np.asarray(templates[cell_template_id[np.argmax(counts)]]).squeeze().T
+        if template.ndim == 1:
+            peak_channel, peak_waveform = 0, template
+        else:
+            peak_channel = int(np.argmax(np.max(template, axis=1)))
+            peak_waveform = template[peak_channel]
+        shank_id = int(channel_shanks[peak_channel]) if channel_shanks is not None else 0
+        return peak_channel, shank_id, peak_waveform
+
+
+    @classmethod
+    def _load_kilosort_template_arrays(cls, sorter_output_folder: Path) -> Optional[dict[str, np.ndarray]]:
+        templates_path = sorter_output_folder / "templates.npy"
+        spike_clusters_path = sorter_output_folder / "spike_clusters.npy"
+        spike_templates_path = sorter_output_folder / "spike_templates.npy"
+        if not (templates_path.is_file() and spike_clusters_path.is_file() and spike_templates_path.is_file()):
+            return None
+        channel_shanks_path = sorter_output_folder / "channel_shanks.npy"
+        return {
+            "spike_clusters": np.load(spike_clusters_path),
+            "spike_templates_id": np.load(spike_templates_path),
+            "templates": np.load(templates_path),
+            "channel_shanks": np.load(channel_shanks_path) if channel_shanks_path.is_file() else None,
+        }
+
+
+    @classmethod
     def _load_neurons_from_spikinginterface_kilosort4(cls, sorter_output_folder: Path, *, t_stop: float) -> object:
         from neuropy.core import Neurons
 
@@ -1259,15 +1350,29 @@ class RawDataInitializationMixin:
             import spikeinterface.extractors as se
         except ImportError as exc:
             raise ImportError("spikeinterface is required for loading neurons from kilosort4 output; install spikeinterface and retry.") from exc
+        sorter_output_folder = Path(sorter_output_folder)
         sorting = se.read_kilosort(sorter_output_folder, keep_good_only=True)
         if sorting.get_num_units() == 0:
             raise ValueError(f"no Kilosort good units found in {sorter_output_folder}")
         sampling_rate = int(sorting.get_sampling_frequency())
-        spiketrains, neuron_ids = [], []
+        template_arrays = cls._load_kilosort_template_arrays(sorter_output_folder)
+        if template_arrays is None:
+            print(f"WARNING: _load_neurons_from_spikinginterface_kilosort4: templates.npy not found in {sorter_output_folder}; waveforms/channels/shanks will be omitted and neuron type estimation will be skipped")
+        spiketrains, peak_waveforms, peak_channels, shank_ids, neuron_ids = [], [], [], [], []
         for unit_id in sorting.unit_ids:
             spiketrains.append(np.squeeze(sorting.get_unit_spike_train(unit_id) / sampling_rate))
             neuron_ids.append(int(unit_id))
-        return Neurons(np.array(spiketrains, dtype=object), t_stop=t_stop, sampling_rate=sampling_rate, neuron_ids=np.array(neuron_ids))
+            if template_arrays is not None:
+                peak_channel, shank_id, peak_waveform = cls._unit_template_metadata_from_kilosort_output(cluster_id=int(unit_id), **template_arrays)
+                peak_channels.append(peak_channel)
+                shank_ids.append(shank_id)
+                peak_waveforms.append(peak_waveform)
+        neurons_kwargs = dict(t_stop=t_stop, sampling_rate=sampling_rate, neuron_ids=np.array(neuron_ids))
+        if peak_waveforms:
+            neurons_kwargs["waveforms"] = np.asarray(peak_waveforms)
+            neurons_kwargs["peak_channels"] = np.array(peak_channels)
+            neurons_kwargs["shank_ids"] = np.array(shank_ids)
+        return Neurons(np.array(spiketrains, dtype=object), **neurons_kwargs)
 
 
     @classmethod
@@ -1275,6 +1380,7 @@ class RawDataInitializationMixin:
         """Loads neurons from Kilosort4 KSLabel=good units and saves session file.
 
         Reads {sorter_folder}/sorter_output via read_kilosort(..., keep_good_only=True).
+        Loads peak waveforms/channels/shanks from templates.npy when present (required for neuron type estimation).
         Does not use curation review CSV, SortingAnalyzer, or UnitRefine filters.
 
         Modifies:
@@ -1389,7 +1495,7 @@ class RawDataInitializationMixin:
         try:
             return fn()
         except Exception as e:
-            print(f'{step_name} failed with err: {e} but enable_continue_on_required_path_failure == True so continuing...')
+            print_enable_continue_on_required_path_failure_error(step_name, e)
             return None
 
 
@@ -1403,6 +1509,7 @@ class RawDataInitializationMixin:
              phy_folder: Optional[Path] = None, curation_review_path: Optional[Path] = None,
              sorting_run_name: Optional[str] = None, neuron_load_config: Optional[NeuronLoadConfig] = None,
              neurons_from_spikeinterface_sorter: bool = False, sorter_folder: Optional[Path] = None,
+             neurons_from_spikeinterface_kilosort4: bool = False,
              enable_continue_on_required_path_failure: bool = True,
         ):
         """ runs all needed steps 
@@ -1533,10 +1640,16 @@ class RawDataInitializationMixin:
         _out = cls._run_processing_step_with_optional_continue('prepare_for_spyking_circus', lambda: cls.prepare_for_spyking_circus(basedir=basedir, basename=sess.name, n_channels=n_channels, valid_reference_session_basepath=valid_reference_session_basepath, ref_basename=ref_basename, dry_run=False, debug_print=True), enable_continue_on_required_path_failure)
 
 
-        if neurons_from_spikeinterface_sorter or sorter_folder is not None:
-            cls._run_processing_step_with_optional_continue('build_neurons_from_spikinginterface_sorter', lambda: cls.build_neurons_from_spikinginterface_sorter(sess, basedir=basedir, sorter_folder=sorter_folder, sorting_run_name=sorting_run_name, curation_review_path=curation_review_path, neuron_load_config=neuron_load_config), enable_continue_on_required_path_failure)
+        if cls._session_neurons_needs_rebuild(sess):
+            neuron_build_method = cls._select_neuron_build_method(basedir=basedir, neurons_from_spikeinterface_kilosort4=neurons_from_spikeinterface_kilosort4, neurons_from_spikeinterface_sorter=neurons_from_spikeinterface_sorter, sorter_folder=sorter_folder, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config)
+            if neuron_build_method == "kilosort4":
+                cls._run_processing_step_with_optional_continue('build_neurons_from_spikinginterface_kilosort4', lambda: cls.build_neurons_from_spikinginterface_kilosort4(sess, basedir=basedir, sorter_folder=sorter_folder, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config), enable_continue_on_required_path_failure)
+            elif neuron_build_method == "spikinginterface_sorter":
+                cls._run_processing_step_with_optional_continue('build_neurons_from_spikinginterface_sorter', lambda: cls.build_neurons_from_spikinginterface_sorter(sess, basedir=basedir, sorter_folder=sorter_folder, sorting_run_name=sorting_run_name, curation_review_path=curation_review_path, neuron_load_config=neuron_load_config), enable_continue_on_required_path_failure)
+            else:
+                cls._run_processing_step_with_optional_continue('build_neurons_from_phy', lambda: cls.build_neurons_from_phy(sess, basedir=basedir, phy_folder=phy_folder, curation_review_path=curation_review_path, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config), enable_continue_on_required_path_failure)
         else:
-            cls._run_processing_step_with_optional_continue('build_neurons_from_phy', lambda: cls.build_neurons_from_phy(sess, basedir=basedir, phy_folder=phy_folder, curation_review_path=curation_review_path, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config), enable_continue_on_required_path_failure)
+            print(f'Skipping neuron build; existing session.neurons has {sess.neurons.n_neurons} neurons.')
 
         cls._run_processing_step_with_optional_continue('build_mua_pbe_artifact_epochs', lambda: cls.build_mua_pbe_artifact_epochs(sess), enable_continue_on_required_path_failure)
 

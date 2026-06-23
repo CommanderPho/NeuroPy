@@ -19,7 +19,7 @@ from neuropy.core.session.Formats.SessionSpecifications import SessionFolderSpec
 # For specific load functions:
 from neuropy.core import DataWriter, NeuronType, Neurons, BinnedSpiketrain, Mua, ProbeGroup, Position, Epoch, Signal, Laps, FlattenedSpiketrains
 from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epochs_filters # used particularly to build Bapun-style filters
-from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta
+from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta, print_enable_continue_on_required_path_failure_error
 from neuropy.utils.result_context import IdentifyingContext
 from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
 from neuropy.utils.position_util import ShapelyMaze, ShapelyMazeCollection
@@ -694,7 +694,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                     session = file_spec.session_load_callback(file_path, session)
                     loaded_file_record_list.append(file_path)
                 except Exception as e:
-                    print(f'e: {e} but enable_continue_on_required_path_failure == True so continuing...')
+                    print_enable_continue_on_required_path_failure_error(f'loading file_path: "{file_path}"', e)
 
 
 
@@ -795,17 +795,17 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             try:
                 _perform_position_comps(session)
             except Exception as e:
-                print(f'_perform_position_comps failed with err: {e} but enable_continue_on_required_path_failure == True so continuing...')
+                print_enable_continue_on_required_path_failure_error('_perform_position_comps', e)
 
             try:
                 _perform_spike_comps(session)
             except Exception as e:
-                print(f'_perform_spike_comps failed with err: {e} but enable_continue_on_required_path_failure == True so continuing...')
+                print_enable_continue_on_required_path_failure_error('_perform_spike_comps', e)
 
             try:
                 _perform_postload_comps(session)
             except Exception as e:
-                print(f'_perform_postload_comps failed with err: {e} but enable_continue_on_required_path_failure == True so continuing...')
+                print_enable_continue_on_required_path_failure_error('_perform_postload_comps', e)
 
 
         return session, loaded_file_record_list
