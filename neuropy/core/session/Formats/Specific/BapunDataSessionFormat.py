@@ -358,7 +358,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             # zone6 = box(-433.01532458, -128.95211812, -240.64225088, 76.83618038),  # box(minx, miny, maxx, maxy, ccw=True)
             # zone7 = box(-2.66624123, -505.94180058, 188.66228564, -299.91009164),  # box(minx, miny, maxx, maxy, ccw=True)
 
-            bapun_OpenField_reward_zones_maze1 = dict(    ## Define the two reward zones
+            bapun_reward_zones_maze1 = dict(    ## Define the two reward zones
                 zone1 = box(-149.74757351, 242.94310917, 23.56244256, 427.20760057), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
                 zone2 = box(-2.66624123, -505.94180058, 188.66228564, -299.91009164), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
             )
@@ -368,14 +368,14 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             # zone2 = box(120.03109112, -115.45836275, 255.52874219, -49.62497088),  # box(minx, miny, maxx, maxy, ccw=True)
             # zone3 = box(64.99205260, -251.85335703, 242.99603212, -178.66040707),  # box(minx, miny, maxx, maxy, ccw=True)
 
-            bapun_OpenField_reward_zones_maze2 = dict(    ## Define the two reward zones
-                zone1 = box(-149.74757351, 242.94310917, 23.56244256, 427.20760057), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
-                zone2 = box(-2.66624123, -505.94180058, 188.66228564, -299.91009164), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
+            bapun_reward_zones_maze2 = dict(    ## Define the two reward zones
+                zone1 = box(120.03109112, -115.45836275, 255.52874219, -49.62497088), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
+                zone2 = box(64.99205260, -251.85335703, 242.99603212, -178.66040707), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
             )
 
             bapun_OpenField_reward_zones = {
-                'maze1': bapun_OpenField_reward_zones_maze1,
-                'maze2': bapun_OpenField_reward_zones_maze2,
+                'maze1': bapun_reward_zones_maze1,
+                'maze2': bapun_reward_zones_maze2,
             }
 
             # a_pos = deepcopy(session.position)
@@ -414,7 +414,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             bapun_OpenField_reward_zones = _subfn_rat_U_Day5OpenfieldSD_reward_zones(session=session)
             return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_OpenField_reward_zones)
 
-
+        # lambda session: cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=_subfn_rat_U_Day5OpenfieldSD_reward_zones(session=session))
 
 
         the_dict: Dict[IdentifyingContext, HardcodedProcessingParameters]  = { #  
@@ -488,7 +488,10 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
                 grid_bin_bounds=bapun_open_field_RatJ_Day3TwoNovel_grid_bin_bounds,
-                lap_estimation_parameters=dict(reward_zones=_subfn_rat_J_Day3TwoNovel_reward_zones, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_J_Day3TwoNovel_reward_zones,
+                                                custom_lap_estimation_fn=None, 
+                                                # custom_lap_estimation_fn=lambda session: cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=_subfn_rat_U_Day5OpenfieldSD_reward_zones(session=session)), 
+                                                use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='shapely', all_session_mazes=RatJ_Day3TwoNovel_all_session_mazes),
             ),
 
