@@ -27,6 +27,15 @@ from shapely import box ## used by `build_Bapun_Day4OpenField_laps_from_reward_z
 # from shapely.geometry import LineString, Point 
 
 
+# ## compute valid_epochs via ```
+# valid_epochs = {}
+# for a_maze_name, a_plotter in sync_plotters.items():
+#     pos_df = curr_active_pipeline.filtered_sessions[a_maze_name].position.to_dataframe()
+#     valid_epochs[a_maze_name] = (pos_df['t'].min(), pos_df['t'].max())
+
+# valid_epochs
+# ```
+
 # linearization_method: str = 'umap'
 
 # linearization_method: str = 'shapely'
@@ -72,6 +81,28 @@ RatK_Day3TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollecti
 },
     valid_epochs =  {'maze1': (8950.11800747698, 12441.993530592174), 'maze2': (23253.12015019876, 26010.99556335396)}, # fallback only (RatK Day3TwoNovel reference); resolved per-session at linearization time - 'maze_GLOBAL': (0.0, 42305.0), 
 )
+
+
+# 
+RatJ_Day3TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollection(shapelyMazes = {
+    # Zig-zag / "N" maze — path order follows the track skeleton
+    'maze1': ShapelyMaze(nodes=[
+        (-117.68,  333.81),  # Top hub
+        ( 237.35,  -90.93),  # Right-middle hub
+        ( 105.74, -412.40),  # Bottom-right hub
+        (-368.46,  142.26),  # Left-middle hub
+    ]),
+    # Ring maze — LineString runs along the ring; gap is between last node and first
+    'maze2': ShapelyMaze(nodes=[
+        ( 149.84,   64.67),  # Right-up (near gap)
+        ( 187.69, -154.38),  # Right-down (gap side)
+        ( 111.17,  102.19),  # Upper-right track
+        (-205.84,  116.18),  # Left-up (arc end; gap back to node 0)
+    ]),
+},
+    valid_epochs = {'maze1': (8950.11800747698, 12441.993530592174), 'maze2': (23253.12015019876, 26010.99556335396)}, # fallback only (RatK Day3TwoNovel reference); resolved per-session at linearization time - 'maze_GLOBAL': (0.0, 42305.0), 
+)
+
 
 
 def plot_shapely_maze(grid_bin_bounds: Tuple[Tuple[float, float], Tuple[float, float]], reward_zones_dict: Dict[str, Polygon], position_df: Optional[pd.DataFrame]=None, ax=None):
@@ -199,6 +230,9 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         
         bapun_open_field_grid_bin_bounds = (((-120.0, 120.0), (-120.0, 120.0)))
 
+        bapun_open_field_RatJ_Day3TwoNovel_grid_bin_bounds = (((-435.0, 320.0), (-508.0, 430.0))) # #TODO 2026-06-23 04:02: - [ ] Created from image
+
+
         # Custom Reward Zone Functions _______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
         def _subfn_rat_N_Day4Openfield_reward_zones(session) -> Dict[str, Polygon]:
             """ captures: None """
@@ -311,6 +345,47 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 return bapun_OpenField_reward_zones ## return the dict of dicts
 
         
+        # 2026-06-23 04:03: - [X] Create for RatJ Day3TwoNovel
+        # bapun_open_field_RatJ_Day3TwoNovel_grid_bin_bounds
+        def _subfn_rat_J_Day3TwoNovel_reward_zones(session) -> Dict[str, Polygon]:
+            """ captures: None """
+            # maze1 ______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
+            # zone1 = box(-99.12051042, 103.68067387, 56.47279662, 401.69644642),  # box(minx, miny, maxx, maxy, ccw=True) [LineROI bbox]
+            # zone2 = box(-358.89498119, -92.16315536, -74.92780048, 4.15648888),  # box(minx, miny, maxx, maxy, ccw=True) [LineROI bbox]
+            # zone3 = box(-357.55593752, -228.61655016, -99.21250738, -9.02163126),  # box(minx, miny, maxx, maxy, ccw=True) [LineROI bbox]
+            # zone4 = box(-149.74757351, 242.94310917, 23.56244256, 427.20760057),  # box(minx, miny, maxx, maxy, ccw=True)
+            # zone5 = box(107.53999920, -283.17517004, 305.57308823, -79.92225482),  # box(minx, miny, maxx, maxy, ccw=True)
+            # zone6 = box(-433.01532458, -128.95211812, -240.64225088, 76.83618038),  # box(minx, miny, maxx, maxy, ccw=True)
+            # zone7 = box(-2.66624123, -505.94180058, 188.66228564, -299.91009164),  # box(minx, miny, maxx, maxy, ccw=True)
+
+            bapun_OpenField_reward_zones_maze1 = dict(    ## Define the two reward zones
+                zone1 = box(-149.74757351, 242.94310917, 23.56244256, 427.20760057), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
+                zone2 = box(-2.66624123, -505.94180058, 188.66228564, -299.91009164), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
+            )
+
+            # maze2 ______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
+            # zone1 = box(-302.83370969, -251.47244444, 166.03490015, 199.82232874),  # box(minx, miny, maxx, maxy, ccw=True) [EllipseROI bbox]
+            # zone2 = box(120.03109112, -115.45836275, 255.52874219, -49.62497088),  # box(minx, miny, maxx, maxy, ccw=True)
+            # zone3 = box(64.99205260, -251.85335703, 242.99603212, -178.66040707),  # box(minx, miny, maxx, maxy, ccw=True)
+
+            bapun_OpenField_reward_zones_maze2 = dict(    ## Define the two reward zones
+                zone1 = box(-149.74757351, 242.94310917, 23.56244256, 427.20760057), # box(minx, miny, maxx, maxy, ccw=True) - Left Extrema
+                zone2 = box(-2.66624123, -505.94180058, 188.66228564, -299.91009164), # box(minx, miny, maxx, maxy, ccw=True)- Mid Extrema
+            )
+
+            bapun_OpenField_reward_zones = {
+                'maze1': bapun_OpenField_reward_zones_maze1,
+                'maze2': bapun_OpenField_reward_zones_maze2,
+            }
+
+            # a_pos = deepcopy(session.position)
+            sess_epoch_labels = session.epochs.labels
+            if len(sess_epoch_labels) == 1:
+                active_label: str = sess_epoch_labels[0]
+                return bapun_OpenField_reward_zones[active_label]
+            else:        
+                return bapun_OpenField_reward_zones ## return the dict of dicts
+
 
 
         # Custom Lap Building Functions ______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
@@ -333,7 +408,6 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             """ captures: cls, _subfn_rat_K_Day4Openfield_reward_zones """
             bapun_Day4OpenField_reward_zones = _subfn_rat_S_Day4Openfield_reward_zones(session=session)
             return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_Day4OpenField_reward_zones)
-
 
         def _subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones(session):
             """ captures: cls, _subfn_rat_U_Day5OpenfieldSD_reward_zones """
@@ -409,13 +483,13 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
 
 
-            # VALIDATE RatJ Day3TwoNovel: clone RatS Day5TwoNovel (N/U shapely mazes); reuses Day5TwoNovel_all_session_mazes (valid_epochs are RatS-specific — may need tuning); maze1/maze2/maze_GLOBAL epochs; notebook InteractivePipelineLoadFromPickle_Bapun_RatJ_D3TwoNovel
+            # VALIDATE RatJ Day3TwoNovel: clone RatS Day5TwoNovel (N/U shapely mazes); reuses RatJ_Day3TwoNovel_all_session_mazes (valid_epochs are RatS-specific — may need tuning); maze1/maze2/maze_GLOBAL epochs; notebook InteractivePipelineLoadFromPickle_Bapun_RatJ_D3TwoNovel
             IdentifyingContext(format_name= 'bapun', animal= 'RatJ', session_name= 'Day3TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze1', 'maze2'],
-                grid_bin_bounds=bapun_open_field_grid_bin_bounds,
-                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
-                linearization_parameters=dict(method='shapely', all_session_mazes=Day5TwoNovel_all_session_mazes),
+                grid_bin_bounds=bapun_open_field_RatJ_Day3TwoNovel_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=_subfn_rat_J_Day3TwoNovel_reward_zones, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='shapely', all_session_mazes=RatJ_Day3TwoNovel_all_session_mazes),
             ),
 
             IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day3TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
