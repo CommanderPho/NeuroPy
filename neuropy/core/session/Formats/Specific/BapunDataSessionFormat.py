@@ -230,7 +230,6 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         
         bapun_open_field_grid_bin_bounds = (((-120.0, 120.0), (-120.0, 120.0)))
 
-        bapun_open_field_RatJ_Day3TwoNovel_grid_bin_bounds = (((-435.0, 320.0), (-508.0, 430.0))) # #TODO 2026-06-23 04:02: - [ ] Created from image
 
 
         # Custom Reward Zone Functions _______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
@@ -346,7 +345,8 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
 
         
         # 2026-06-23 04:03: - [X] Create for RatJ Day3TwoNovel
-        # bapun_open_field_RatJ_Day3TwoNovel_grid_bin_bounds
+        bapun_open_field_RatJ_Day3TwoNovel_grid_bin_bounds = (((-435.0, 320.0), (-508.0, 430.0))) # #TODO 2026-06-23 04:02: - [ ] Created from image
+
         def _subfn_rat_J_Day3TwoNovel_reward_zones(session) -> Dict[str, Polygon]:
             """ captures: None """
             # maze1 ______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
