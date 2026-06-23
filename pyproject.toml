@@ -1,6 +1,6 @@
 [project]
 name = "neuropy"
-version = "0.2.7"
+version = "0.2.8"
 description = "package is primarily developed for hippocampal recordings, but can also be used for general ephys data."
 authors = [
     { name = "Bapun Giri", email = "bapung@umich.edu" },
@@ -14,7 +14,7 @@ dependencies = [
     "hdf5storage>=0.1.19,<0.2",
     "python-benedict>=0.28.3,<0.29",
     "h5py>=3.8.0,<4",
-    "numpy~=1.20",
+    "numpy>=1.24.0,<2",
     "scipy~=1.6",
     "pandas==1.5.3",
     "joblib>=1.2.0,<2",
