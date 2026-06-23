@@ -273,6 +273,74 @@ def _normalized_occupancy(raw_occupancy, position_srate=None):
     return seconds_occupancy, normalized_occupancy
 
 
+# @function_attributes(short_name=None, tags=['working', 'angular', 'head_dir_angle_binned'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-02-21 00:48', related_items=[])
+def compute_3d_angular_occupancy_map(df: pd.DataFrame, n_x_bins: int, n_y_bins: int, n_dir_bins: int = 8) -> Tuple[NDArray, Dict]:
+    """Creates a 3D (binned_x, binned_y, binned_angle) occupancy map with fixed dimensions regardless of observed data
+    
+    Args:
+        df (pd.DataFrame): DataFrame with binned columns
+        n_x_bins (int): Number of x position bins
+        n_y_bins (int): Number of y position bins
+        n_dir_bins (int): Number of head direction bins
+        
+    Usage:
+        from neuropy.analyses.placefields import compute_3d_angular_occupancy_map
+        # 1. Compute the 3D occupancy map
+        
+
+        ## INPUTS: global_pf2D
+
+        xbin_edges = global_pf2D.xbin
+        ybin_edges = global_pf2D.ybin
+        # Create evenly spaced bin edges from 0 to 360
+        n_dir_bins: int = 8
+        angle_dir_bin_edges = np.linspace(0, 360, n_dir_bins + 1)
+
+        n_xbins: int = len(xbin_edges) - 1
+        n_ybins: int = len(ybin_edges) - 1
+        n_dir_bins: int = len(angle_dir_bin_edges) - 1
+
+        print(f'n_xbins: {n_xbins}, n_ybins: {n_ybins}, n_dir_bins: {n_dir_bins}')
+
+        # Use pd.cut with the explicit bin edges
+        global_pos_df['head_dir_angle_binned'] = pd.cut(global_pos_df['approx_head_dir_degrees'], bins=angle_dir_bin_edges, labels=False, include_lowest=True)
+        global_pos_df = global_pos_df.position.adding_binned_position_columns(xbin_edges=xbin_edges, ybin_edges=ybin_edges)
+        global_pos_df = global_pos_df.dropna(axis='index', subset=['binned_x', 'binned_y', 'head_dir_angle_binned'])
+        global_pos_df
+
+        
+        # occupancy_map, bin_counts = compute_3d_angular_occupancy_map(global_pos_df)
+
+        occupancy_map, bin_counts = compute_3d_angular_occupancy_map(global_pos_df, n_x_bins=n_xbins, n_y_bins=n_ybins, n_dir_bins=n_dir_bins)
+
+        # Print the shape and counts
+        print(f"Occupancy map shape: {occupancy_map.shape}")
+        print(f"Unique bins per dimension: {bin_counts}")
+
+    History:
+        2026-06-19 12:32pm - from `compute_3d_occupancy_map` -> `compute_3d_angular_occupancy_map`
+
+
+    """
+    # Create all possible combinations
+    x_bins = range(n_x_bins)
+    y_bins = range(n_y_bins)
+    dir_bins = range(n_dir_bins)
+    
+    # Use crosstab with specific bins to force output size
+    occupancy_map = pd.crosstab(
+        index=[df['binned_x'], df['binned_y']], 
+        columns=df['head_dir_angle_binned'],
+        dropna=False  # Keep all combinations
+    ).reindex(
+        index=pd.MultiIndex.from_product([x_bins, y_bins]),
+        columns=dir_bins,
+        fill_value=0  # Fill missing combinations with 0
+    ).values.reshape(n_x_bins, n_y_bins, n_dir_bins)
+    
+    return occupancy_map, {'x': n_x_bins, 'y': n_y_bins, 'dir': n_dir_bins}
+
+
 
 class PfnConfigMixin:
     def str_for_filename(self, is_2D=True):
@@ -471,6 +539,11 @@ class PfnDMixin(SimplePrintable):
         return fig_use
 
 
+
+
+# ==================================================================================================================================================================================================================================================================================== #
+# Dimension (1D, 2D position) specific overrides                                                                                                                                                                                                                                       #
+# ==================================================================================================================================================================================================================================================================================== #
 class Pf1D(PfnConfigMixin, PfnDMixin):
 
     @staticmethod
@@ -1482,6 +1555,17 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
         return active_pos_df, xbin, ybin, bin_info
 
+    def computing_3d_occupancy_map(self, n_x_bins=50, n_y_bins=50, n_dir_bins=8):
+        """Creates a 3D occupancy map with fixed dimensions regardless of observed data
+        """        
+        # head_dir_angle_binned is already created by adding_approx_head_dir_columns()
+        # assert self.filtered_pos_df
+        assert (self.ybin is not None) and (len(self.ybin) > 0), f"must be at least 2 spatial dimensions but has no y-bins."
+
+        angular_occupancy_map, bin_counts = compute_3d_angular_occupancy_map(pos_df=self.filtered_pos_df, n_x_bins=len(self.xbin)-1, n_y_bins=len(self.ybin)-1, n_dir_bins=8)
+        return angular_occupancy_map, bin_counts
+
+
     @classmethod
     def _drop_extra_position_info(cls, pf):
         """ if pf is 1D (as indicated by `pf.ndim`), drop any 'y' related columns. """
@@ -2003,7 +2087,15 @@ def perform_compute_placefields(active_session_spikes_df, active_pos, computatio
             except Exception as e:
                 linearization_method = 'isomap' ## fallback to isomap
                 raise e
-            active_pos.compute_linearized_position(method=linearization_method)
+            try:
+                active_pos.compute_linearized_position(method=linearization_method)
+            except Exception as lin_err:
+                # e.g. method == 'shapely' but `all_session_mazes` was not wired in for this filtered epoch; fall back to isomap so placefields still compute (avoids leaving a None computation result that crashes downstream).
+                if linearization_method != 'isomap':
+                    print(f'WARNING: compute_linearized_position(method={linearization_method!r}) failed with error: {lin_err}. Falling back to method="isomap".')
+                    active_pos.compute_linearized_position(method='isomap')
+                else:
+                    raise
                     
 
         active_epoch_placefields1D = PfND.from_config_values(spikes_df, position=deepcopy(active_pos.linear_pos_obj), epochs=included_epochs,
@@ -2056,4 +2148,6 @@ def compute_placefields_as_needed(active_session, computation_config:PlacefieldC
     else:
         print('skipping 2D placefield plots')
     return active_placefields1D, active_placefields2D
+
+
 

@@ -17,7 +17,8 @@ from neuropy.utils.result_context import IdentifyingContext as Ctx
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_field, serialized_attribute_field, non_serialized_field, custom_define
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDF_SerializationMixin, HDFMixin
 
-# from pyphocorehelpers.function_helpers import function_attributes
+from pyphocorehelpers.programming_helpers import metadata_attributes
+from pyphocorehelpers.function_helpers import function_attributes
 
 # ==================================================================================================================== #
 # 2023-06-21 User Annotations                                                                      #
@@ -819,7 +820,15 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
         
         user_annotations[IdentifyingContext(format_name='bapun',animal='RatK', session_name='Day4OpenField')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-120.0, 120.0), (-120.0, 120.0)))) ## ADDED 2026-05-06 -- not sure if used for Bapun-type sessions
         user_annotations[IdentifyingContext(format_name='bapun',animal='RatU', session_name='Day5OpenFieldSD')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((0.0, 142.0), (0.0, 30.0)))) ## ADDED 2026-05-06 -- not sure if used for Bapun-type sessions
-        
+
+        user_annotations[IdentifyingContext(format_name='bapun',animal='RatS', session_name='Day1Openfield')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-120.0, 120.0), (-120.0, 120.0)))) ## ADDED 2026-06-03 -- not sure if used for Bapun-type sessions
+        user_annotations[IdentifyingContext(format_name='bapun',animal='RatS', session_name='Day4Openfield')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-120.0, 120.0), (-120.0, 120.0)))) ## ADDED 2026-06-03 -- not sure if used for Bapun-type sessions
+
+        #TODO 2026-06-23 05:27: - [ ] Noted haven't added for RatJ_Day3TwoNovel session, but as mentioned above not sure it's needed
+        user_annotations[IdentifyingContext(format_name='bapun',animal='RatJ', session_name='Day3TwoNovel')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-435.0, 320.0), (-508.0, 430.0)))) ## ADDED 2026-06-21 -- not sure if used for Bapun-type sessions
+        user_annotations[IdentifyingContext(format_name='bapun',animal='RatU', session_name='Day3TwoNovel')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-120.0, 120.0), (-100.0, 120.0)))) ## ADDED 2026-06-21 -- not sure if used for Bapun-type sessions
+
+        user_annotations[IdentifyingContext(format_name='bapun',animal='RatK', session_name='Day3TwoNovel')] = dict(unit_grid_bin_bounds=(((0.0, 1.0), (0.0, 1.0))), cm_grid_bin_bounds=(((-120.0, 120.0), (-100.0, 120.0)))) ## ADDED 2026-06-21 -- not sure if used for Bapun-type sessions
 
         # ==================================================================================================================== #
         # 2024-11-05 16:05 Produced programmatically from exported matlab csv                                                 #

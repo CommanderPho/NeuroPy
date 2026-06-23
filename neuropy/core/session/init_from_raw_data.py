@@ -21,10 +21,9 @@ PhyFolderKind = Literal["invalid", "si_phy_export", "spyk_circ_phy_export"]
 @dataclass
 class NeuronLoadConfig:
     source_type: NeuronSourceType = "auto"
-    phy_folder: Path | None = None
-    sorter_folder: Path | None = None
-    curation_review_path: Path | None = None
-    run_name: str | None = None
+    phy_folder: Optional[Path] = None
+    curation_review_path: Optional[Path] = None
+    run_name: Optional[str] = None
     include_groups: tuple[str, ...] = ("good", "mua")
     unit_filter: str = 'prediction == "sua"'
     save_neurons: bool = True

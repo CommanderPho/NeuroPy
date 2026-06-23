@@ -19,6 +19,7 @@ from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epoch
 
 from neuropy.core.session.Formats.BaseDataSessionFormats import DataSessionFormatRegistryHolder, DataSessionFormatBaseRegisteredClass
 from neuropy.utils.result_context import IdentifyingContext
+from neuropy.utils.npy_pickle_compat import load_npy_pickled_item
 
 ## Pho's Custom Libraries:
 # from pyphocorehelpers.Filesystem.path_helpers import find_first_extant_path

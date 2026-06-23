@@ -614,33 +614,71 @@ class PositionComputedDataMixin(PositionSlicedMixin):
 
 
     @classmethod
-    def circular_mean_deg(cls, angle_rad: NDArray) -> Union[float, NDArray]:
-        """Returns the mean of angles (in radians), in degrees in ``[0, 360)``, handling wrapping.
+    def circular_mean_angle_to_degrees(cls, angle_rad_or_deg: Union[pd.Series, NDArray], input_angles_are_radians: bool = True) -> Union[float, pd.Series, NDArray]:
+        """Returns the circular mean of angles in degrees in ``[0, 360)``, handling wrapping.
 
         - If ``angle_rad`` is a 1D :class:`~pandas.Series` (e.g. from ``groupby``), returns a scalar float.
         - If ``angle_rad`` is a 2D :class:`~numpy.ndarray` of shape ``(n, m)``, returns a length-``n``
           vector of row-wise circular means (NaNs ignored per row).
         - If ``angle_rad`` is a 1D ndarray, returns a scalar float (non-finite values are ignored).
+        - Set ``input_angles_are_radians=False`` when input values are already in degrees.
 
-        segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_deg)
+        segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(Position.circular_mean_angle_to_degrees)
         """
-        if isinstance(angle_rad, pd.Series):
-            vals = angle_rad.dropna().to_numpy(dtype=np.float64)
+        # 1. Handle the new kwarg by standardizing the input to radians
+        # np.deg2rad safely handles both pandas Series and numpy arrays
+        angles = angle_rad_or_deg if input_angles_are_radians else np.deg2rad(angle_rad_or_deg)
+
+        # 2. Existing logic continues using 'angles' instead of 'angle_rad'
+        if isinstance(angles, pd.Series):
+            vals = angles.dropna().to_numpy(dtype=np.float64)
             if vals.size == 0:
                 return float('nan')
             return float(np.mod(np.rad2deg(np.angle(np.mean(np.exp(1j * vals)))), 360.0))
-        arr = np.asarray(angle_rad, dtype=np.float64)
+            
+        arr = np.asarray(angles, dtype=np.float64)
         if arr.ndim == 2:
             if arr.shape[0] == 0:
                 return np.zeros((0,), dtype=np.float64)
             masked = np.where(np.isfinite(arr), arr, np.nan)
             mean_c = np.nanmean(np.exp(1j * masked), axis=1)
             return np.mod(np.rad2deg(np.angle(mean_c)), 360.0).astype(np.float64)
+            
         vals = arr.ravel()
         vals = vals[np.isfinite(vals)]
         if vals.size == 0:
             return float('nan')
         return float(np.mod(np.rad2deg(np.angle(np.mean(np.exp(1j * vals)))), 360.0))
+
+
+
+    @classmethod
+    def circular_mean_radians_to_degrees(cls, angle_rad: Union[pd.Series, NDArray]) -> Union[float, pd.Series, NDArray]:
+        """Returns the circular mean of angles in degrees in ``[0, 360)``, handling wrapping.
+
+        - If ``angle_rad`` is a 1D :class:`~pandas.Series` (e.g. from ``groupby``), returns a scalar float.
+        - If ``angle_rad`` is a 2D :class:`~numpy.ndarray` of shape ``(n, m)``, returns a length-``n``
+          vector of row-wise circular means (NaNs ignored per row).
+        - If ``angle_rad`` is a 1D ndarray, returns a scalar float (non-finite values are ignored).
+        - Set ``input_angles_are_radians=False`` when input values are already in degrees.
+
+        segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(Position.circular_mean_radians_to_degrees)
+        """
+        return cls.circular_mean_angle_to_degrees(angle_rad_or_deg=angle_rad, input_angles_are_radians=True)
+
+
+
+
+
+    @classmethod
+    def circular_mean_degrees_to_degrees(cls, angle_degrees: Union[pd.Series, NDArray]) -> Union[float, pd.Series, NDArray]:
+        """Returns the circular mean of angles in degrees in ``[0, 360)``, handling wrapping.
+
+        segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(Position.circular_mean_degrees_to_degrees)
+        """
+        return cls.circular_mean_angle_to_degrees(angle_rad_or_deg=angle_degrees, input_angles_are_radians=False)
+
+
 
 
     @classmethod
@@ -706,7 +744,7 @@ class PositionComputedDataMixin(PositionSlicedMixin):
             pos_df['Vp_rad'] = vp_rad
 
             # Compute the mean direction for each segment
-            segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_deg)
+            segment_angles_deg = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_radians_to_degrees)
             segment_R = pos_df.groupby('segment_idx')['Vp_rad'].agg(cls.circular_mean_scatteredness_R) # R = 1 → perfectly aligned, R → 0 → very scattered
 
             # Map back onto df
@@ -1152,6 +1190,72 @@ class PositionComputedDataMixin(PositionSlicedMixin):
         return aligned_df
 
 
+    ## Compute all meta function
+    @classmethod
+    def compute_all_missing_as_needed(cls, pos_df: pd.DataFrame,
+                            smooth_N: int = 20, non_smoothed_column_labels: Optional[List[str]] = None,
+                            linearization_method: str = 'isomap', linearization_kwargs: Optional[Dict[str, Any]] = None,
+                            approx_head_dir_N: int = 15, approx_head_dir_n_dir_angular_bins: int = 8,
+                            normal_dir_N: int = 15, normal_dir_x_column_name: str = 'x_smooth', normal_dir_time_column_name: str = 't', normal_dir_replace_existing: bool = False,
+                            segment_plot_result: bool = False, segment_disable_segmentation: bool = True, segment_min_signal_length: int = 4, segment_pen: float = 10.0, segment_n_dir_angular_bins: int = 8, segment_overwrite_existing: bool = True,
+                            xbin_edges=None, ybin_edges=None, active_computation_config=None, binned_position_debug_print: bool = False) -> pd.DataFrame:
+        """Compute all missing, computable position columns in dependency order.
+
+        Each step runs only when its output columns are absent and the inputs assumed by the
+        corresponding helper are available (spatial columns, quaternion columns, bin edges, etc.).
+
+        Usage:
+            pos_df: pd.DataFrame = pos_df.position.compute_all_missing_as_needed(pos_df)  # equivalent via mixin inheritance
+        """
+        pos_acc = pos_df.position
+        dim_columns: List[str] = pos_acc.dim_columns
+        ndim: int = pos_acc.ndim
+        derivative_column_labels: List[str] = ['dt'] + list(itertools.chain.from_iterable([cls._computed_column_component_labels(a_dim_label) for a_dim_label in dim_columns]))
+        if non_smoothed_column_labels is None:
+            non_smoothed_column_labels = (dim_columns + derivative_column_labels[1:])
+        smoothed_column_labels: List[str] = cls._smoothed_column_labels(non_smoothed_column_labels)
+        linearization_kwargs = linearization_kwargs or {}
+
+        def _any_columns_missing(column_labels: Sequence[str]) -> bool:
+            return any((a_col not in pos_acc.df.columns) for a_col in column_labels)
+
+        def _has_columns(column_labels: Sequence[str]) -> bool:
+            return np.all(np.isin(column_labels, pos_acc.df.columns))
+
+        if _any_columns_missing(derivative_column_labels):
+            pos_acc.compute_higher_order_derivatives()
+
+        if _any_columns_missing(smoothed_column_labels):
+            pos_acc.compute_smoothed_position_info(N=smooth_N, non_smoothed_column_labels=non_smoothed_column_labels)
+
+        speed_column_labels: List[str] = ['speed'] + (['speed_xy'] if ndim > 1 else [])
+        if _any_columns_missing(speed_column_labels):
+            pos_acc.compute_speed_info()
+
+        if (not pos_acc.has_linear_pos) and _has_columns(['x', 'y']):
+            pos_acc.compute_linearized_position(method=linearization_method, **linearization_kwargs)
+
+        approx_head_dir_column_labels: List[str] = ['approx_head_dir_degrees', 'head_dir_angle_binned']
+        if (ndim > 1) and _any_columns_missing(approx_head_dir_column_labels):
+            pos_acc.adding_approx_head_dir_columns(N=approx_head_dir_N, n_dir_angular_bins=approx_head_dir_n_dir_angular_bins)
+
+        normal_dir_column_labels: List[str] = ['normal_dir_unit_t', 'normal_dir_unit_x']
+        if _any_columns_missing(normal_dir_column_labels) and _has_columns([normal_dir_x_column_name, normal_dir_time_column_name]):
+            pos_acc.adding_hairy_curve_normal_dir_columns(N=normal_dir_N, x_column_name=normal_dir_x_column_name, time_column_name=normal_dir_time_column_name, replace_existing=normal_dir_replace_existing)
+
+        segment_column_labels: List[str] = ['segment_idx', 'Vp', 'segment_Vp_deg', 'segment_dir_angle_binned', 'segment_Vp_scatteredness']
+        if (ndim > 1) and (len(pos_acc.df) > 0) and _has_columns(['x', 'y', pos_acc.time_variable_name]) and _any_columns_missing(segment_column_labels):
+            pos_acc.adding_segmented_trajectories_columns(plot_result=segment_plot_result, disable_segmentation=segment_disable_segmentation, min_signal_length=segment_min_signal_length, pen=segment_pen, n_dir_angular_bins=segment_n_dir_angular_bins, overwrite_existing=segment_overwrite_existing)
+
+        if _has_columns(QuaternionHelpers.quaternion_col_names) and ('quat_head_dir_degrees' not in pos_acc.df.columns):
+            pos_acc.adding_quat_head_dir_degrees_columns()
+
+        binned_column_labels: List[str] = (['binned_x'] if ndim == 1 else ['binned_x', 'binned_y'])
+        has_binned_position_config: bool = (xbin_edges is not None) or (ybin_edges is not None) or (active_computation_config is not None)
+        if has_binned_position_config and _any_columns_missing(binned_column_labels):
+            pos_acc.adding_binned_position_columns(xbin_edges=xbin_edges, ybin_edges=ybin_edges, active_computation_config=active_computation_config, debug_print=binned_position_debug_print)
+
+        return pos_acc.df
 
 
 def adding_lap_info_to_position_df(position_df: pd.DataFrame, laps_df: pd.DataFrame, laps_df_lap_id_col_name:str='lap_id', debug_print:bool=False):

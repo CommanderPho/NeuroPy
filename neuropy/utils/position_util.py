@@ -29,13 +29,52 @@ class RegularizationApproach(Enum):
 
 
 @define(slots=False)
+class CircularRingLinearizationParams:
+    center_x: float
+    center_y: float
+    radius_cm: Optional[float] = None
+    gap_angle_start_rad: Optional[float] = None
+    gap_angle_end_rad: Optional[float] = None
+    arc_direction: str = 'ccw'
+    max_radius_deviation_cm: Optional[float] = None
+    output_range: Tuple[float, float] = (0.0, 1.0)
+    angle_origin_rad: float = 0.0
+
+
+    @classmethod
+    def _normalize_angles(cls, theta: np.ndarray) -> np.ndarray:
+        return np.arctan2(np.sin(theta), np.cos(theta))
+
+
+    @classmethod
+    def _angles_in_excluded_gap(cls, theta: np.ndarray, gap_start: float, gap_end: float) -> np.ndarray:
+        if gap_start <= gap_end:
+            return (theta >= gap_start) & (theta <= gap_end)
+        return (theta >= gap_start) | (theta <= gap_end)
+
+
+    @classmethod
+    def _ccw_angle_delta(cls, from_angle: float, to_angle: np.ndarray) -> np.ndarray:
+        return (to_angle - from_angle) % (2.0 * np.pi)
+
+
+    @classmethod
+    def _excluded_gap_span_rad(cls, gap_start: float, gap_end: float) -> float:
+        if gap_start <= gap_end:
+            return float(gap_end - gap_start)
+        return float((gap_end + 2.0 * np.pi) - gap_start)
+
+
+@define(slots=False)
 class ShapelyMaze:
     nodes: List[Tuple[float, float]] = field(default=Factory(list))
+    linearization_mode: str = 'linestring'
+    ring_params: Optional[CircularRingLinearizationParams] = None
     maze_track_line: LineString = field(default=None, init=False)
-    
+
     def __attrs_post_init__(self):
         self.maze_track_line = LineString(self.nodes)
-    
+
     def shapely_linearize_trajectory(self, df: pd.DataFrame):
         """
         Linearize trajectory points by projecting them onto a Shapely LineString.
@@ -47,20 +86,252 @@ class ShapelyMaze:
         Returns:
             pd.Series: Linearized positions (distance along the track_line).
         """
-        # Create Point objects from 'x' and 'y' columns
-        # Using .apply() with a lambda function for potentially better performance than a list comprehension on large DFs
         points = df.apply(lambda row: Point(row['x'], row['y']), axis=1)
-
-        # Project each point onto the LineString and get the distance along it
         linear_positions = [self.maze_track_line.project(p) for p in points]
         return pd.Series(linear_positions, index=df.index)
-    
+
+
+    def linearize_trajectory(self, df: pd.DataFrame) -> pd.Series:
+        if self.linearization_mode == 'angular_ring':
+            return self.angular_ring_linearize_trajectory(df)
+        return self.shapely_linearize_trajectory(df)
+
+
+    def angular_ring_linearize_trajectory(self, df: pd.DataFrame) -> pd.Series:
+        if self.ring_params is None:
+            raise ValueError("angular_ring linearization requires ring_params on ShapelyMaze.")
+        p = self.ring_params
+        x = df['x'].to_numpy(dtype=float)
+        y = df['y'].to_numpy(dtype=float)
+        finite_xy = np.isfinite(x) & np.isfinite(y)
+        theta = p._normalize_angles(np.arctan2(y - p.center_y, x - p.center_x))
+        has_gap = (p.gap_angle_start_rad is not None) or (p.gap_angle_end_rad is not None)
+        if has_gap:
+            if (p.gap_angle_start_rad is None) or (p.gap_angle_end_rad is None):
+                raise ValueError("angular_ring gap exclusion requires both gap_angle_start_rad and gap_angle_end_rad.")
+            in_gap = p._angles_in_excluded_gap(theta, p.gap_angle_start_rad, p.gap_angle_end_rad)
+            excluded_span = p._excluded_gap_span_rad(p.gap_angle_start_rad, p.gap_angle_end_rad)
+            valid_span = (2.0 * np.pi) - excluded_span
+            arc_origin = p.gap_angle_end_rad
+        else:
+            in_gap = np.zeros(len(df), dtype=bool)
+            valid_span = 2.0 * np.pi
+            arc_origin = p.angle_origin_rad
+        delta = p._ccw_angle_delta(arc_origin, theta)
+        if p.arc_direction.lower() != 'ccw':
+            delta = (valid_span - delta) % valid_span
+        lin = np.full(len(df), np.nan, dtype=float)
+        off_ring = np.zeros(len(df), dtype=bool)
+        if (p.radius_cm is not None) and (p.max_radius_deviation_cm is not None):
+            r = np.hypot(x - p.center_x, y - p.center_y)
+            off_ring = np.abs(r - p.radius_cm) > p.max_radius_deviation_cm
+        valid = finite_xy & (~in_gap) & (~off_ring) & (delta <= valid_span)
+        lo, hi = p.output_range
+        lin[valid] = lo + (delta[valid] / valid_span) * (hi - lo)
+        return pd.Series(lin, index=df.index)
+
+
+    def compute_on_track_mask(self, x: np.ndarray, y: np.ndarray, max_track_distance_cm: float) -> np.ndarray:
+        if self.linearization_mode == 'angular_ring' and self.ring_params is not None:
+            p = self.ring_params
+            finite_xy = np.isfinite(x) & np.isfinite(y)
+            theta = p._normalize_angles(np.arctan2(y - p.center_y, x - p.center_x))
+            on_track = finite_xy.copy()
+            has_gap = (p.gap_angle_start_rad is not None) or (p.gap_angle_end_rad is not None)
+            if has_gap:
+                if (p.gap_angle_start_rad is None) or (p.gap_angle_end_rad is None):
+                    raise ValueError("angular_ring gap exclusion requires both gap_angle_start_rad and gap_angle_end_rad.")
+                on_track &= ~p._angles_in_excluded_gap(theta, p.gap_angle_start_rad, p.gap_angle_end_rad)
+            if p.radius_cm is not None:
+                r = np.hypot(x - p.center_x, y - p.center_y)
+                on_track &= np.abs(r - p.radius_cm) <= max_track_distance_cm
+            return on_track
+        distances = np.array([self.maze_track_line.distance(Point(xi, yi)) for xi, yi in zip(x, y)])
+        return distances <= max_track_distance_cm
+
 
 @define(slots=False)
 class ShapelyMazeCollection:
     shapelyMazes: Dict[str, ShapelyMaze] = field(default=Factory(dict))
     valid_epochs: Dict[str, Tuple[float, float]] = field(default=Factory(dict))    
 
+
+# def resolve_shapely_valid_epochs(curr_active_pipeline, pos_df: pd.DataFrame, shapely_maze_collection: ShapelyMazeCollection, maze_epoch_keys: List[str], epochs_df: Optional[pd.DataFrame] = None, valid_epochs_override: Optional[Dict[str, Tuple[float, float]]] = None, min_position_samples: int = 100,
+#         min_epoch_duration_sec: float = 60.0, min_on_track_fraction: float = 0.3, max_track_distance_cm: float = 25.0, enable_position_occupancy_refinement: bool = True, debug_print: bool = True) -> Tuple[Dict[str, Tuple[float, float]], Dict[str, str]]:
+#     """Resolve per-maze time bounds for shapely linearization with tiered fallbacks.
+
+#     Priority per key: override -> session epochs -> occupancy refinement -> template fallback -> omit.
+#     Returns (valid_epochs, provenance) where provenance values are one of:
+#     'override', 'epochs', 'epochs_refined', 'occupancy', 'template_fallback', 'missing'.
+#     """
+
+#     def _subfn_extract_epoch_bounds_from_epochs_df(epochs_df: Optional[pd.DataFrame], label: str, start_col: str = 'start', stop_col: str = 'stop') -> Optional[Tuple[float, float]]:
+#         """Return (start, stop) for a single epoch label, or None if missing."""
+#         if epochs_df is None or len(epochs_df) == 0 or 'label' not in epochs_df.columns:
+#             return None
+#         label_rows = epochs_df[epochs_df['label'] == label]
+#         if len(label_rows) == 0:
+#             return None
+#         if len(label_rows) > 1:
+#             duration_col = 'duration' if 'duration' in label_rows.columns else None
+#             if duration_col is not None:
+#                 label_rows = label_rows.sort_values(by=duration_col, ascending=False)
+#             else:
+#                 label_rows = label_rows.copy()
+#                 label_rows['_duration'] = label_rows[stop_col].astype(float) - label_rows[start_col].astype(float)
+#                 label_rows = label_rows.sort_values(by='_duration', ascending=False)
+#             if debug_print:
+#                 print(f"resolve_shapely_valid_epochs: label {label!r} has {len(label_rows)} rows; using longest duration.")
+#         row = label_rows.iloc[0]
+#         return (float(row[start_col]), float(row[stop_col]))
+
+#     def _subfn_compute_on_track_mask(pos_df: pd.DataFrame, shapely_maze: ShapelyMaze) -> np.ndarray:
+#         """Boolean mask: True where sample is within max_track_distance_cm of the maze skeleton."""
+#         return shapely_maze.compute_on_track_mask(pos_df['x'].to_numpy(), pos_df['y'].to_numpy(), max_track_distance_cm)
+
+#     def _subfn_validate_shapely_epoch_bounds(pos_df: pd.DataFrame, shapely_maze: ShapelyMaze, t0: float, t1: float) -> bool:
+#         """Return True if epoch bounds contain enough on-track position samples."""
+#         if t1 <= t0:
+#             return False
+#         if (t1 - t0) < min_epoch_duration_sec:
+#             return False
+#         window_df = pos_df[(pos_df['t'] >= t0) & (pos_df['t'] <= t1)].dropna(subset=['x', 'y'], how='any')
+#         if len(window_df) < min_position_samples:
+#             return False
+#         on_track_mask = _subfn_compute_on_track_mask(window_df, shapely_maze)
+#         on_track_fraction = float(np.mean(on_track_mask)) if len(on_track_mask) > 0 else 0.0
+#         return on_track_fraction >= min_on_track_fraction
+
+#     def _subfn_infer_epoch_bounds_from_track_occupancy(pos_df: pd.DataFrame, shapely_maze: ShapelyMaze, search_t0: float, search_t1: float) -> Optional[Tuple[float, float]]:
+#         """Infer epoch bounds from the largest contiguous on-track occupancy segment within the search window."""
+#         min_segment_samples = min(min_position_samples, 50)
+#         min_segment_duration_sec = min(min_epoch_duration_sec, 30.0)
+#         if search_t1 <= search_t0:
+#             return None
+#         window_df = pos_df[(pos_df['t'] >= search_t0) & (pos_df['t'] <= search_t1)].dropna(subset=['x', 'y', 't'], how='any')
+#         if len(window_df) < min_segment_samples:
+#             return None
+#         window_df = window_df.sort_values('t').reset_index(drop=True)
+#         on_track_mask = _subfn_compute_on_track_mask(window_df, shapely_maze)
+#         if not np.any(on_track_mask):
+#             return None
+#         regions = contiguous_regions(on_track_mask)
+#         if len(regions) == 0:
+#             return None
+#         best_region = None
+#         best_n_samples = -1
+#         t_values = window_df['t'].to_numpy()
+#         for region in regions:
+#             start_idx, end_idx = int(region[0]), int(region[1])
+#             n_samples = end_idx - start_idx
+#             if n_samples < min_segment_samples:
+#                 continue
+#             t_start, t_end = float(t_values[start_idx]), float(t_values[end_idx - 1])
+#             if (t_end - t_start) < min_segment_duration_sec:
+#                 continue
+#             if n_samples > best_n_samples:
+#                 best_n_samples = n_samples
+#                 best_region = (t_start, t_end)
+#         return best_region
+
+#     # ==================================================================================================================================================================================================================================================================================== #
+#     # BEGIN FUNCTION BODY                                                                                                                                                                                                                                                                  #
+#     # ==================================================================================================================================================================================================================================================================================== #
+#     valid_epochs_override = valid_epochs_override or {}
+#     template_valid_epochs = shapely_maze_collection.valid_epochs or {}
+#     resolved_valid_epochs: Dict[str, Tuple[float, float]] = {}
+#     provenance: Dict[str, str] = {}
+
+
+#     # ==================================================================================================================================================================================================================================================================================== #
+#     # BEGIN FUNCTION BODY                                                                                                                                                                                                                                                                  #
+#     # ==================================================================================================================================================================================================================================================================================== #
+#     epochs_determined_by_sess_pos_df_dict = {k:(curr_active_pipeline.filtered_sessions[k].position.to_dataframe().dropna(subset=['x', 'y', 't'], how='any', inplace=False)['t'].min(), curr_active_pipeline.filtered_sessions[k].position.to_dataframe().dropna(subset=['x', 'y', 't'], how='any', inplace=False)['t'].max()) for k in maze_epoch_keys}
+#     resolved_valid_epochs: Dict[str, Tuple[float, float]] = epochs_determined_by_sess_pos_df_dict
+
+#     # pos_df = pos_df.dropna(subset=['x', 'y', 't'], how='any')
+#     # if len(pos_df) == 0:
+#     #     if debug_print:
+#     #         print("resolve_shapely_valid_epochs: empty position dataframe; no bounds resolved.")
+#     #     return resolved_valid_epochs, provenance
+#     # session_t_min, session_t_max = float(pos_df['t'].min()), float(pos_df['t'].max())
+#     # maze_keys = [k for k in maze_epoch_keys if k in shapely_maze_collection.shapelyMazes]
+#     # missing_geometry_keys = set(maze_epoch_keys) - set(maze_keys)
+#     # if missing_geometry_keys and debug_print:
+#     #     print(f"resolve_shapely_valid_epochs: no shapely geometry for keys {sorted(missing_geometry_keys)}; skipping.")
+#     # prior_maze_stop: Optional[float] = None
+
+#     # for maze_key in maze_keys:
+#     #     shapely_maze = shapely_maze_collection.shapelyMazes[maze_key]
+#     #     bounds: Optional[Tuple[float, float]] = None
+#     #     source: str = 'missing'
+#     #     if maze_key in valid_epochs_override:
+#     #         bounds = (float(valid_epochs_override[maze_key][0]), float(valid_epochs_override[maze_key][1]))
+#     #         source = 'override'
+#     #     epoch_bounds = _subfn_extract_epoch_bounds_from_epochs_df(epochs_df=epochs_df, label=maze_key)
+#     #     search_t0 = epoch_bounds[0] if epoch_bounds is not None else session_t_min
+#     #     search_t1 = epoch_bounds[1] if epoch_bounds is not None else session_t_max
+#     #     if prior_maze_stop is not None:
+#     #         search_t0 = max(search_t0, prior_maze_stop)
+#     #     if bounds is None and epoch_bounds is not None:
+#     #         t0, t1 = epoch_bounds
+#     #         if prior_maze_stop is not None:
+#     #             t0 = max(t0, prior_maze_stop)
+#     #         if _subfn_validate_shapely_epoch_bounds(pos_df, shapely_maze, t0, t1):
+#     #             bounds = (t0, t1)
+#     #             source = 'epochs'
+#     #         elif enable_position_occupancy_refinement:
+#     #             occupancy_bounds = _subfn_infer_epoch_bounds_from_track_occupancy(pos_df, shapely_maze, search_t0=max(t0, search_t0), search_t1=t1)
+#     #             if occupancy_bounds is not None and _subfn_validate_shapely_epoch_bounds(pos_df, shapely_maze, occupancy_bounds[0], occupancy_bounds[1]):
+#     #                 bounds = occupancy_bounds
+#     #                 source = 'epochs_refined'
+#     #     if bounds is None and enable_position_occupancy_refinement:
+#     #         occupancy_bounds = _subfn_infer_epoch_bounds_from_track_occupancy(pos_df, shapely_maze, search_t0=search_t0, search_t1=search_t1)
+#     #         if occupancy_bounds is not None and _subfn_validate_shapely_epoch_bounds(pos_df, shapely_maze, occupancy_bounds[0], occupancy_bounds[1]):
+#     #             bounds = occupancy_bounds
+#     #             source = 'occupancy'
+#     #     if bounds is None and epoch_bounds is not None:
+#     #         # A session's own epoch-label bounds are more trustworthy than another session's hardcoded template times, even when on-track geometry validation is weak (e.g. RatU/RatJ reusing RatK/RatS maze geometry whose LineString does not match this session's track). Use them (unvalidated) before falling back to the cross-session template times.
+#     #         t0, t1 = epoch_bounds
+#     #         if prior_maze_stop is not None:
+#     #             t0 = max(t0, prior_maze_stop)
+#     #         if t1 > t0:
+#     #             bounds = (t0, t1)
+#     #             source = 'epochs_unvalidated'
+#     #             if debug_print:
+#     #                 print(f"resolve_shapely_valid_epochs: {maze_key} using session epoch bounds {bounds} (unvalidated; geometry validation failed but preferred over cross-session template fallback).")
+#     #     if bounds is None and maze_key in template_valid_epochs:
+#     #         template_bounds = (float(template_valid_epochs[maze_key][0]), float(template_valid_epochs[maze_key][1]))
+#     #         t0, t1 = template_bounds
+#     #         if prior_maze_stop is not None:
+#     #             t0 = max(t0, prior_maze_stop)
+#     #         if _subfn_validate_shapely_epoch_bounds(pos_df, shapely_maze, t0, t1):
+#     #             bounds = (t0, t1)
+#     #             source = 'template_fallback'
+#     #     if bounds is not None:
+#     #         resolved_valid_epochs[maze_key] = bounds
+#     #         provenance[maze_key] = source
+#     #         prior_maze_stop = bounds[1]
+#     #         if debug_print:
+#     #             print(f"resolve_shapely_valid_epochs: {maze_key} -> {bounds} (source={source})")
+#     #     else:
+#     #         provenance[maze_key] = 'missing'
+#     #         if debug_print:
+#     #             print(f"resolve_shapely_valid_epochs: {maze_key} -> MISSING (all tiers failed)")
+#     return resolved_valid_epochs, provenance
+
+
+def build_shapely_maze_collection_for_session(curr_active_pipeline, pos_df: pd.DataFrame, geometry_template: ShapelyMazeCollection, maze_epoch_keys: List[str], epochs_df: Optional[pd.DataFrame] = None, valid_epochs_override: Optional[Dict[str, Tuple[float, float]]] = None, min_position_samples: int = 100, min_epoch_duration_sec: float = 60.0, min_on_track_fraction: float = 0.3, max_track_distance_cm: float = 25.0, enable_position_occupancy_refinement: bool = True, debug_print: bool = True) -> ShapelyMazeCollection:
+    """Build a session-specific ShapelyMazeCollection: geometry from template, valid_epochs resolved dynamically."""
+    #TODO 2026-06-23 07:47: - [ ] Made much simplier
+    assert curr_active_pipeline is not None
+    # epochs_df[epochs_df['label'] == k]
+    epochs_determined_by_sess_pos_df_dict = {k:(epochs_df[epochs_df['label'] == k]['start'].min(), epochs_df[epochs_df['label'] == k]['stop'].max()) for k in maze_epoch_keys}
+    # epochs_determined_by_sess_pos_df_dict = {k:(curr_active_pipeline.filtered_sessions[k].position.to_dataframe().dropna(subset=['x', 'y', 't'], how='any', inplace=False)['t'].min(), curr_active_pipeline.filtered_sessions[k].position.to_dataframe().dropna(subset=['x', 'y', 't'], how='any', inplace=False)['t'].max()) for k in maze_epoch_keys}
+    resolved_valid_epochs: Dict[str, Tuple[float, float]] = epochs_determined_by_sess_pos_df_dict
+
+    # resolved_valid_epochs, provenance = resolve_shapely_valid_epochs(curr_active_pipeline, pos_df=pos_df, shapely_maze_collection=geometry_template, maze_epoch_keys=maze_epoch_keys, epochs_df=epochs_df, valid_epochs_override=valid_epochs_override, min_position_samples=min_position_samples, min_epoch_duration_sec=min_epoch_duration_sec, min_on_track_fraction=min_on_track_fraction, max_track_distance_cm=max_track_distance_cm, enable_position_occupancy_refinement=enable_position_occupancy_refinement, debug_print=debug_print)
+    return ShapelyMazeCollection(shapelyMazes=deepcopy(geometry_template.shapelyMazes), valid_epochs=resolved_valid_epochs)
 
 
 def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", sigma=2, override_position_sampling_rate_Hz=None, regularization_approach:RegularizationApproach=RegularizationApproach.RAW_VALUES,
@@ -175,7 +446,7 @@ def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", s
             else:
                 # Compute linearization on-the-fly using the ShapelyMaze
                 track_pos_df = pos_df.loc[time_mask, ['x', 'y']]
-                linearized_values = shapely_maze.shapely_linearize_trajectory(track_pos_df)
+                linearized_values = shapely_maze.linearize_trajectory(track_pos_df)
                 piecewise_lin_pos.loc[time_mask] = linearized_values.values
 
         xlinear = piecewise_lin_pos.to_numpy()

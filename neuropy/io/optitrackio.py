@@ -625,16 +625,10 @@ class OptitrackIO:
         # ------- deleting intervals that were deleted from .dat file after concatenating
         ndeletedintervals = metadata.count()["deletedStart (minutes)"]
         for i in range(ndeletedintervals):
-            tnoisy_begin = data_time[0] + pd.Timedelta(
-                metadata["deletedStart (minutes)"][i], unit="m"
-            )
-            tnoisy_end = data_time[0] + pd.Timedelta(
-                metadata["deletedEnd (minutes)"][i], unit="m"
-            )
+            tnoisy_begin = data_time[0] + pd.Timedelta(metadata["deletedStart (minutes)"][i], unit="m")
+            tnoisy_end = data_time[0] + pd.Timedelta(metadata["deletedEnd (minutes)"][i], unit="m")
 
-            del_index = np.where((data_time > tnoisy_begin) & (data_time < tnoisy_end))[
-                0
-            ]
+            del_index = np.where((data_time > tnoisy_begin) & (data_time < tnoisy_end))[0]
 
             data_time = np.delete(data_time, del_index)
 

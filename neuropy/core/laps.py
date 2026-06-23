@@ -380,14 +380,30 @@ class LapsAccessor(EpochsAccessor):
         lap_only_pos_df['lap_dir'] = lap_only_pos_df['lap'].map(lambda a_lap: active_fn(lap_dir_2D_dict.get(a_lap, 0)))
         lap_only_pos_df = lap_only_pos_df.convert_dtypes({'lap_dir': int})
 
-        # sess.position.df['lap_dir'] = sess.position.df['lap'].map(lambda a_lap: lap_dir_2D_dict.get(int(a_lap), np.nan))
-        sess.position.df['lap_dir_2D'] = sess.position.df['lap'].map(lambda a_lap: active_fn(lap_dir_2D_dict.get(a_lap, 0)))
-        sess.position.df['lap_dir_1D'] = sess.position.df['lap'].map(lambda a_lap: active_fn(lap_dir_1D_dict.get(a_lap, 0)))
-        sess.position.df['lap_dir'] = sess.position.df['lap_dir_1D'].copy()
+        # # sess.position.df['lap_dir'] = sess.position.df['lap'].map(lambda a_lap: lap_dir_2D_dict.get(int(a_lap), np.nan))
+        # sess.position.df['lap_dir_2D'] = sess.position.df['lap'].map(lambda a_lap: active_fn(lap_dir_2D_dict.get(a_lap, 0))) ## slow?
+        # sess.position.df['lap_dir_1D'] = sess.position.df['lap'].map(lambda a_lap: active_fn(lap_dir_1D_dict.get(a_lap, 0)))
+        # sess.position.df['lap_dir'] = sess.position.df['lap_dir_1D'].copy()
+
+        default_lap_dir = active_fn(0)
+        # lap_dir_1D_dict = {k: active_fn(v) for k, v in lap_dir_1D_dict.items()}
+        # lap_dir_2D_dict = {k: active_fn(v) for k, v in lap_dir_2D_dict.items()}
+        # sess.position.df['lap_dir_2D_test'] = sess.position.df['lap'].map(lap_dir_2D_dict).fillna(default_lap_dir)
+        # sess.position.df['lap_dir_1D_test'] = sess.position.df['lap'].map(lap_dir_1D_dict).fillna(default_lap_dir)
+        # sess.position.df['lap_dir_test'] = sess.position.df['lap_dir_1D'].copy()
+
+        # _compare = lambda a, b: ((a == b) | (a.isna() & b.isna())).all()
+        # np.allclose(sess.position.df['lap_dir_2D_test'], sess.position.df['lap_dir_2D'])
+        # np.allclose(sess.position.df['lap_dir_1D_test'], sess.position.df['lap_dir_1D'])
+        # np.allclose(sess.position.df['lap_dir'], sess.position.df['lap_dir_test']) ((sess.position.df['lap_dir'] == sess.position.df['lap_dir_test']) | (sess.position.df['lap_dir'].isna() & sess.position.df['lap_dir_test'].isna())).all()
+
         # sess.position.df = sess.position.df.convert_dtypes({'lap_dir_1D': int, 'lap_dir_2D': int, 'lap_dir': int})
         lap_dir_1D_dict = {k:active_fn(v) for k, v in lap_dir_1D_dict.items()}
         lap_dir_2D_dict = {k:active_fn(v) for k, v in lap_dir_2D_dict.items()}
-        
+        sess.position.df['lap_dir_2D'] = sess.position.df['lap'].map(lap_dir_2D_dict).fillna(default_lap_dir)
+        sess.position.df['lap_dir_1D'] = sess.position.df['lap'].map(lap_dir_1D_dict).fillna(default_lap_dir)
+        sess.position.df['lap_dir'] = sess.position.df['lap_dir_1D'].copy()
+
 
         ## Update the laps_df: ['lap_dir', 'is_LR_dir'] columns:
         bak_lap_dir_col_dict = {'lap_dir': '_bak_lap_dir', 'is_LR_dir': '_bak_is_LR_dir'}
