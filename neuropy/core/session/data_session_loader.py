@@ -1,7 +1,8 @@
 from pathlib import Path
-from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass
-from neuropy.core.session.Formats.Specific.KDibaOldDataSessionFormat import KDibaOldDataSessionFormatRegisteredClass
-from neuropy.core.session.Formats.Specific.RachelDataSessionFormat import RachelDataSessionFormat
+# from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass
+# from neuropy.core.session.Formats.Specific.KDibaOldDataSessionFormat import KDibaOldDataSessionFormatRegisteredClass
+# from neuropy.core.session.Formats.Specific.RachelDataSessionFormat import RachelDataSessionFormat
+# from neuropy.core.session.Formats.Specific.NWBDataSessionFormat import NWBDataSessionFormatRegisteredClass
     
 
 class DataSessionLoader:
@@ -23,6 +24,8 @@ class DataSessionLoader:
     # KDiba Old Format:
     @staticmethod
     def bapun_data_session(basedir=r'R:\data\Bapun\Day5TwoNovel', override_parameters_flat_keypaths_dict=None):
+        from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass
+
         _test_session = BapunDataSessionFormatRegisteredClass.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
         _test_session, loaded_file_record_list = BapunDataSessionFormatRegisteredClass.load_session(_test_session)
         return _test_session
@@ -30,6 +33,8 @@ class DataSessionLoader:
     # KDiba Old Format:
     @staticmethod
     def kdiba_old_format_session(basedir=r'R:\data\KDIBA\gor01\one\2006-6-07_11-26-53', override_parameters_flat_keypaths_dict=None):
+        from neuropy.core.session.Formats.Specific.KDibaOldDataSessionFormat import KDibaOldDataSessionFormatRegisteredClass
+
         _test_session = KDibaOldDataSessionFormatRegisteredClass.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
         _test_session, loaded_file_record_list = KDibaOldDataSessionFormatRegisteredClass.load_session(_test_session)
         return _test_session
@@ -39,8 +44,20 @@ class DataSessionLoader:
     # RachelFormat:
     @staticmethod
     def rachel_format_session(basedir=r'R:\data\Rachel\merged_M1_20211123_raw_phy', override_parameters_flat_keypaths_dict=None):
+        from neuropy.core.session.Formats.Specific.RachelDataSessionFormat import RachelDataSessionFormat
+
         _test_session = RachelDataSessionFormat.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
         _test_session, loaded_file_record_list = RachelDataSessionFormat.load_session(_test_session)
+        return _test_session
+
+
+    # DANDI NWB Format:
+    @staticmethod
+    def dandi_nwb_session(basedir=r'/media/halechr/BETAMAX1/Data/CRCNS/download/000978/sub-JDS-SingleDay-ER1', override_parameters_flat_keypaths_dict=None):
+        from neuropy.core.session.Formats.Specific.NWBDataSessionFormat import NWBDataSessionFormatRegisteredClass
+
+        _test_session = NWBDataSessionFormatRegisteredClass.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
+        _test_session, loaded_file_record_list = NWBDataSessionFormatRegisteredClass.load_session(_test_session)
         return _test_session
        
 
