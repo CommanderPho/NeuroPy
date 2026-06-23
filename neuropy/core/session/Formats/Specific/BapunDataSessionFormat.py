@@ -97,8 +97,10 @@ RatJ_Day3TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollecti
         nodes=[(149.84, 64.67), (187.69, -154.38), (111.17, 102.19), (-205.84, 116.18)],
         linearization_mode='angular_ring',
         ring_params=CircularRingLinearizationParams(
-            center_x=-34.0, center_y=-76.0, radius_cm=235.0,
-            gap_angle_start_rad=np.deg2rad(-25), gap_angle_end_rad=np.deg2rad(25),
+            # center_x=-34.0, center_y=-76.0, radius_cm=235.0,
+            # gap_angle_start_rad=np.deg2rad(-25), gap_angle_end_rad=np.deg2rad(25),
+            center_x=-30.0, center_y=-155.0, radius_cm=300.0,
+            gap_angle_start_rad=np.deg2rad(-5), gap_angle_end_rad=np.deg2rad(5),
             arc_direction='ccw', output_range=(0.0, 1.0),
         ),
     ),
