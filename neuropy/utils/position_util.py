@@ -306,7 +306,9 @@ def build_shapely_maze_collection_for_session(curr_active_pipeline, pos_df: pd.D
     """Build a session-specific ShapelyMazeCollection: geometry from template, valid_epochs resolved dynamically."""
     #TODO 2026-06-23 07:47: - [ ] Made much simplier
     assert curr_active_pipeline is not None
-    epochs_determined_by_sess_pos_df_dict = {k:(curr_active_pipeline.filtered_sessions[k].position.to_dataframe().dropna(subset=['x', 'y', 't'], how='any', inplace=False)['t'].min(), curr_active_pipeline.filtered_sessions[k].position.to_dataframe().dropna(subset=['x', 'y', 't'], how='any', inplace=False)['t'].max()) for k in maze_epoch_keys}
+    # epochs_df[epochs_df['label'] == k]
+    epochs_determined_by_sess_pos_df_dict = {k:(epochs_df[epochs_df['label'] == k]['start'].min(), epochs_df[epochs_df['label'] == k]['stop'].max()) for k in maze_epoch_keys}
+    # epochs_determined_by_sess_pos_df_dict = {k:(curr_active_pipeline.filtered_sessions[k].position.to_dataframe().dropna(subset=['x', 'y', 't'], how='any', inplace=False)['t'].min(), curr_active_pipeline.filtered_sessions[k].position.to_dataframe().dropna(subset=['x', 'y', 't'], how='any', inplace=False)['t'].max()) for k in maze_epoch_keys}
     resolved_valid_epochs: Dict[str, Tuple[float, float]] = epochs_determined_by_sess_pos_df_dict
 
     # resolved_valid_epochs, provenance = resolve_shapely_valid_epochs(curr_active_pipeline, pos_df=pos_df, shapely_maze_collection=geometry_template, maze_epoch_keys=maze_epoch_keys, epochs_df=epochs_df, valid_epochs_override=valid_epochs_override, min_position_samples=min_position_samples, min_epoch_duration_sec=min_epoch_duration_sec, min_on_track_fraction=min_on_track_fraction, max_track_distance_cm=max_track_distance_cm, enable_position_occupancy_refinement=enable_position_occupancy_refinement, debug_print=debug_print)

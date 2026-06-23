@@ -99,7 +99,7 @@ RatJ_Day3TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollecti
         ring_params=CircularRingLinearizationParams(
             # center_x=-34.0, center_y=-76.0, radius_cm=235.0,
             # gap_angle_start_rad=np.deg2rad(-25), gap_angle_end_rad=np.deg2rad(25),
-            center_x=-30.0, center_y=-155.0, radius_cm=300.0,
+            center_x=-30.0, center_y=-155.0, radius_cm=3000.0, # radius_cm=300.0,
             gap_angle_start_rad=np.deg2rad(-5), gap_angle_end_rad=np.deg2rad(5),
             arc_direction='ccw', output_range=(0.0, 1.0),
         ),
@@ -498,6 +498,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                                                 # custom_lap_estimation_fn=lambda session: cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=_subfn_rat_U_Day5OpenfieldSD_reward_zones(session=session)), 
                                                 use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='shapely', all_session_mazes=RatJ_Day3TwoNovel_all_session_mazes),
+                # linearization_parameters=dict(method='umap', all_session_mazes=RatJ_Day3TwoNovel_all_session_mazes),
             ),
 
             IdentifyingContext(format_name= 'bapun', animal= 'RatK', session_name= 'Day3TwoNovel'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
