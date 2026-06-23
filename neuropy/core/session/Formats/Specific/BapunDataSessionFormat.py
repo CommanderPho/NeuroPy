@@ -97,8 +97,8 @@ RatJ_Day3TwoNovel_all_session_mazes: ShapelyMazeCollection = ShapelyMazeCollecti
         nodes=[(149.84, 64.67), (187.69, -154.38), (111.17, 102.19), (-205.84, 116.18)],
         linearization_mode='angular_ring',
         ring_params=CircularRingLinearizationParams(center_x=-30.0, center_y=-155.0, 
-                        gap_angle_start_rad=np.deg2rad(12.819094165243769), gap_angle_end_rad=np.deg2rad(-6.931461536714713),
-                        arc_direction='ccw', output_range=(0.0, 1.0)),
+                        gap_angle_start_rad=np.deg2rad(-6), gap_angle_end_rad=np.deg2rad(4), arc_direction='ccw', ## PERFECT nearly perfect (gap_angle_start_rad: -6, gap_angle_start_rad: 4)
+                        output_range=(0.0, 1.0)),
     ),
 },
     valid_epochs = {'maze1': (8950.11800747698, 12441.993530592174), 'maze2': (23253.12015019876, 26010.99556335396)}, # fallback only (RatK Day3TwoNovel reference); resolved per-session at linearization time - 'maze_GLOBAL': (0.0, 42305.0), 
