@@ -582,19 +582,20 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         """
         pos_df: pd.DataFrame = session.position.df.copy()
 
-        y_ptp: float = np.ptp(pos_df['y'].to_numpy())
-        z_ptp: float = np.ptp(pos_df['z'].to_numpy())
-        needs_variable_swap: bool = (z_ptp > y_ptp)
+        if 'z' in pos_df.columns:
+            y_ptp: float = np.ptp(pos_df['y'].to_numpy())
+            z_ptp: float = np.ptp(pos_df['z'].to_numpy())
+            needs_variable_swap: bool = (z_ptp > y_ptp)
 
-        if needs_variable_swap:
-            ## swap 'y' and 'z' columns
-            pos_df = pos_df.rename(columns={'y': 'z', 'z':'y'}, inplace=False)
-            session.position.df = pos_df ## assignment okay or need private member?
-            # session.position._df = pos_df ## assignment okay or need private member?
+            if needs_variable_swap:
+                ## swap 'y' and 'z' columns
+                pos_df = pos_df.rename(columns={'y': 'z', 'z':'y'}, inplace=False)
+                session.position.df = pos_df ## assignment okay or need private member?
+                # session.position._df = pos_df ## assignment okay or need private member?
 
-            ## perform save differences to file if possible
-            session.position.filename = session.filePrefix.with_suffix('.position.npy')
-            session.position.save()
+                ## perform save differences to file if possible
+                session.position.filename = session.filePrefix.with_suffix('.position.npy')
+                session.position.save()
 
         return session
 
