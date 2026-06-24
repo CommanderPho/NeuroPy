@@ -12,6 +12,7 @@ from neuropy.core.session.dataSession import DataSession
 from neuropy.utils.dynamic_container import DynamicContainer
 from neuropy.utils.mixins.gettable_mixin import KeypathsAccessibleMixin
 from neuropy.utils.result_context import IdentifyingContext
+from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
 
 
 class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
@@ -25,6 +26,14 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     - Loaded units default to pyramidal neuron type.
     - ProbeGroup, LFP, MUA, ripple, laps, and replay loading are not implemented.
     - W-track linearization may fail without manual track configuration.
+
+    pos_df = curr_active_pipeline.sess.position.to_dataframe()
+    ((pos_df['x'].min(), pos_df['x'].max()), pos_df['y'].min(), pos_df['y'].max()) # ((41.37033775405482, 157.72257208195566), (9.76773097884994, 122.8597412183469))
+
+    maze_only_epochs = epochs_df[epochs_df['behavior'] == 'maze']['label'].tolist() # ['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8']
+    maze_only_epochs
+
+
     """
 
     _session_class_name = "dandi_nwb"
@@ -48,6 +57,53 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     def get_session_name(cls, basedir) -> str:
         subject = cls._parse_subject_from_basedir(basedir)
         return f"{subject}_SingleDay"
+
+
+
+    @classmethod
+    def _get_session_specific_parameters(cls, session_context: IdentifyingContext) -> HardcodedProcessingParameters:
+        """ session-specific type parameters 
+         
+        #TODO 2025-09-20 19:26: - [ ] Is this redudndant with preprocessing parameters?
+        """
+        
+        maze_grid_bin_bounds = (((41.37033775405482, 157.72257208195566), (9.76773097884994, 122.8597412183469)))
+        # Custom Lap Building Functions ______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
+
+        # def _subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones(session):
+        #     """ captures: cls, _subfn_rat_U_Day5OpenfieldSD_reward_zones """
+        #     bapun_OpenField_reward_zones = _subfn_rat_U_Day5OpenfieldSD_reward_zones(session=session)
+        #     return cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=bapun_OpenField_reward_zones)
+
+        # lambda session: cls.build_Bapun_OpenField_laps_from_reward_zones(session=session, bapun_OpenField_reward_zones=_subfn_rat_U_Day5OpenfieldSD_reward_zones(session=session))
+
+        the_dict: Dict[IdentifyingContext, HardcodedProcessingParameters]  = { #  
+            # W MAze _________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
+            IdentifyingContext(format_name= 'dandi_nwb', animal= 'ER1', exper_name= '000978', session_name= 'SingleDay'): HardcodedProcessingParameters( # format_name='DANDI', exper_name='SingleDayWTrackLearning', animal='ER1', dandi_id='000978', session_name='sub-JDS-SingleDay-ER1'
+                decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8'],
+                grid_bin_bounds=maze_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
+            ),
+            
+
+            ## Fallback defaults:
+            IdentifyingContext(format_name= 'dandi_nwb'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8'],
+                grid_bin_bounds=maze_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0,),
+                linearization_parameters=dict(method='umap', all_session_mazes=None),
+            ),									
+        }
+
+        best_match = IdentifyingContext.matching(the_dict, criteria=session_context.get_subset(subset_includelist=cls._session_basepath_to_context_parsing_keys).to_dict())
+        return list(best_match.values())[0] ## return the first match
+
+
+
 
 
     @classmethod
