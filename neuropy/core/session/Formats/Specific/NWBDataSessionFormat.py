@@ -214,8 +214,10 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
         epochs_df = nwbf.intervals["epoch intervals"].to_dataframe().reset_index(drop=True)
         if epoch_label_mode != "alternating_run_sleep":
             raise ValueError(f"Unsupported epoch_label_mode: {epoch_label_mode!r}")
-        labels = np.array(["run" if i % 2 == 0 else "sleep" for i in range(len(epochs_df))], dtype=str)
-        return Epoch(pd.DataFrame({"start": epochs_df["start_time"].values - t0, "stop": epochs_df["stop_time"].values - t0, "label": labels}))
+        # labels = np.array(["run" if i % 2 == 0 else "sleep" for i in range(len(epochs_df))], dtype=str)
+        labels = np.array([f"maze{int(i/2)}" if i % 2 == 0 else f"sleep{int(i/2)}" for i in range(len(epochs_df))], dtype=str)
+        epoch_types = ['maze' if 'maze' in k else 'sleep' for k in labels]
+        return Epoch(pd.DataFrame({"start": epochs_df["start_time"].values - t0, "stop": epochs_df["stop_time"].values - t0, "label": labels, 'behavior': epoch_types}))
 
 
     @classmethod
