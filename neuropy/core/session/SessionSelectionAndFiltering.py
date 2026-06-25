@@ -19,6 +19,22 @@ from neuropy.core.session.dataSession import DataSession
 
 
 
+def _get_single_column(df, column_name):
+    """Return a Series even when stale cached data has duplicate column labels."""
+    a_col = df.loc[:, column_name]
+    if hasattr(a_col, 'iloc') and len(getattr(a_col, 'shape', [])) == 2:
+        a_col = a_col.iloc[:, 0]
+    return a_col
+
+
+def _is_pyramidal_neuron_type(neuron_type_value) -> bool:
+    if isinstance(neuron_type_value, NeuronType):
+        return neuron_type_value == NeuronType.PYRAMIDAL
+    if hasattr(neuron_type_value, 'shortClassName'):
+        return neuron_type_value.shortClassName == NeuronType.PYRAMIDAL.shortClassName
+    return str(neuron_type_value).lower() in {'pyr', 'pyramidal', 'pyra', 'pyramid'}
+
+
 """ See sess.laps.as_epoch_obj()
 lap_specific_epochs = sess.laps.as_epoch_obj()
 any_lap_specific_epochs = lap_specific_epochs.label_slice(lap_specific_epochs.labels[np.arange(len(sess.laps.lap_id))])
@@ -122,10 +138,13 @@ def batch_filter_session(sess, position, spikes_df, epochs, debug_print=False):
     # Filter by multiple conditions:
     # Perform general pre-filtering for neuron type and constraining between the ranges:
     # included_neuron_type = 'pyramidal'
-    included_neuron_type = NeuronType.PYRAMIDAL
-    filtered_spikes_df = spk_df.query(
-        "@epochs.t_start <= `t_seconds` <= @epochs.t_stop and `neuron_type` == @included_neuron_type"
-    )  # 272 ms, 393 ms, Wall time: 183 ms
+    spike_times = _get_single_column(spk_df, 't_seconds')
+    if 'neuron_type' in spk_df.columns:
+        neuron_type_mask = np.array([_is_pyramidal_neuron_type(a_neuron_type) for a_neuron_type in _get_single_column(spk_df, 'neuron_type').to_numpy()], dtype=bool)
+    else:
+        neuron_type_mask = np.ones(len(spk_df), dtype=bool)
+    time_mask = ((epochs.t_start <= spike_times) & (spike_times <= epochs.t_stop)).to_numpy()
+    filtered_spikes_df = spk_df.loc[(time_mask & neuron_type_mask), :].copy()  # 272 ms, 393 ms, Wall time: 183 ms
     # filtered_spikes_df = spk_df.query("@epochs.t_start <= `t_seconds` <= @epochs.t_stop and `aclu` in @filtered_spikes_df.spikes.neuron_ids") # 272 ms, 393 ms, Wall time: 183 ms
     # filtered_spikes_df = spk_df.query("@epochs.t_start <= `t_seconds` <= @epochs.t_stop and `aclu` in @spk_df.spikes.neuron_ids and `neuron_type` == @included_neuron_type" ) # 272 ms, 393 ms, Wall time: 183 ms
     # filtered_spikes_df = spk_df.query("@epochs.t_start <= `t_seconds` <= @epochs.t_stop and `aclu` in @filtered_spikes_df.spikes.neuron_ids and `neuron_type` == @included_neuron_type" ) # 272 ms, 393 ms, Wall time: 183 ms
@@ -136,7 +155,7 @@ def batch_filter_session(sess, position, spikes_df, epochs, debug_print=False):
     filtered_pos_df = pos_df.position.time_sliced(epochs.starts, epochs.stops)  # 27.6 ms ± 2.08 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
 
     # TODO: need to filter the sess.pbe by the epochs as well. sess.pbe is an Epoch type object
-    filtered_pbe = sess.pbe.time_slice(epochs.starts[0], epochs.stops[-1]) # TODO: do I need to copy this object?
+    filtered_pbe = sess.pbe.time_slice(epochs.starts[0], epochs.stops[-1]) if sess.pbe is not None else None # TODO: do I need to copy this object?
     
     # .time_sliced(
     #     epochs.starts, epochs.stops

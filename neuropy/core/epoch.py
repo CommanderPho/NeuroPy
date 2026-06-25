@@ -1821,8 +1821,13 @@ epochs_df
             else:
                 last_included_epoch_name = self.get_unique_labels()[-1]
         
-        maze_epochs_df =  pd.DataFrame({'start': [*self.starts, self._obj.iloc[(self.labels == first_included_epoch_name)]['start'].tolist()[0]], 
-                                        'stop': [*self.stops, self._obj.iloc[(self.labels == last_included_epoch_name)]['stop'].tolist()[0]],
+        first_matches = self._obj.iloc[(self.labels == first_included_epoch_name)]
+        last_matches = self._obj.iloc[(self.labels == last_included_epoch_name)]
+        if len(first_matches) < 1 or len(last_matches) < 1:
+            raise ValueError(f"Cannot add global epoch {global_epoch_name!r}: missing first/last included labels. first_included_epoch_name={first_included_epoch_name!r}, last_included_epoch_name={last_included_epoch_name!r}, actual_labels={all_epoch_names}")
+
+        maze_epochs_df =  pd.DataFrame({'start': [*self.starts, first_matches['start'].tolist()[0]], 
+                                        'stop': [*self.stops, last_matches['stop'].tolist()[0]],
         # 'stop': [*self.stops, self._obj[self.labels == last_included_epoch_name][1]],
         'label': [*self.labels, global_epoch_name],
         }) # .epochs.get_valid_df()    

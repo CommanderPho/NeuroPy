@@ -1,4 +1,6 @@
+from copy import deepcopy
 from pathlib import Path
+from typing import Dict, Optional
 import warnings
 
 import numpy as np
@@ -80,7 +82,7 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
         the_dict: Dict[IdentifyingContext, HardcodedProcessingParameters]  = { #  
             # W MAze _________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
             IdentifyingContext(format_name= 'dandi_nwb', animal= 'ER1', exper_name= '000978', session_name= 'SingleDay'): HardcodedProcessingParameters( # format_name='DANDI', exper_name='SingleDayWTrackLearning', animal='ER1', dandi_id='000978', session_name='sub-JDS-SingleDay-ER1'
-                decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8'],
+                decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8'],
                 grid_bin_bounds=maze_grid_bin_bounds,
@@ -90,7 +92,7 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
             
 
             ## Fallback defaults:
-            IdentifyingContext(format_name= 'dandi_nwb'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
+            IdentifyingContext(format_name= 'dandi_nwb'): HardcodedProcessingParameters(decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8'],
                 grid_bin_bounds=maze_grid_bin_bounds,
@@ -103,7 +105,130 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
         return list(best_match.values())[0] ## return the first match
 
 
+    @classmethod
+    def _standardize_alternating_run_sleep_epoch_labels(cls, epochs_df: pd.DataFrame) -> pd.DataFrame:
+        """Convert DANDI alternating run/sleep epoch rows to maze0/sleep0 labels."""
+        standardized_epochs_df = epochs_df.copy().reset_index(drop=True)
+        labels = np.array([f"maze{int(i/2)}" if i % 2 == 0 else f"sleep{int(i/2)}" for i in range(len(standardized_epochs_df))], dtype=str)
+        standardized_epochs_df['label'] = labels
+        standardized_epochs_df['behavior'] = ['maze' if a_label.startswith('maze') else 'sleep' for a_label in labels]
+        standardized_epochs_df['duration'] = standardized_epochs_df['stop'] - standardized_epochs_df['start']
+        return standardized_epochs_df
 
+
+    @classmethod
+    def _paradigm_labels_are_legacy(cls, paradigm) -> bool:
+        if paradigm is None:
+            return False
+        epochs_df = paradigm.to_dataframe() if hasattr(paradigm, 'to_dataframe') else paradigm.copy()
+        labels = epochs_df['label'].astype(str).tolist()
+        non_global_labels = [a_label for a_label in labels if a_label != 'maze_GLOBAL']
+        has_legacy_run_sleep_labels = any(a_label in {'run', 'sleep'} for a_label in non_global_labels)
+        missing_expected_first_maze = 'maze0' not in non_global_labels
+        return len(non_global_labels) > 0 and (has_legacy_run_sleep_labels or missing_expected_first_maze)
+
+
+    @classmethod
+    def _get_activity_epoch_labels(cls, sess) -> list:
+        if sess is None or sess.epochs is None:
+            return []
+        return [str(a_label) for a_label in sess.epochs.get_unique_labels() if str(a_label).startswith('maze') and str(a_label) != 'maze_GLOBAL']
+
+
+    @classmethod
+    def _ensure_standard_paradigm_epoch_labels(cls, session, save_if_changed: bool=True) -> bool:
+        if session is None or session.paradigm is None or not cls._paradigm_labels_are_legacy(session.paradigm):
+            return False
+
+        paradigm_filename = getattr(session.paradigm, 'filename', None)
+        paradigm_metadata = getattr(session.paradigm, 'metadata', None)
+        epochs_df = session.paradigm.to_dataframe()
+        non_global_epochs_df = epochs_df[epochs_df['label'].astype(str) != 'maze_GLOBAL'].copy().reset_index(drop=True)
+        standardized_epochs_df = cls._standardize_alternating_run_sleep_epoch_labels(non_global_epochs_df)
+        standardized_paradigm = Epoch(standardized_epochs_df, metadata=paradigm_metadata)
+        if paradigm_filename is not None:
+            standardized_paradigm.filename = Path(paradigm_filename)
+        session.paradigm = standardized_paradigm
+        session.epochs = standardized_paradigm
+
+        if hasattr(session, 'epochs_bak'):
+            delattr(session, 'epochs_bak')
+
+        if save_if_changed and session.paradigm.filename is not None:
+            print(f'migrating stale NWB paradigm epoch labels and saving: {session.paradigm.filename}')
+            session.paradigm.save(status_print=False)
+        else:
+            print('migrating stale NWB paradigm epoch labels in-memory.')
+        return True
+
+
+    @classmethod
+    def _epoch_labels_include(cls, epochs_obj, required_epoch_names) -> bool:
+        if epochs_obj is None:
+            return False
+        epoch_labels = set(str(a_label) for a_label in epochs_obj.get_unique_labels())
+        return all(a_name in epoch_labels for a_name in required_epoch_names)
+
+
+    @classmethod
+    def _deduplicate_spikes_df_columns(cls, spikes_df: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
+        duplicate_column_mask = spikes_df.columns.duplicated()
+        if not duplicate_column_mask.any():
+            return spikes_df, False
+        duplicate_column_names = spikes_df.columns[duplicate_column_mask].tolist()
+        print(f'migrating stale NWB spikes_df duplicate columns; keeping first occurrence for: {duplicate_column_names}')
+        return spikes_df.loc[:, ~duplicate_column_mask].copy(), True
+
+
+    @classmethod
+    def _ensure_flattened_spikes_df_columns_unique(cls, session, save_if_changed: bool=True) -> bool:
+        if session is None or getattr(session, 'flattened_spiketrains', None) is None:
+            return False
+        spikes_df, did_change = cls._deduplicate_spikes_df_columns(session.flattened_spiketrains.spikes_df)
+        if not did_change:
+            return False
+        session.flattened_spiketrains._spikes_df = spikes_df
+        if save_if_changed and getattr(session.flattened_spiketrains, 'filename', None) is not None:
+            session.flattened_spiketrains.save(status_print=False)
+        return True
+
+
+    @classmethod
+    def session_fixup_epochs(cls, sess, override_session_epochs: Optional[Epoch]=None, enable_global_epoch: bool=True, override_extant: bool=True, **kwargs) -> Epoch:
+        """Add derived epochs (e.g. maze_GLOBAL) for DANDI NWB W-track sessions."""
+        cls._ensure_standard_paradigm_epoch_labels(sess, save_if_changed=True)
+        hardcoded_params = cls._get_session_specific_parameters(session_context=sess.get_context())
+        required_epoch_names = hardcoded_params.non_global_activity_session_names
+        updated_epochs: Epoch = deepcopy(sess.epochs) if override_session_epochs is None else deepcopy(override_session_epochs)
+
+        if not hasattr(sess, 'epochs_bak'):
+            print('fixing up NWB session computation epochs...')
+            sess.epochs_bak = deepcopy(updated_epochs)
+        else:
+            print('WARN: already fixedup session epochs.')
+            if override_extant:
+                if cls._epoch_labels_include(sess.epochs_bak, required_epoch_names):
+                    print('\trestoring backed up epochs:')
+                    sess.epochs = deepcopy(sess.epochs_bak)
+                    updated_epochs = deepcopy(sess.epochs)
+                else:
+                    print('\tdiscarding incompatible epochs_bak because it does not contain the expected NWB maze labels.')
+                    delattr(sess, 'epochs_bak')
+                    sess.epochs_bak = deepcopy(updated_epochs)
+
+        epochs_df = updated_epochs.to_dataframe()
+        if enable_global_epoch and hardcoded_params.global_session_name not in epochs_df['label'].tolist():
+            available_non_global_names = [a_name for a_name in required_epoch_names if a_name in epochs_df['label'].astype(str).tolist()]
+            if len(available_non_global_names) < 1:
+                raise ValueError(f"Could not add {hardcoded_params.global_session_name!r}; none of the expected NWB maze labels were present. expected={required_epoch_names}, actual={epochs_df['label'].astype(str).tolist()}")
+            epochs_df = epochs_df.epochs.adding_global_epoch_row(global_epoch_name=hardcoded_params.global_session_name, first_included_epoch_name=available_non_global_names[0], last_included_epoch_name=available_non_global_names[-1], inplace=False)
+            updated_epochs = Epoch(epochs_df, metadata=updated_epochs.metadata)
+            existing_filename = getattr(sess.epochs, 'filename', None)
+            if existing_filename is not None:
+                updated_epochs.filename = existing_filename
+        sess.epochs = updated_epochs
+        print(f'\tdone. new epochs: \n{updated_epochs}\n')
+        return updated_epochs
 
 
     @classmethod
@@ -141,6 +266,7 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
         if not session.position.has_linear_pos:
             session = cls._compute_linear_position_if_possible(session)
         session, _spikes_df = cls._default_compute_spike_interpolated_positions_if_needed(session, session.spikes_df, time_variable_name=cls._time_variable_name, force_recompute=False)
+        cls._ensure_flattened_spikes_df_columns_unique(session, save_if_changed=True)
         spikes_df = session.spikes_df
         cls._add_missing_spikes_df_columns(spikes_df, session.neurons)
         return session, loaded_file_record_list
@@ -150,13 +276,19 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     def build_filters_run_epochs(cls, sess, filter_name_suffix=None):
         from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epochs_filters
 
-        run_only_name_filter_fn = lambda names: list(filter(lambda elem: elem == "run", names))
-        return build_custom_epochs_filters(sess, epoch_name_includelist=run_only_name_filter_fn, filter_name_suffix=filter_name_suffix)
+        cls._ensure_standard_paradigm_epoch_labels(sess, save_if_changed=True)
+        maze_epoch_names = cls._get_activity_epoch_labels(sess)
+        return build_custom_epochs_filters(sess, epoch_name_includelist=maze_epoch_names, filter_name_suffix=filter_name_suffix)
 
 
     @classmethod
     def build_default_filter_functions(cls, sess, epoch_name_includelist=None, filter_name_suffix=None, include_global_epoch=False):
-        return cls.build_filters_run_epochs(sess, filter_name_suffix=filter_name_suffix)
+        from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epochs_filters
+
+        cls._ensure_standard_paradigm_epoch_labels(sess, save_if_changed=True)
+        if epoch_name_includelist is None:
+            epoch_name_includelist = cls._get_activity_epoch_labels(sess)
+        return build_custom_epochs_filters(sess, epoch_name_includelist=epoch_name_includelist, filter_name_suffix=filter_name_suffix)
 
 
     @classmethod
@@ -204,6 +336,7 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     @classmethod
     def _load_paradigm_file(cls, filepath, session):
         session.paradigm = Epoch.from_file(filepath)
+        cls._ensure_standard_paradigm_epoch_labels(session, save_if_changed=True)
         return session
 
 
@@ -270,10 +403,8 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
         epochs_df = nwbf.intervals["epoch intervals"].to_dataframe().reset_index(drop=True)
         if epoch_label_mode != "alternating_run_sleep":
             raise ValueError(f"Unsupported epoch_label_mode: {epoch_label_mode!r}")
-        # labels = np.array(["run" if i % 2 == 0 else "sleep" for i in range(len(epochs_df))], dtype=str)
-        labels = np.array([f"maze{int(i/2)}" if i % 2 == 0 else f"sleep{int(i/2)}" for i in range(len(epochs_df))], dtype=str)
-        epoch_types = ['maze' if 'maze' in k else 'sleep' for k in labels]
-        return Epoch(pd.DataFrame({"start": epochs_df["start_time"].values - t0, "stop": epochs_df["stop_time"].values - t0, "label": labels, 'behavior': epoch_types}))
+        epochs_df = pd.DataFrame({"start": epochs_df["start_time"].values - t0, "stop": epochs_df["stop_time"].values - t0})
+        return Epoch(cls._standardize_alternating_run_sleep_epoch_labels(epochs_df))
 
 
     @classmethod
@@ -299,8 +430,10 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
         if cache_paths["flattened_spikes"].exists():
             session.flattened_spiketrains = FlattenedSpiketrains.from_file(cache_paths["flattened_spikes"])
             if session.flattened_spiketrains is not None:
+                cls._ensure_flattened_spikes_df_columns_unique(session, save_if_changed=True)
                 return session
         session = cls._default_compute_flattened_spikes(session, timestamp_scale_factor=1.0, spike_timestamp_column_name=cls._time_variable_name)
+        cls._ensure_flattened_spikes_df_columns_unique(session, save_if_changed=False)
         session.flattened_spiketrains.filename = cache_paths["flattened_spikes"]
         session.flattened_spiketrains.save()
         return session
@@ -308,14 +441,13 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
 
     @classmethod
     def _compute_linear_position_if_possible(cls, session):
-        for epoch_label in session.epochs.labels:
-            if epoch_label != "run":
-                continue
+        cls._ensure_standard_paradigm_epoch_labels(session, save_if_changed=True)
+        for epoch_label in cls._get_activity_epoch_labels(session):
             try:
                 epoch_indices, _active_positions, linearized_positions = DataSession._perform_compute_session_linearized_position(session, epoch_label)
             except Exception as e:
                 warnings.warn(f"Could not compute NWB linear position for epoch {epoch_label!r}: {e}")
-                return session
+                continue
             if not session.position.has_linear_pos:
                 session.position.linear_pos = np.full_like(session.position.time, np.nan)
             session.position.linear_pos[epoch_indices] = linearized_positions.traces

@@ -9,6 +9,16 @@ from neuropy.utils.efficient_interval_search import get_non_overlapping_epochs #
 
 
 
+def _subfn_get_single_time_column(spikes_df: pd.DataFrame, time_variable_name: str) -> pd.Series:
+    """Return one spike-time Series even if a stale cache has duplicate time-column labels."""
+    if time_variable_name not in spikes_df.columns:
+        raise KeyError(f"time_variable_name: {time_variable_name!r} not in spikes_df.columns: {list(spikes_df.columns)}")
+    time_col = spikes_df.loc[:, time_variable_name]
+    if isinstance(time_col, pd.DataFrame):
+        time_col = time_col.iloc[:, 0]
+    return time_col
+
+
 
 ## Separate Runs on the Track
 
@@ -35,8 +45,9 @@ def _subfn_perform_compute_laps_spike_indicies(laps_df: pd.DataFrame, spikes_df:
     n_laps = len(laps_df['start'])
     start_spike_index = np.zeros_like(laps_df['start'])
     end_spike_index = np.zeros_like(laps_df['start'])
+    spike_times = _subfn_get_single_time_column(spikes_df, time_variable_name=time_variable_name)
     for i in np.arange(n_laps):
-        included_df = spikes_df[((spikes_df[time_variable_name] >= laps_df.loc[i,'start']) & (spikes_df[time_variable_name] <= laps_df.loc[i,'stop']))]
+        included_df = spikes_df[((spike_times >= laps_df.loc[i,'start']) & (spike_times <= laps_df.loc[i,'stop']))]
         included_indicies = included_df.index
         if len(included_indicies) > 0:
             start_spike_index[i] = included_indicies[0]
