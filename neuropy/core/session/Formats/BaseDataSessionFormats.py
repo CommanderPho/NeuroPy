@@ -539,7 +539,7 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
         format_name = cls.get_session_format_name()
             
         # get the default preprocessing parameters:
-        preprocessing_parameters = cls.build_default_preprocessing_parameters(override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
+        preprocessing_parameters = cls.build_default_preprocessing_parameters(override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict, session_context=session_context)
 
         session_config = SessionConfig(basedir, format_name=format_name, session_spec=session_spec, session_name=session_name, session_context=session_context, preprocessing_parameters=preprocessing_parameters, enable_continue_on_required_path_failure=enable_continue_on_required_path_failure)
         if not enable_continue_on_required_path_failure:

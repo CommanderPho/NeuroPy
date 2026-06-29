@@ -19,6 +19,7 @@ from neuropy.utils.dynamic_container import DynamicContainer
 from neuropy.utils.mixins.gettable_mixin import KeypathsAccessibleMixin
 from neuropy.utils.result_context import IdentifyingContext
 from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
+from neuropy.core.session.KnownDataSessionTypeProperties import KnownDataSessionTypeProperties
 
 # Define a W-shaped track
 # Visual layout:
@@ -198,7 +199,7 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     Known limitations:
     - Epoch labels use the notebook's alternating run/sleep heuristic.
     - Loaded units default to pyramidal neuron type.
-    - ProbeGroup, LFP, MUA, ripple, laps, and replay loading are not implemented.
+    - ProbeGroup and LFP loading are not implemented; MUA, laps, PBEs, and replays are computed on load.
     - W-track graph linearization is supported for ER1 (dandi 000978) via the module-level w_maze TrackDefinition.
 
 
@@ -224,11 +225,102 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     @classmethod
     def build_default_preprocessing_parameters(cls, **kwargs) -> ParametersContainer:
         override_parameters_flat_keypaths_dict = kwargs.pop("override_parameters_flat_keypaths_dict", {}) or {}
+        session_context = kwargs.pop("session_context", None)
+        preprocessing_parameters = super().build_default_preprocessing_parameters(override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict, **kwargs)
+        if session_context is not None:
+            hardcoded_params = cls._get_session_specific_parameters(session_context)
+            if hardcoded_params.lap_estimation_parameters:
+                preprocessing_parameters.epoch_estimation_parameters.laps = preprocessing_parameters.epoch_estimation_parameters.laps | hardcoded_params.lap_estimation_parameters
+        preprocessing_parameters.epoch_estimation_parameters.laps.use_direction_dependent_laps = False
         override_parameters_nested_dicts = KeypathsAccessibleMixin.keypath_dict_to_nested_dict(override_parameters_flat_keypaths_dict)
         nwb_overrides = override_parameters_nested_dicts.get("nwb", {}) | {k: v for k, v in override_parameters_flat_keypaths_dict.items() if k in {"unit_location_filter", "nwb_filename", "epoch_label_mode", "export_root", "force_recompute_linear_position"}}
-        preprocessing_parameters = ParametersContainer(epoch_estimation_parameters=DynamicContainer.init_from_dict({}))
         preprocessing_parameters.nwb = DynamicContainer(unit_location_filter="CA1", nwb_filename=None, epoch_label_mode="alternating_run_sleep", export_root=None, force_recompute_linear_position=False).override(nwb_overrides)
         return preprocessing_parameters
+
+
+    @classmethod
+    def _epoch_estimation_subkeys_missing(cls, preprocessing_parameters) -> bool:
+        epoch_estimation_parameters = getattr(preprocessing_parameters, 'epoch_estimation_parameters', None)
+        if epoch_estimation_parameters is None:
+            return True
+        return any(a_key not in epoch_estimation_parameters for a_key in ('laps', 'PBEs', 'replays'))
+
+
+    @classmethod
+    def ensure_preprocessing_epoch_estimation_parameters(cls, sess) -> bool:
+        """Merge missing laps/PBEs/replays sub-keys into sess.config.preprocessing_parameters; return True if config changed."""
+        preprocessing_parameters = getattr(sess.config, 'preprocessing_parameters', None)
+        if preprocessing_parameters is None:
+            return False
+        if not cls._epoch_estimation_subkeys_missing(preprocessing_parameters):
+            return False
+        fresh_params = cls.build_default_preprocessing_parameters(session_context=sess.get_context())
+        if not hasattr(preprocessing_parameters, 'epoch_estimation_parameters') or preprocessing_parameters.epoch_estimation_parameters is None:
+            preprocessing_parameters.epoch_estimation_parameters = fresh_params.epoch_estimation_parameters
+        else:
+            for a_key in ('laps', 'PBEs', 'replays'):
+                if a_key not in preprocessing_parameters.epoch_estimation_parameters:
+                    preprocessing_parameters.epoch_estimation_parameters[a_key] = fresh_params.epoch_estimation_parameters[a_key]
+        return True
+
+
+    @classmethod
+    def get_known_data_session_type_properties(cls, override_basepath=None, override_parameters_flat_keypaths_dict=None):
+        if override_basepath is not None:
+            basepath = override_basepath
+        else:
+            basepath = Path(cls._session_default_basedir)
+        return KnownDataSessionTypeProperties(load_function=(lambda a_base_dir: cls.get_session(basedir=a_base_dir, override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)), basedir=basepath, post_load_functions=[lambda a_loaded_sess: cls.POSTLOAD_estimate_laps_and_replays(a_loaded_sess)])
+
+
+    @classmethod
+    def _estimate_and_enrich_laps_from_preprocessing_config(cls, sess, should_plot_laps_2d=False):
+        from neuropy.analyses.laps import estimate_session_laps
+        from neuropy.core.epoch import ensure_Epoch
+        from neuropy.core.laps import LapsAccessor
+        from neuropy.utils.mixins.indexing_helpers import get_dict_subset
+
+        cls.ensure_preprocessing_epoch_estimation_parameters(sess)
+        lap_estimation_parameters = sess.config.preprocessing_parameters.epoch_estimation_parameters.laps
+        custom_lap_estimation_fn = lap_estimation_parameters.get('custom_lap_estimation_fn', None)
+        if custom_lap_estimation_fn is not None:
+            custom_lap_estimation_fn(sess)
+        else:
+            estimate_session_laps(sess, should_plot_laps_2d=should_plot_laps_2d, **get_dict_subset(lap_estimation_parameters.to_dict(), subset_excludelist=['custom_lap_estimation_fn', 'reward_zones', 'use_direction_dependent_laps', 'should_backup_extant_laps_obj', 'N']))
+        hardcoded_params = cls._get_session_specific_parameters(session_context=sess.get_context())
+        active_maze_epoch_names = hardcoded_params.non_global_activity_session_names
+        active_maze_epochs_df = sess.epochs.to_dataframe()
+        active_maze_epochs_df = active_maze_epochs_df[active_maze_epochs_df['label'].isin(active_maze_epoch_names)]
+        laps_df = sess.laps.to_dataframe()
+        laps_df = laps_df.epochs.adding_maze_id_if_needed(active_maze_epochs_df=ensure_Epoch(deepcopy(active_maze_epochs_df)), replace_existing=True)
+        sess.laps._df = laps_df
+        LapsAccessor.non_kdiba_laps_determine_directions(sess=sess)
+        return sess
+
+
+    @classmethod
+    def POSTLOAD_estimate_laps_and_replays(cls, sess):
+        """After loading, estimates laps, PBEs, replays, and non_PBE epochs from preprocessing_parameters."""
+        print(f'POSTLOAD_estimate_laps_and_replays()...')
+        cls.ensure_preprocessing_epoch_estimation_parameters(sess)
+        cls._ensure_standard_paradigm_epoch_labels(sess, save_if_changed=True)
+        cls._estimate_and_enrich_laps_from_preprocessing_config(sess, should_plot_laps_2d=False)
+        non_running_periods = Epoch.from_PortionInterval(sess.laps.as_epoch_obj().to_PortionInterval().complement())
+        PBE_estimation_parameters = sess.config.preprocessing_parameters.epoch_estimation_parameters.PBEs
+        assert PBE_estimation_parameters is not None
+        PBE_estimation_parameters.require_intersecting_epoch = non_running_periods
+        new_pbe_epochs = sess.compute_pbe_epochs(sess, active_parameters=PBE_estimation_parameters)
+        sess.pbe = new_pbe_epochs
+        sess.compute_spikes_PBEs()
+        replay_estimation_parameters = sess.config.preprocessing_parameters.epoch_estimation_parameters.replays
+        assert replay_estimation_parameters is not None
+        replay_estimation_parameters.require_intersecting_epoch = non_running_periods
+        replay_estimation_parameters.min_inclusion_fr_active_thresh = 1.0
+        replay_estimation_parameters.min_num_unique_aclu_inclusions = 5
+        sess.replace_session_replays_with_estimates(**replay_estimation_parameters)
+        new_non_pbe_epochs = sess.compute_non_PBE_epochs(sess, active_parameters=PBE_estimation_parameters, save_on_compute=True)
+        sess.non_pbe = new_non_pbe_epochs
+        return sess
 
 
     @classmethod
@@ -458,6 +550,7 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
         cls._ensure_flattened_spikes_df_columns_unique(session, save_if_changed=True)
         spikes_df = session.spikes_df
         cls._add_missing_spikes_df_columns(spikes_df, session.neurons)
+        session = cls._default_extended_postload(session.filePrefix, session)
         return session, loaded_file_record_list
 
 

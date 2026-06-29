@@ -140,3 +140,50 @@ def test_position_needs_track_graph_recompute_detects_stale_isomap_cache(tmp_pat
     session = SimpleNamespace(position=position, epochs=epochs, paradigm=epochs, config=config, basepath=basedir, filePrefix=tmp_path / "ER1_SingleDay", get_context=lambda: context)
 
     assert NWBDataSessionFormatRegisteredClass._position_needs_track_graph_recompute(session) is True
+
+
+def test_build_default_preprocessing_parameters_includes_epoch_estimation_keys(tmp_path):
+    from neuropy.core.session.Formats.Specific.NWBDataSessionFormat import NWBDataSessionFormatRegisteredClass
+
+    basedir = tmp_path / "download" / "000978" / "sub-JDS-SingleDay-ER1"
+    basedir.mkdir(parents=True)
+    context = NWBDataSessionFormatRegisteredClass.parse_session_basepath_to_context(basedir)
+    preprocessing_parameters = NWBDataSessionFormatRegisteredClass.build_default_preprocessing_parameters(session_context=context)
+    epoch_estimation_parameters = preprocessing_parameters.epoch_estimation_parameters
+
+    assert 'laps' in epoch_estimation_parameters
+    assert 'PBEs' in epoch_estimation_parameters
+    assert 'replays' in epoch_estimation_parameters
+    assert epoch_estimation_parameters.laps.minimum_run_speed == 10.0
+    assert epoch_estimation_parameters.laps.use_direction_dependent_laps is False
+    assert hasattr(preprocessing_parameters, 'nwb')
+
+
+def test_ensure_preprocessing_epoch_estimation_parameters_backfills_empty_container(tmp_path):
+    from types import SimpleNamespace
+
+    from neuropy.core.session.Formats.Specific.NWBDataSessionFormat import NWBDataSessionFormatRegisteredClass
+    from neuropy.utils.dynamic_container import DynamicContainer
+
+    basedir = tmp_path / "download" / "000978" / "sub-JDS-SingleDay-ER1"
+    basedir.mkdir(parents=True)
+    context = NWBDataSessionFormatRegisteredClass.parse_session_basepath_to_context(basedir)
+    preprocessing_parameters = DynamicContainer(epoch_estimation_parameters=DynamicContainer.init_from_dict({}), nwb=DynamicContainer(unit_location_filter="CA1"))
+    config = SimpleNamespace(preprocessing_parameters=preprocessing_parameters, format_name='dandi_nwb')
+    sess = SimpleNamespace(config=config, get_context=lambda: context)
+
+    was_updated = NWBDataSessionFormatRegisteredClass.ensure_preprocessing_epoch_estimation_parameters(sess)
+
+    assert was_updated is True
+    assert 'laps' in preprocessing_parameters.epoch_estimation_parameters
+    assert 'PBEs' in preprocessing_parameters.epoch_estimation_parameters
+    assert 'replays' in preprocessing_parameters.epoch_estimation_parameters
+    assert preprocessing_parameters.nwb.unit_location_filter == "CA1"
+
+
+def test_get_known_data_session_type_properties_registers_postload():
+    from neuropy.core.session.Formats.Specific.NWBDataSessionFormat import NWBDataSessionFormatRegisteredClass
+
+    type_properties = NWBDataSessionFormatRegisteredClass.get_known_data_session_type_properties()
+    assert type_properties.post_load_functions is not None
+    assert len(type_properties.post_load_functions) == 1
