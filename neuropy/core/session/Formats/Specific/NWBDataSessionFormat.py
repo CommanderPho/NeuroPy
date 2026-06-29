@@ -276,7 +276,7 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     @classmethod
     def _estimate_and_enrich_laps_from_preprocessing_config(cls, sess, should_plot_laps_2d=False):
         from neuropy.analyses.laps import estimate_session_laps
-        from neuropy.core.epoch import ensure_Epoch
+        from neuropy.core.epoch import ensure_Epoch, ensure_dataframe
         from neuropy.core.laps import LapsAccessor
         from neuropy.utils.mixins.indexing_helpers import get_dict_subset
 
@@ -291,8 +291,9 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
         active_maze_epoch_names = hardcoded_params.non_global_activity_session_names
         active_maze_epochs_df = sess.epochs.to_dataframe()
         active_maze_epochs_df = active_maze_epochs_df[active_maze_epochs_df['label'].isin(active_maze_epoch_names)]
-        laps_df = sess.laps.to_dataframe()
-        laps_df = laps_df.epochs.adding_maze_id_if_needed(active_maze_epochs_df=ensure_Epoch(deepcopy(active_maze_epochs_df)), replace_existing=True)
+        laps_df: pd.DataFrame = sess.laps.to_dataframe()
+        # laps_df = laps_df.epochs.adding_maze_id_if_needed(active_maze_epochs_df=ensure_Epoch(deepcopy(active_maze_epochs_df)), replace_existing=True)
+        laps_df = laps_df.epochs.adding_maze_id_if_needed(active_maze_epochs_df=ensure_dataframe(deepcopy(active_maze_epochs_df)), replace_existing=True)
         sess.laps._df = laps_df
         LapsAccessor.non_kdiba_laps_determine_directions(sess=sess)
         return sess
@@ -366,7 +367,26 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
                 lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='track_graph', track_definition='w_maze', all_session_mazes=None),
             ),
-            
+
+            IdentifyingContext(format_name= 'dandi_nwb', animal= 'JS14', exper_name= '000978', session_name= 'SingleDay'): HardcodedProcessingParameters( # format_name='DANDI', exper_name='SingleDayWTrackLearning', animal='ER1', dandi_id='000978', session_name='sub-JDS-SingleDay-ER1'
+                decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7'],
+                grid_bin_bounds=maze_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='track_graph', track_definition='w_maze', all_session_mazes=None),
+            ),
+
+
+
+            IdentifyingContext(format_name= 'dandi_nwb', exper_name= '000978', session_name= 'SingleDay'): HardcodedProcessingParameters(
+                decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze_GLOBAL'],
+                global_session_name='maze_GLOBAL',
+                non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7'],
+                grid_bin_bounds=maze_grid_bin_bounds,
+                lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+                linearization_parameters=dict(method='track_graph', track_definition='w_maze', all_session_mazes=None),
+            ),
 
             ## Fallback defaults:
             IdentifyingContext(format_name= 'dandi_nwb'): HardcodedProcessingParameters(decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze_GLOBAL'],
@@ -375,11 +395,22 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
                 grid_bin_bounds=maze_grid_bin_bounds,
                 lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0,),
                 linearization_parameters=dict(method='track_graph', track_definition='w_maze', all_session_mazes=None),
-            ),									
+            ),
         }
 
         best_match = IdentifyingContext.matching(the_dict, criteria=session_context.get_subset(subset_includelist=cls._session_basepath_to_context_parsing_keys).to_dict())
-        return list(best_match.values())[0] ## return the first match
+        if len(list(best_match.values())) > 0:
+            return list(best_match.values())[0] ## return the first match
+        else:
+            # Try more relaxed approach the best match
+            # best_match, max_num_matching_context_attributes = IdentifyingContext.find_best_matching_context(session_context, context_iterable=the_dict)
+            best_match, max_num_matching_context_attributes = IdentifyingContext.find_best_matching_context(session_context.get_subset(subset_includelist=cls._session_basepath_to_context_parsing_keys), context_iterable=the_dict)
+            best_match_value = the_dict[best_match] ## the value of the best match
+            return best_match_value
+
+
+
+        
 
 
     @classmethod

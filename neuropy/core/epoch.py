@@ -1740,6 +1740,7 @@ epochs_df
         if (is_missing_column or replace_existing):
             # Create the maze_id column:
             if active_maze_epochs_df is not None:
+                active_maze_epochs_df = ensure_dataframe(active_maze_epochs_df)
                 epochs_df['maze_id'] = '' # all empty string to start
                 epochs_df = add_fully_overlapping_epochs_id_identity_to_epochs(query_child_epochs = epochs_df, potential_fully_enclosing_epochs_df = active_maze_epochs_df, epoch_id_key_name = 'maze_id', epoch_label_column_name=labels_column_name, start_time_col_name=start_time_col_name, end_time_col_name=end_time_col_name, no_interval_fill_value=no_interval_fill_value)
                 ## These will be string values
