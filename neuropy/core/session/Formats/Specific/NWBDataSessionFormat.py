@@ -29,11 +29,15 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     - ProbeGroup, LFP, MUA, ripple, laps, and replay loading are not implemented.
     - W-track linearization may fail without manual track configuration.
 
-    pos_df = curr_active_pipeline.sess.position.to_dataframe()
-    ((pos_df['x'].min(), pos_df['x'].max()), pos_df['y'].min(), pos_df['y'].max()) # ((41.37033775405482, 157.72257208195566), (9.76773097884994, 122.8597412183469))
 
-    maze_only_epochs = epochs_df[epochs_df['behavior'] == 'maze']['label'].tolist() # ['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8']
-    maze_only_epochs
+    Usage:
+        from neuropy.core.session.Formats.Specific.NWBDataSessionFormat import NWBDataSessionFormatRegisteredClass
+
+        pos_df = curr_active_pipeline.sess.position.to_dataframe()
+        ((pos_df['x'].min(), pos_df['x'].max()), pos_df['y'].min(), pos_df['y'].max()) # ((41.37033775405482, 157.72257208195566), (9.76773097884994, 122.8597412183469))
+
+        maze_only_epochs = epochs_df[epochs_df['behavior'] == 'maze']['label'].tolist() # ['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8']
+        maze_only_epochs
 
 
     """
@@ -81,10 +85,19 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
 
         the_dict: Dict[IdentifyingContext, HardcodedProcessingParameters]  = { #  
             # W MAze _________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
+            # IdentifyingContext(format_name= 'dandi_nwb', animal= 'ER1', exper_name= '000978', session_name= 'SingleDay'): HardcodedProcessingParameters( # format_name='DANDI', exper_name='SingleDayWTrackLearning', animal='ER1', dandi_id='000978', session_name='sub-JDS-SingleDay-ER1'
+            #     decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8', 'maze_GLOBAL'],
+            #     global_session_name='maze_GLOBAL',
+            #     non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8'],
+            #     grid_bin_bounds=maze_grid_bin_bounds,
+            #     lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
+            #     linearization_parameters=dict(method='umap', all_session_mazes=None),
+            # ),
+
             IdentifyingContext(format_name= 'dandi_nwb', animal= 'ER1', exper_name= '000978', session_name= 'SingleDay'): HardcodedProcessingParameters( # format_name='DANDI', exper_name='SingleDayWTrackLearning', animal='ER1', dandi_id='000978', session_name='sub-JDS-SingleDay-ER1'
-                decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8', 'maze_GLOBAL'],
+                decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
-                non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8'],
+                non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7'],
                 grid_bin_bounds=maze_grid_bin_bounds,
                 lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
@@ -92,9 +105,9 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
             
 
             ## Fallback defaults:
-            IdentifyingContext(format_name= 'dandi_nwb'): HardcodedProcessingParameters(decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8', 'maze_GLOBAL'],
+            IdentifyingContext(format_name= 'dandi_nwb'): HardcodedProcessingParameters(decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
-                non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze8'],
+                non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7'],
                 grid_bin_bounds=maze_grid_bin_bounds,
                 lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0,),
                 linearization_parameters=dict(method='umap', all_session_mazes=None),
@@ -109,7 +122,8 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
     def _standardize_alternating_run_sleep_epoch_labels(cls, epochs_df: pd.DataFrame) -> pd.DataFrame:
         """Convert DANDI alternating run/sleep epoch rows to maze0/sleep0 labels."""
         standardized_epochs_df = epochs_df.copy().reset_index(drop=True)
-        labels = np.array([f"maze{int(i/2)}" if i % 2 == 0 else f"sleep{int(i/2)}" for i in range(len(standardized_epochs_df))], dtype=str)
+        # labels = np.array([f"maze{int(i/2)}" if i % 2 == 0 else f"sleep{int(i/2)}" for i in range(len(standardized_epochs_df))], dtype=str) ## if it starts with maze, and then sleep
+        labels = np.array([f"sleep{int(i/2)}" if i % 2 == 0 else f"maze{int(i/2)}" for i in range(len(standardized_epochs_df))], dtype=str) ## starts with sleep, then maze.
         standardized_epochs_df['label'] = labels
         standardized_epochs_df['behavior'] = ['maze' if a_label.startswith('maze') else 'sleep' for a_label in labels]
         standardized_epochs_df['duration'] = standardized_epochs_df['stop'] - standardized_epochs_df['start']
