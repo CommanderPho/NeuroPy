@@ -335,7 +335,7 @@ def build_shapely_maze_collection_for_session(curr_active_pipeline, pos_df: pd.D
 
 
 def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", sigma=2, override_position_sampling_rate_Hz=None, regularization_approach:RegularizationApproach=RegularizationApproach.RAW_VALUES,
-                          all_session_mazes: Optional[ShapelyMazeCollection]=None):
+                          all_session_mazes: Optional[ShapelyMazeCollection]=None, track_definition=None):
     """linearize trajectory. Use method='PCA' for off-angle linear track, method='ISOMAP' for any non-linear track.
     ISOMAP is more versatile but also more computationally expensive.
 
@@ -348,10 +348,31 @@ def linearize_position_df(pos_df: pd.DataFrame, sample_sec=3, method="isomap", s
         by default 'ISOMAP' (for any continuous track, untested on t-maze as of 12/22/2020) or
         'PCA' (for straight tracks)
     override_position_sampling_rate_Hz: float, optional - ignored except for method="isomap". If provided, used for downsampling dataframe prior to computation. Otherwise sampling rate is approximated from pos_df['t'] column.
+    track_definition: TrackDefinition instance or registry key (e.g. 'w_maze') when method='track_graph'.
     
     Modifies:
         Adds the 'lin_pos' column to the provided position dataframe.
     """
+    if method.lower() == "track_graph":
+        assert track_definition is not None, "track_definition must be provided when using method == 'track_graph'."
+        if isinstance(track_definition, str):
+            if track_definition == 'w_maze':
+                from neuropy.core.session.Formats.Specific.NWBDataSessionFormat import w_maze
+                track_definition = w_maze
+            else:
+                raise ValueError(f"Unsupported track_definition key: {track_definition!r}")
+        work_df = deepcopy(pos_df)
+        valid_xy_mask = work_df[['x', 'y']].notna().all(axis='columns')
+        work_df['lin_pos'] = np.nan
+        if valid_xy_mask.any():
+            linearized_subset = track_definition.get_linearized_position(position=work_df.loc[valid_xy_mask, ['x', 'y']].copy())
+            work_df.loc[linearized_subset.index, 'lin_pos'] = linearized_subset['lin_pos'].to_numpy()
+            for col_name in ['track_segment_id', 'track_projected_x_position', 'track_projected_y_position']:
+                if col_name in linearized_subset.columns:
+                    work_df.loc[linearized_subset.index, col_name] = linearized_subset[col_name].to_numpy()
+            work_df.loc[linearized_subset.index, 'linearization_method'] = 'track_graph'
+        return work_df
+
     pos_df = deepcopy(pos_df).dropna(subset=['x','y'], how='any')
     
     xy_pos = pos_df[['x','y']].to_numpy()

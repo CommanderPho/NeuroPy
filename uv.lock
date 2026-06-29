@@ -798,6 +798,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cloudpickle"
+version = "3.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/fb/576f067976d320f5f0114a8d9fa1215425441bb35627b1993e5afd8111e5/cloudpickle-3.1.2.tar.gz", hash = "sha256:7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414", size = 22330, upload-time = "2025-11-03T09:25:26.604Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/39/799be3f2f0f38cc727ee3b4f1445fe6d5e4133064ec2e4115069418a5bb6/cloudpickle-3.1.2-py3-none-any.whl", hash = "sha256:9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a", size = 22228, upload-time = "2025-11-03T09:25:25.534Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -985,6 +994,51 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a9/95/a3dbbb5028f35eafb79008e7522a75244477d2838f38cbb722248dabc2a8/cycler-0.12.1.tar.gz", hash = "sha256:88bb128f02ba341da8ef447245a9e138fae777f6a23943da4540077d3601eb1c", size = 7615, upload-time = "2023-10-07T05:32:18.335Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e7/05/c19819d5e3d95294a6f5947fb9b9629efb316b96de511b418c53d245aae6/cycler-0.12.1-py3-none-any.whl", hash = "sha256:85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30", size = 8321, upload-time = "2023-10-07T05:32:16.783Z" },
+]
+
+[[package]]
+name = "dask"
+version = "2024.8.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.10'",
+]
+dependencies = [
+    { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "cloudpickle", marker = "python_full_version < '3.10'" },
+    { name = "fsspec", marker = "python_full_version < '3.10'" },
+    { name = "importlib-metadata", marker = "python_full_version < '3.10'" },
+    { name = "packaging", marker = "python_full_version < '3.10'" },
+    { name = "partd", marker = "python_full_version < '3.10'" },
+    { name = "pyyaml", marker = "python_full_version < '3.10'" },
+    { name = "toolz", marker = "python_full_version < '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1f/2e/568a422d907745a3a897a732c83d05a3923d8cfa2511a6abea2a0e19994e/dask-2024.8.0.tar.gz", hash = "sha256:f1fec39373d2f101bc045529ad4e9b30e34e6eb33b7aa0fa7073aec7b1bf9eee", size = 9895684, upload-time = "2024-08-06T20:23:54.464Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/db/47/136a5dd68a33089f96f8aa1178ccd545d325ec9ab2bb42a3038711a935c0/dask-2024.8.0-py3-none-any.whl", hash = "sha256:250ea3df30d4a25958290eec4f252850091c6cfaed82d098179c3b25bba18309", size = 1233681, upload-time = "2024-08-06T20:23:42.258Z" },
+]
+
+[[package]]
+name = "dask"
+version = "2026.6.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.11'",
+    "python_full_version == '3.10.*'",
+]
+dependencies = [
+    { name = "click", version = "8.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "cloudpickle", marker = "python_full_version >= '3.10'" },
+    { name = "fsspec", marker = "python_full_version >= '3.10'" },
+    { name = "importlib-metadata", marker = "python_full_version >= '3.10'" },
+    { name = "packaging", marker = "python_full_version >= '3.10'" },
+    { name = "partd", marker = "python_full_version >= '3.10'" },
+    { name = "pyyaml", marker = "python_full_version >= '3.10'" },
+    { name = "toolz", marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/60/ca/58434f10ebb45d2ddc6edd6e2988abcd38da1ab1897a5f6f402711a594e9/dask-2026.6.0.tar.gz", hash = "sha256:ae3436bd31ebce2be75edf952bd1fc687a1f11ec03fe8b1bec2903d222344a45", size = 11544529, upload-time = "2026-06-11T17:48:43.316Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/02/17/b82b537a30be67ba178fc0b0fbda8fcbaeda188fb039d6ad8a84e89353a2/dask-2026.6.0-py3-none-any.whl", hash = "sha256:1539859071065dca379ca592ff76e911cd7965dc466da0040354ab466179189b", size = 1488995, upload-time = "2026-06-11T17:48:41.008Z" },
 ]
 
 [[package]]
@@ -2076,7 +2130,7 @@ name = "importlib-metadata"
 version = "8.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "zipp", marker = "python_full_version < '3.10'" },
+    { name = "zipp" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/76/66/650a33bd90f786193e4de4b3ad86ea60b53c89b669a5c7be931fac31cdb0/importlib_metadata-8.7.0.tar.gz", hash = "sha256:d13b81ad223b890aa16c5471f2ac3056cf76c5f10f82d6f9292f0b415f389000", size = 56641, upload-time = "2025-04-27T15:29:01.736Z" }
 wheels = [
@@ -2669,6 +2723,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/99/fe/d030f1849ebb1f394bb3f7adad5e729b634fb100515594aca25c354ffc62/llvmlite-0.44.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c5d22c3bfc842668168a786af4205ec8e3ad29fb1bc03fd11fd48460d0df64c1", size = 42361858, upload-time = "2025-01-20T11:13:07.623Z" },
     { url = "https://files.pythonhosted.org/packages/d7/7a/ce6174664b9077fc673d172e4c888cb0b128e707e306bc33fff8c2035f0d/llvmlite-0.44.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f01a394e9c9b7b1d4e63c327b096d10f6f0ed149ef53d38a09b3749dcf8c9610", size = 41184200, upload-time = "2025-01-20T11:13:20.058Z" },
     { url = "https://files.pythonhosted.org/packages/5f/c6/258801143975a6d09a373f2641237992496e15567b907a4d401839d671b8/llvmlite-0.44.0-cp311-cp311-win_amd64.whl", hash = "sha256:d8489634d43c20cd0ad71330dde1d5bc7b9966937a263ff1ec1cebb90dc50955", size = 30331193, upload-time = "2025-01-20T11:13:26.976Z" },
+]
+
+[[package]]
+name = "locket"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2f/83/97b29fe05cb6ae28d2dbd30b81e2e402a3eed5f460c26e9eaa5895ceacf5/locket-1.0.0.tar.gz", hash = "sha256:5c0d4c052a8bbbf750e056a8e65ccd309086f4f0f18a2eac306a8dfa4112a632", size = 4350, upload-time = "2022-04-20T22:04:44.312Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/db/bc/83e112abc66cd466c6b83f99118035867cecd41802f8d044638aa78a106e/locket-1.0.0-py2.py3-none-any.whl", hash = "sha256:b6c819a722f7b6bd955b80781788e4a66a55628b858d347536b7e81325a3a5e3", size = 4398, upload-time = "2022-04-20T22:04:42.23Z" },
 ]
 
 [[package]]
@@ -3326,6 +3389,7 @@ dependencies = [
     { name = "shapely", version = "2.1.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "sphinx-autodoc-typehints", version = "2.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "sphinx-autodoc-typehints", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "track-linearization" },
     { name = "typing-extensions" },
     { name = "umap-learn" },
     { name = "urllib3" },
@@ -3380,6 +3444,7 @@ requires-dist = [
     { name = "shapely", specifier = ">=2.0.7" },
     { name = "sphinx-autodoc-typehints", specifier = ">=2.0.0,<3" },
     { name = "tqdm", marker = "extra == 'gui'", specifier = ">=4.64.1,<5" },
+    { name = "track-linearization", specifier = ">=2.3.1" },
     { name = "typing-extensions", specifier = ">=4.12.2" },
     { name = "umap-learn", specifier = ">=0.5.9.post2" },
     { name = "urllib3", specifier = "==1.26.18" },
@@ -3856,6 +3921,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d4/de/53e0bcf53d13e005bd8c92e7855142494f41171b34c2536b86187474184d/parso-0.8.5.tar.gz", hash = "sha256:034d7354a9a018bdce352f48b2a8a450f05e9d6ee85db84764e9b6bd96dafe5a", size = 401205, upload-time = "2025-08-23T15:15:28.028Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/16/32/f8e3c85d1d5250232a5d3477a2a28cc291968ff175caeadaf3cc19ce0e4a/parso-0.8.5-py2.py3-none-any.whl", hash = "sha256:646204b5ee239c396d040b90f9e272e9a8017c630092bf59980beb62fd033887", size = 106668, upload-time = "2025-08-23T15:15:25.663Z" },
+]
+
+[[package]]
+name = "partd"
+version = "1.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "locket" },
+    { name = "toolz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b2/3a/3f06f34820a31257ddcabdfafc2672c5816be79c7e353b02c1f318daa7d4/partd-1.4.2.tar.gz", hash = "sha256:d022c33afbdc8405c226621b015e8067888173d85f7f5ecebb3cafed9a20f02c", size = 21029, upload-time = "2024-05-06T19:51:41.945Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/e7/40fb618334dcdf7c5a316c0e7343c5cd82d3d866edc100d98e29bc945ecd/partd-1.4.2-py3-none-any.whl", hash = "sha256:978e4ac767ec4ba5b86c6eaa52e5a2a3bc748a2ca839e8cc798f1cc6ce6efb0f", size = 18905, upload-time = "2024-05-06T19:51:39.271Z" },
 ]
 
 [[package]]
@@ -5924,6 +6002,15 @@ wheels = [
 ]
 
 [[package]]
+name = "toolz"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/11/d6/114b492226588d6ff54579d95847662fc69196bdeec318eb45393b24c192/toolz-1.1.0.tar.gz", hash = "sha256:27a5c770d068c110d9ed9323f24f1543e83b2f300a687b7891c1a6d56b697b5b", size = 52613, upload-time = "2025-10-17T04:03:21.661Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fb/12/5911ae3eeec47800503a238d971e51722ccea5feb8569b735184d5fcdbc0/toolz-1.1.0-py3-none-any.whl", hash = "sha256:15ccc861ac51c53696de0a5d6d4607f99c210739caf987b5d2054f3efed429d8", size = 58093, upload-time = "2025-10-17T04:03:20.435Z" },
+]
+
+[[package]]
 name = "tornado"
 version = "6.5.2"
 source = { registry = "https://pypi.org/simple" }
@@ -5952,6 +6039,28 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a8/4b/29b4ef32e036bb34e4ab51796dd745cdba7ed47ad142a9f4a1eb8e0c744d/tqdm-4.67.1.tar.gz", hash = "sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2", size = 169737, upload-time = "2024-11-24T20:12:22.481Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl", hash = "sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2", size = 78540, upload-time = "2024-11-24T20:12:19.698Z" },
+]
+
+[[package]]
+name = "track-linearization"
+version = "2.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "dask", version = "2024.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "dask", version = "2026.6.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "matplotlib", version = "3.9.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "matplotlib", version = "3.10.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "networkx", version = "3.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.10.*'" },
+    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "scipy", version = "1.13.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/50/e3/c59cb9c2e0caca82386b72484ba0c06c151054f58b85e0ce73d1dbe49db1/track_linearization-2.3.2.tar.gz", hash = "sha256:ee53b0bf423c470acdd39323f15de6f09c8e2f55a17efdeb4cb41310384293e1", size = 9013, upload-time = "2024-10-23T00:01:45.65Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c7/fa/30acd4d49ccc68a506917ef805150b91908df002b28d208ae86bca4ad448/track_linearization-2.3.2-py3-none-any.whl", hash = "sha256:1e4579ef50bf29216c5c80346c599038ce54de315d654fbe02c4668e41fc6630", size = 9438, upload-time = "2024-10-23T00:01:44.195Z" },
 ]
 
 [[package]]
