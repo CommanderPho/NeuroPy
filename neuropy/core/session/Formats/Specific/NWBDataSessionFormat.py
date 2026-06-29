@@ -1,10 +1,14 @@
 from copy import deepcopy
 from pathlib import Path
-from typing import Dict, Optional
+from attrs import define, field, Factory
+from typing import Dict, List, Tuple, Optional, Callable, Union, Any
 import warnings
-
 import numpy as np
 import pandas as pd
+import nptyping as ND
+from nptyping import NDArray
+
+import networkx as nx ## for track linearization in `TrackDefinition`
 
 from neuropy.core import Epoch, FlattenedSpiketrains, Neurons, Position
 from neuropy.core.parameters import ParametersContainer
@@ -15,26 +19,6 @@ from neuropy.utils.dynamic_container import DynamicContainer
 from neuropy.utils.mixins.gettable_mixin import KeypathsAccessibleMixin
 from neuropy.utils.result_context import IdentifyingContext
 from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
-from attrs import define, field, Factory
-from typing import Dict, List, Tuple, Optional, Callable, Union, Any
-from typing_extensions import TypeAlias
-import nptyping as ND
-from nptyping import NDArray
-
-
-import networkx as nx
-
-# Track linearization functions
-from track_linearization import (
-    make_track_graph,
-    get_linearized_position,
-    plot_track_graph,
-)
-from track_linearization.utils import plot_graph_as_1D
-
-# Set random seed for reproducibility
-np.random.seed(1337)
-
 
 # Define a W-shaped track
 # Visual layout:
@@ -48,7 +32,7 @@ np.random.seed(1337)
 
 @define(slots=False, eq=False)
 class TrackDefinition:
-    """
+    """ Allows more complex linearizations, such as for the W-maze
 
     Usage:
         from neuropy.core.session.Formats.Specific.NWBDataSessionFormat import TrackDefinition
