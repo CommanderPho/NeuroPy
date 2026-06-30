@@ -1009,9 +1009,6 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         def _perform_position_comps(session):
             # ['.neurons.npy','.probegroup.npy','.position.npy','.paradigm.npy']
             # session = DataSessionLoader.__default_compute_bapun_flattened_spikes(session)
-            # active_session_computation_configs[0].pf_params.linearization_method = "umap"
-            session.config.preprocessing_parameters.epoch_estimation_parameters.laps.linearization_method = "umap"
-            
             # Load or compute linear positions if needed:        
             if (not session.position.has_linear_pos):
                 # compute linear positions:

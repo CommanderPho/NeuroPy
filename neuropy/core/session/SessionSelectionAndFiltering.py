@@ -199,6 +199,7 @@ def batch_filter_session(sess, position, spikes_df, epochs, debug_print=False):
         filtered_spikes_df,
         sess.recinfo.dat_sampling_rate,
         time_variable_name=spk_df.spikes.time_variable_name,
+        source_neurons=sess.neurons,
     )
     # neurons_obj = None # Wait, it doesn't even set a neurons object and yet it all still works!!
     # Doesn't mess with laps, probegroup

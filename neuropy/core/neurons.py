@@ -92,6 +92,32 @@ class Neurons(HDF_SerializationMixin, NeuronUnitSlicableObjectProtocol, StartSto
         return dict(zip(flat_cell_ids, linear_flitered_ids))
 
 
+    @staticmethod
+    def _subset_per_neuron_metadata_from_source(source_neurons, target_neuron_ids):
+        """ gets the Neurons object's metadata for a subset of the source neurons (copying .waveforms, etc)
+        """
+        target_neuron_ids = np.array([int(cell_id) for cell_id in np.atleast_1d(target_neuron_ids)])
+        missing_neuron_ids = [cell_id for cell_id in target_neuron_ids if cell_id not in source_neurons.reverse_cellID_index_map]
+        if len(missing_neuron_ids) > 0:
+            raise KeyError(f"source_neurons is missing neuron_ids required for metadata copy: {missing_neuron_ids}")
+        source_indices = np.array([source_neurons.reverse_cellID_index_map[cell_id] for cell_id in target_neuron_ids], dtype=int)
+        waveforms = None
+        peak_channels = None
+        extended_neuron_properties_df = None
+        if source_neurons.waveforms is not None:
+            waveforms = np.asarray(source_neurons.waveforms)[source_indices]
+        if source_neurons.peak_channels is not None:
+            peak_channels = np.asarray(source_neurons.peak_channels)[source_indices]
+        if source_neurons._extended_neuron_properties_df is not None:
+            properties_df = source_neurons._extended_neuron_properties_df
+            id_column_name = next((a_col for a_col in ("aclu", "si_unit_id", "neuron_id", "cluster_id") if a_col in properties_df.columns), None)
+            if id_column_name is None:
+                raise KeyError("source_neurons._extended_neuron_properties_df must contain one of ['aclu', 'si_unit_id', 'neuron_id', 'cluster_id'] to be subset by neuron id.")
+            indexed_properties_df = properties_df.set_index(id_column_name, drop=False)
+            extended_neuron_properties_df = indexed_properties_df.loc[target_neuron_ids].reset_index(drop=True).copy()
+        return {"waveforms": waveforms, "peak_channels": peak_channels, "extended_neuron_properties_df": extended_neuron_properties_df}
+
+
     @property
     def neuron_type(self):
         """The neuron_type property."""
@@ -134,24 +160,30 @@ class Neurons(HDF_SerializationMixin, NeuronUnitSlicableObjectProtocol, StartSto
     def __getitem__(self, i):    
         # print('Neuron.__getitem__(i: {}): \n\t n_neurons: {}'.format(i, self.n_neurons))
         # copy object
+        assert self.neuron_ids is not None
+        selected_neuron_ids = self.neuron_ids[i]
+        is_single_neuron = np.isscalar(selected_neuron_ids)
+        selected_neuron_ids = np.atleast_1d(selected_neuron_ids).astype(int)
         spiketrains = self.spiketrains[i]
+        if is_single_neuron:
+            spiketrains = np.array([spiketrains], dtype=object)
         if self.neuron_type is not None:
             neuron_type = self.neuron_type[i]
+            if is_single_neuron:
+                neuron_type = np.array([neuron_type])
         else:
             neuron_type = self.neuron_type
 
-        if self.waveforms is not None:
-            waveforms = self.waveforms[i]
-        else:
-            waveforms = self.waveforms
+        per_neuron_metadata = Neurons._subset_per_neuron_metadata_from_source(self, selected_neuron_ids)
+        waveforms = per_neuron_metadata["waveforms"]
+        peak_channels = per_neuron_metadata["peak_channels"]
+        extended_neuron_properties_df = per_neuron_metadata["extended_neuron_properties_df"]
 
-        if self.peak_channels is not None:
-            peak_channels = self.peak_channels[i]
-        else:
-            peak_channels = self.peak_channels
 
         if self.shank_ids is not None:
             shank_ids = self.shank_ids[i]
+            if is_single_neuron:
+                shank_ids = np.array([shank_ids])
         else:
             shank_ids = self.shank_ids
 
@@ -160,11 +192,12 @@ class Neurons(HDF_SerializationMixin, NeuronUnitSlicableObjectProtocol, StartSto
             t_start=self.t_start,
             t_stop=self.t_stop,
             sampling_rate=self.sampling_rate,
-            neuron_ids=self.neuron_ids[i],
+            neuron_ids=selected_neuron_ids,
             neuron_type=neuron_type,
             waveforms=waveforms,
             peak_channels=peak_channels,
             shank_ids=shank_ids,
+            extended_neuron_properties_df=extended_neuron_properties_df,
         )
 
     @property
@@ -194,6 +227,7 @@ class Neurons(HDF_SerializationMixin, NeuronUnitSlicableObjectProtocol, StartSto
             waveforms=neurons.waveforms,
             peak_channels=neurons.peak_channels,
             shank_ids=neurons.shank_ids,
+            extended_neuron_properties_df=neurons._extended_neuron_properties_df,
         )
 
     def get_neuron_type(self, query_neuron_type):
@@ -386,8 +420,9 @@ class Neurons(HDF_SerializationMixin, NeuronUnitSlicableObjectProtocol, StartSto
                 print('dataframe cluster column does not exist. Initializing it to the same as aclu')
             spikes_df['cluster'] = 111 # spikes_df['aclu']
 
+
     @classmethod
-    def from_dataframe(cls, spikes_df, dat_sampling_rate, time_variable_name='t_rel_seconds'):
+    def from_dataframe(cls, spikes_df, dat_sampling_rate, time_variable_name='t_rel_seconds', source_neurons=None):
         """ Builds a Neurons object from a spikes_df, such as the one belonging to its complementary FlattenedSpiketrains:
             Usage:
                 neurons_obj = Neurons.from_dataframe(sess.flattened_spiketrains.spikes_df, sess.recinfo.dat_sampling_rate, time_variable_name='t_rel_seconds') 
@@ -418,14 +453,13 @@ class Neurons(HDF_SerializationMixin, NeuronUnitSlicableObjectProtocol, StartSto
         t_stop = np.max(spikes_df[time_variable_name])
         flat_cell_ids = np.array(flat_cell_ids)
         neuron_type = np.array(neuron_type)
-        out_neurons = Neurons(spiketrains, t_stop, t_start=0,
-            sampling_rate=dat_sampling_rate,
-            neuron_ids=flat_cell_ids,
-            neuron_type=neuron_type,
-            shank_ids=shank_ids
-        )
+        per_neuron_metadata = cls._subset_per_neuron_metadata_from_source(source_neurons, flat_cell_ids) if source_neurons is not None else {}
+        out_neurons = Neurons(spiketrains, t_stop, t_start=0, sampling_rate=dat_sampling_rate,
+            neuron_ids=flat_cell_ids, neuron_type=neuron_type, shank_ids=shank_ids,
+            waveforms=per_neuron_metadata.get("waveforms", None), peak_channels=per_neuron_metadata.get("peak_channels", None), extended_neuron_properties_df=per_neuron_metadata.get("extended_neuron_properties_df", None))
         return out_neurons
-                       
+
+
     # ConcatenationInitializable protocol:
     @classmethod
     def concat(cls, objList: Union[Sequence, np.array]):
@@ -478,6 +512,7 @@ class Neurons(HDF_SerializationMixin, NeuronUnitSlicableObjectProtocol, StartSto
             shank_ids=objList[0].shank_ids,
             metadata=objList[0].metadata
         )
+
 
     # HDFMixin Conformances ______________________________________________________________________________________________ #
     def to_hdf(self, file_path, key: str, session_uid:str="test_session_uid", **kwargs):

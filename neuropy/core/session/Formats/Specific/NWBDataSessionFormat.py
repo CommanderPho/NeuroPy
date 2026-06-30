@@ -286,7 +286,7 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
         if custom_lap_estimation_fn is not None:
             custom_lap_estimation_fn(sess)
         else:
-            estimate_session_laps(sess, should_plot_laps_2d=should_plot_laps_2d, **get_dict_subset(lap_estimation_parameters.to_dict(), subset_excludelist=['custom_lap_estimation_fn', 'reward_zones', 'use_direction_dependent_laps', 'should_backup_extant_laps_obj', 'N']))
+            estimate_session_laps(sess, should_plot_laps_2d=should_plot_laps_2d, **get_dict_subset(lap_estimation_parameters.to_dict(), subset_excludelist=['custom_lap_estimation_fn', 'reward_zones', 'use_direction_dependent_laps', 'should_backup_extant_laps_obj', 'N', 'linearization_method']))
         hardcoded_params = cls._get_session_specific_parameters(session_context=sess.get_context())
         active_maze_epoch_names = hardcoded_params.non_global_activity_session_names
         active_maze_epochs_df = sess.epochs.to_dataframe()
