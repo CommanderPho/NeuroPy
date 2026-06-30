@@ -337,8 +337,9 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
          
         #TODO 2025-09-20 19:26: - [ ] Is this redudndant with preprocessing parameters?
         """
-        
-        maze_grid_bin_bounds = (((41.37033775405482, 157.72257208195566), (9.76773097884994, 122.8597412183469)))
+        # maze_grid_bin_bounds = (((41.37033775405482, 157.72257208195566), (9.76773097884994, 122.8597412183469))) # 'ER1'
+        maze_grid_bin_bounds = (((14.0, 132.0), (0.0, 109.0)))
+
         # Custom Lap Building Functions ______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________ #
 
         # def _subfn_rat_U_Day4Openfield_build_Bapun_Day5OpenfieldSD_laps_from_reward_zones(session):
@@ -372,11 +373,10 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
                 decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7'],
-                grid_bin_bounds=maze_grid_bin_bounds,
+                grid_bin_bounds=(((14.0, 132.0), (0.0, 109.0))),
                 lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='track_graph', track_definition='w_maze', all_session_mazes=None),
             ),
-
 
 
             IdentifyingContext(format_name= 'dandi_nwb', exper_name= '000978', session_name= 'SingleDay'): HardcodedProcessingParameters(
