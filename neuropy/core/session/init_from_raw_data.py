@@ -1044,6 +1044,20 @@ class RawDataInitializationMixin:
         if sess.eegfile is None:
             print('WARNING: build_neurons_from_phy: sess.eegfile is None; cannot determine t_stop for Neurons')
             return None
+        if getattr(sess.eegfile, 'duration', None) is None:
+
+            ## Rebuild the EEG file
+            from neuropy.io.binarysignalio import BinarysignalIO
+
+            # sess.eegfile
+            # sess.datfile
+            eeg_path = sess.eegfile.source_file.resolve() # Path(r"W:\Data\Bapun\RatS\Day1Openfield\RatS-Day1Openfield.eeg").resolve()
+            assert eeg_path.exists()
+            assert eeg_path.is_file()
+
+            eeg_file: BinarysignalIO = BinarysignalIO(eeg_path)
+            sess.eegfile = eeg_file ## set the EEG file
+
         t_stop = sess.eegfile.duration
         try:
             resolved_phy_folder, resolved_review_path, source_type = cls._resolve_neuron_load_paths(config, basedir=Path(basedir), basename=basename)
