@@ -541,6 +541,48 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
 
 
     @classmethod
+    def build_session_basedirs_dict(cls, global_data_root_parent_path, debug_print=False) -> Dict[IdentifyingContext, Path]:
+        """Session ctx → folder under known DANDI 000978 W-maze layouts. Only registers dirs that exist and contain an .nwb file."""
+        if not isinstance(global_data_root_parent_path, Path):
+            global_data_root_parent_path = Path(global_data_root_parent_path).resolve()
+        fmt = cls._session_class_name
+        dandiset_id = '000978'
+        animal_ids = ['ER1', 'JS14', 'JS15', 'JS17', 'JS21', 'JS34', 'KL8', 'ZT2']
+        relative_parent_candidates = [
+            Path('DANDI') / 'SingleDayWTrackLearning' / dandiset_id,
+            Path('download') / dandiset_id,
+            Path('CRCNS') / 'download' / dandiset_id,
+        ]
+        out: Dict[IdentifyingContext, Path] = {}
+        for animal in animal_ids:
+            ctx = IdentifyingContext(format_name=fmt, animal=animal, exper_name=dandiset_id, session_name='SingleDay')
+            folder_name = f'{cls._single_day_prefix}{animal}'
+            chosen: Optional[Path] = None
+            for rel_parent in relative_parent_candidates:
+                candidate = global_data_root_parent_path.joinpath(rel_parent, folder_name)
+                if not candidate.is_dir():
+                    if debug_print:
+                        print(f'NWB build_session_basedirs_dict: skip {ctx} at {candidate} (not a directory)')
+                    continue
+                try:
+                    cls.find_nwb_file(candidate)
+                except FileNotFoundError:
+                    if debug_print:
+                        print(f'NWB build_session_basedirs_dict: skip {ctx} at {candidate} (no .nwb file)')
+                    continue
+                chosen = candidate.resolve()
+                if debug_print:
+                    print(f'NWB build_session_basedirs_dict: found valid folder for {ctx}; using {chosen}')
+                break
+            if chosen is not None:
+                out[ctx] = chosen
+            elif debug_print:
+                default_candidate = global_data_root_parent_path.joinpath(relative_parent_candidates[0], folder_name)
+                print(f'NWB build_session_basedirs_dict: no extant folder for {ctx}; default would be {default_candidate}')
+        return out
+
+
+    @classmethod
     def parse_session_basepath_to_context(cls, basedir) -> IdentifyingContext:
         basedir = Path(basedir)
         subject = cls._parse_subject_from_basedir(basedir)

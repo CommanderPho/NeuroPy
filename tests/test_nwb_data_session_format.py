@@ -187,3 +187,18 @@ def test_get_known_data_session_type_properties_registers_postload():
     type_properties = NWBDataSessionFormatRegisteredClass.get_known_data_session_type_properties()
     assert type_properties.post_load_functions is not None
     assert len(type_properties.post_load_functions) == 1
+
+
+def test_build_session_basedirs_dict_discovers_dandi_single_day_wtrack_layout(tmp_path):
+    from neuropy.core.session.Formats.Specific.NWBDataSessionFormat import NWBDataSessionFormatRegisteredClass
+    from neuropy.utils.result_context import IdentifyingContext
+
+    basedir = tmp_path / "DANDI" / "SingleDayWTrackLearning" / "000978" / "sub-JDS-SingleDay-ER1"
+    basedir.mkdir(parents=True)
+    (basedir / "sub-JDS-SingleDay-ER1_obj-test_behavior+ecephys.nwb").touch()
+
+    output_session_basedir_dict = NWBDataSessionFormatRegisteredClass.build_session_basedirs_dict(tmp_path)
+    expected_context = IdentifyingContext(format_name='dandi_nwb', animal='ER1', exper_name='000978', session_name='SingleDay')
+
+    assert expected_context in output_session_basedir_dict
+    assert output_session_basedir_dict[expected_context] == basedir.resolve()
