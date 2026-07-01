@@ -17,7 +17,7 @@ from neuropy.core.session.dataSession import DataSession
 from neuropy.core.session.Formats.SessionSpecifications import SessionFolderSpec, SessionFileSpec
 
 # For specific load functions:
-from neuropy.core import DataWriter, NeuronType, Neurons, BinnedSpiketrain, Mua, ProbeGroup, Position, Epoch, Signal, Laps, FlattenedSpiketrains
+from neuropy.core import DataWriter, NeuronType, Neurons, BinnedSpiketrain, Mua, ProbeGroup, Position, Epoch, Signal, Laps, FlattenedSpiketrains, ClusterlessSpikeEvents, default_clusterless_spike_events_path, load_clusterless_spike_events
 from neuropy.core.session.SessionSelectionAndFiltering import build_custom_epochs_filters # used particularly to build Bapun-style filters
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta
 from neuropy.utils.result_context import IdentifyingContext
@@ -976,6 +976,23 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
     # def _add_missing_spikes_df_columns(cls, spikes_df, neurons_obj):
     #     spikes_df, neurons_obj._reverse_cellID_index_map = spikes_df.spikes.rebuild_fragile_linear_neuron_IDXs()
     #     spikes_df['t'] = spikes_df[cls._time_variable_name] # add the 't' column required for visualization
+
+
+    @classmethod
+    def _get_clusterless_spike_events_path(cls, session) -> Path:
+        session_name: str = getattr(getattr(session, 'config', None), 'session_name', None) or getattr(session, 'name', None) or Path(session.filePrefix).name
+        return default_clusterless_spike_events_path(Path(session.filePrefix).parent, session_name)
+
+
+    @classmethod
+    def _try_load_clusterless_spike_events_file(cls, session):
+        clusterless_save_path: Path = cls._get_clusterless_spike_events_path(session)
+        if clusterless_save_path.exists():
+            events: ClusterlessSpikeEvents = load_clusterless_spike_events(clusterless_save_path)
+            events.filename = clusterless_save_path
+            print(f'Loading success: {clusterless_save_path.name}.')
+            session.clusterless_spike_events = events
+        return session
         
     
     ## Main load function:
@@ -1080,6 +1097,8 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
                 print('\t Saving computed flattened spiketrains results to {}...'.format(session.flattened_spiketrains.filename), end='')
                 session.flattened_spiketrains.save()
                 print('\t done.\n')
+
+            session = cls._try_load_clusterless_spike_events_file(session)
 
 
         def _perform_postload_comps(session):

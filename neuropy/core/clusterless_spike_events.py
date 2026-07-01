@@ -17,7 +17,9 @@ CLUSTERLESS_SPIKE_EVENTS_FILE_VERSION: int = 1
 class ClusterlessSpikeEvents(StartStopTimesMixin, TimeSlicableObjectProtocol, DataWriter):
     """Sparse clusterless spike events for portable transfer, one row per detected spike."""
 
-    def __init__(self, spike_times_sec: np.ndarray, electrode_indices: np.ndarray, marks: np.ndarray, sampling_frequency_hz: float = 1000.0, electrode_mode: str = "channel", n_mark_dims: Optional[int] = None, t_start: float = 0.0, t_stop: Optional[float] = None, t_end: Optional[float] = None, source_phy_path: Optional[str] = None, metadata: Optional[dict] = None) -> None:
+    def __init__(self, spike_times_sec: np.ndarray, electrode_indices: np.ndarray, marks: np.ndarray, sampling_frequency_hz: float = 1000.0, electrode_mode: str = "channel", n_mark_dims: Optional[int] = None,
+                t_start: float = 0.0, t_stop: Optional[float] = None, t_end: Optional[float] = None,
+                source_phy_path: Optional[str] = None, metadata: Optional[dict] = None) -> None:
         super().__init__(metadata=metadata)
         self.spike_times_sec = np.asarray(spike_times_sec).reshape(-1)
         self.electrode_indices = np.asarray(electrode_indices).reshape(-1)
@@ -148,6 +150,10 @@ class ClusterlessSpikeEvents(StartStopTimesMixin, TimeSlicableObjectProtocol, Da
         return saved_path
 
 
+
+# ==================================================================================================================================================================================================================================================================================== #
+# Top-level helper functions                                                                                                                                                                                                                                                           #
+# ==================================================================================================================================================================================================================================================================================== #
 def default_clusterless_spike_events_path(session_basedir: Union[str, Path], session_name: str) -> Path:
     return Path(session_basedir) / f"{session_name}.clusterless_spikes.npz"
 
@@ -168,4 +174,8 @@ def load_clusterless_spike_events(filepath: Union[str, Path]) -> ClusterlessSpik
         if source_phy_path == "":
             source_phy_path = None
         t_stop = float(data["t_stop"].item()) if "t_stop" in data else float(data["t_end"].item())
-        return ClusterlessSpikeEvents(spike_times_sec=np.asarray(data["spike_times_sec"], dtype=np.float32), electrode_indices=np.asarray(data["electrode_indices"], dtype=np.int16), marks=np.asarray(data["marks"], dtype=np.float32), sampling_frequency_hz=float(data["sampling_frequency_hz"].item()), electrode_mode=str(data["electrode_mode"].item()), n_mark_dims=int(data["n_mark_dims"].item()), t_start=float(data["t_start"].item()), t_stop=t_stop, source_phy_path=source_phy_path)
+        return ClusterlessSpikeEvents(spike_times_sec=np.asarray(data["spike_times_sec"], dtype=np.float32), electrode_indices=np.asarray(data["electrode_indices"], dtype=np.int16), marks=np.asarray(data["marks"], dtype=np.float32),
+            sampling_frequency_hz=float(data["sampling_frequency_hz"].item()), electrode_mode=str(data["electrode_mode"].item()), n_mark_dims=int(data["n_mark_dims"].item()),
+            t_start=float(data["t_start"].item()), t_stop=t_stop, source_phy_path=source_phy_path,
+            # filename=filepath,
+            )

@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -116,3 +117,22 @@ def test_core_init_exports_clusterless_symbols():
 
     assert ExportedClusterlessSpikeEvents is ClusterlessSpikeEvents
     assert exported_loader is load_clusterless_spike_events
+
+
+def test_bapun_loader_attaches_saved_clusterless_spike_events(tmp_path: Path):
+    from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass
+
+    events = _build_events()
+    session_name = "Synthetic"
+    events_path = tmp_path / f"{session_name}.clusterless_spikes.npz"
+    save_clusterless_spike_events(events_path, events)
+    session = SimpleNamespace(filePrefix=tmp_path / session_name, config=SimpleNamespace(session_name=session_name))
+
+    loaded_session = getattr(BapunDataSessionFormatRegisteredClass, "_try_load_clusterless_spike_events_file")(session)
+
+    assert loaded_session is session
+    assert isinstance(session.clusterless_spike_events, ClusterlessSpikeEvents)
+    np.testing.assert_allclose(session.clusterless_spike_events.spike_times_sec, events.spike_times_sec)
+    np.testing.assert_array_equal(session.clusterless_spike_events.electrode_indices, events.electrode_indices)
+    np.testing.assert_allclose(session.clusterless_spike_events.marks, events.marks)
+    assert session.clusterless_spike_events.filename == events_path
