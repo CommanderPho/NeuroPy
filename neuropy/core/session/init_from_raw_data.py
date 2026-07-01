@@ -1147,7 +1147,7 @@ class RawDataInitializationMixin:
             t_start = sess.t_start
         try:
             events = ClusterlessSpikeEvents.from_phy_folder(resolved_phy_folder, t_start=t_start, t_end=t_end, electrode_mode=config.clusterless_electrode_mode, sampling_frequency_hz=config.clusterless_sampling_frequency_hz)
-            print(f"Extracted {events.n_spikes} clusterless spikes from phy export ({resolved_phy_folder.name})")
+            print(f"Extracted {events.n_spikes} clusterless spikes (electrodes: {events.electrode_indices.unique()}) from phy export ({resolved_phy_folder.name})")
         except (FileNotFoundError, ValueError) as exc:
             print(f'WARNING: build_clusterless_spikes_from_phy: failed to extract from {resolved_phy_folder}: {exc}')
             return None

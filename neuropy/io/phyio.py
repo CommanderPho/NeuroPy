@@ -99,7 +99,12 @@ class PhyIO:
 
         self._sampling_rate = int(float(params["sample_rate"]))
         self._n_channels = int(params["n_channels_dat"])
-        self._n_features_per_channel = int(params["n_features_per_channel"])
+        if "n_features_per_channel" in params:
+            self._n_features_per_channel = int(params["n_features_per_channel"])
+        elif (self._source_dir / "pc_features.npy").is_file():
+            self._n_features_per_channel = int(np.load(self._source_dir / "pc_features.npy", mmap_mode="r").shape[1])
+        else:
+            self._n_features_per_channel = None
 
         spktime = np.load(self._source_dir / "spike_times.npy")
         clu_ids = np.load(self._source_dir / "spike_clusters.npy")
