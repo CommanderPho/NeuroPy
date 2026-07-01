@@ -136,3 +136,52 @@ def test_bapun_loader_attaches_saved_clusterless_spike_events(tmp_path: Path):
     np.testing.assert_array_equal(session.clusterless_spike_events.electrode_indices, events.electrode_indices)
     np.testing.assert_allclose(session.clusterless_spike_events.marks, events.marks)
     assert session.clusterless_spike_events.filename == events_path
+
+
+def test_bapun_session_spec_accepts_clusterless_spikes_without_neurons(tmp_path: Path):
+    from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass
+
+    session_name = "Synthetic"
+    for suffix in (".xml", ".probegroup.npy", ".position.npy", ".paradigm.npy"):
+        (tmp_path / f"{session_name}{suffix}").touch()
+    save_clusterless_spike_events(tmp_path / f"{session_name}.clusterless_spikes.npz", _build_events())
+
+    spec = BapunDataSessionFormatRegisteredClass.get_session_spec(session_name)
+    required_filenames = {file_spec.filename for file_spec in spec.required_files}
+    optional_filenames = {file_spec.filename for file_spec in spec.optional_files}
+    meets_spec, _, _ = getattr(spec, "validate")(tmp_path, False)
+
+    assert f"{session_name}.neurons.npy" not in required_filenames
+    assert f"{session_name}.neurons.npy" in optional_filenames
+    assert f"{session_name}.clusterless_spikes.npz" in optional_filenames
+    assert meets_spec
+
+
+def test_bapun_session_spec_rejects_missing_neurons_and_clusterless_spikes(tmp_path: Path):
+    from neuropy.core.session.Formats.SessionSpecifications import RequiredValidationFailedError
+    from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass
+
+    session_name = "Synthetic"
+    for suffix in (".xml", ".probegroup.npy", ".position.npy", ".paradigm.npy"):
+        (tmp_path / f"{session_name}{suffix}").touch()
+    spec = BapunDataSessionFormatRegisteredClass.get_session_spec(session_name)
+
+    with pytest.raises(RequiredValidationFailedError):
+        getattr(spec, "validate")(tmp_path, False)
+
+
+def test_bapun_optional_spike_source_loader_accepts_clusterless_without_neurons(tmp_path: Path):
+    from neuropy.core.session.Formats.Specific.BapunDataSessionFormat import BapunDataSessionFormatRegisteredClass
+
+    events = _build_events()
+    session_name = "Synthetic"
+    events_path = tmp_path / f"{session_name}.clusterless_spikes.npz"
+    save_clusterless_spike_events(events_path, events)
+    session = SimpleNamespace(filePrefix=tmp_path / session_name, config=SimpleNamespace(session_name=session_name))
+
+    loaded_session, loaded_files = getattr(BapunDataSessionFormatRegisteredClass, "_try_load_optional_spike_sources")(session, loaded_file_record_list=[])
+
+    assert loaded_session is session
+    assert loaded_files == [events_path]
+    assert not hasattr(session, "neurons")
+    assert isinstance(session.clusterless_spike_events, ClusterlessSpikeEvents)
