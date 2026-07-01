@@ -51,6 +51,18 @@ def test_time_slice_masks_parallel_arrays_and_updates_bounds():
     assert sliced.source_phy_path == events.source_phy_path
 
 
+def test_time_sliced_supports_multiple_intervals():
+    events = ClusterlessSpikeEvents(spike_times_sec=np.array([0.5, 1.0, 1.5, 2.0, 2.5], dtype=np.float32), electrode_indices=np.array([0, 0, 1, 1, 2], dtype=np.int16),
+        marks=np.ones((5, 4), dtype=np.float32), sampling_frequency_hz=1000.0, electrode_mode="channel", t_start=0.0, t_stop=3.0)
+
+    sliced = events.time_sliced(t_start=np.array([0.0, 1.25]), t_stop=np.array([0.75, 1.75]))
+
+    np.testing.assert_allclose(sliced.spike_times_sec, np.array([0.5, 1.5], dtype=np.float32))
+    np.testing.assert_array_equal(sliced.electrode_indices, np.array([0, 1], dtype=np.int16))
+    assert sliced.t_start == 0.0
+    assert sliced.t_stop == 1.75
+
+
 def test_get_by_electrode_filters_events_without_unit_semantics():
     events = _build_events()
 
@@ -254,3 +266,29 @@ def test_build_clusterless_spikes_from_phy_skips_existing(tmp_path: Path):
     assert result is not None
     assert isinstance(sess.clusterless_spike_events, ClusterlessSpikeEvents)
     np.testing.assert_allclose(sess.clusterless_spike_events.spike_times_sec, events.spike_times_sec)
+
+
+def test_data_session_time_slice_filters_clusterless_spike_events():
+    import pandas as pd
+    from neuropy.core.epoch import Epoch
+    from neuropy.core.flattened_spiketrains import FlattenedSpiketrains
+    from neuropy.core.neurons import Neurons
+    from neuropy.core.position import Position
+    from neuropy.core.session.dataSession import DataSession
+
+    events = ClusterlessSpikeEvents(spike_times_sec=np.array([0.3, 0.9, 1.2, 1.5], dtype=np.float32), electrode_indices=np.array([0, 1, 1, 2], dtype=np.int16),
+        marks=np.ones((4, 4), dtype=np.float32), sampling_frequency_hz=1000.0, electrode_mode="channel", t_start=0.0, t_stop=2.0)
+    spiketrains = np.array([np.array([0.3, 0.9, 1.2]), np.array([1.5])], dtype=object)
+    neurons_obj = Neurons(spiketrains, t_stop=2.0, sampling_rate=30000, neuron_ids=np.array([1, 2]))
+    spikes_df = pd.DataFrame({"t_seconds": [0.3, 0.9, 1.2, 1.5], "aclu": [1, 1, 1, 2]})
+    position_df = pd.DataFrame({"t": [0.0, 0.5, 1.0, 1.5, 2.0], "x": [0.0, 1.0, 2.0, 3.0, 4.0], "y": [0.0, 0.0, 0.0, 0.0, 0.0]})
+    paradigm = Epoch.from_starts_stops_arrays(starts=np.array([0.0]), stops=np.array([2.0]), labels=np.array(["global"]))
+    sess = DataSession(config=SimpleNamespace(session_name="test"), neurons=neurons_obj, position=Position(position_df), paradigm=paradigm,
+        flattened_spiketrains=FlattenedSpiketrains(spikes_df, time_variable_name="t_seconds"), clusterless_spike_events=events)
+
+    filtered_sess = sess.time_slice(0.0, 1.0, enable_debug=False)
+
+    assert filtered_sess.clusterless_spike_events is not None
+    np.testing.assert_allclose(filtered_sess.clusterless_spike_events.spike_times_sec, np.array([0.3, 0.9], dtype=np.float32))
+    assert filtered_sess.clusterless_spike_events.t_start == 0.0
+    assert filtered_sess.clusterless_spike_events.t_stop == 1.0

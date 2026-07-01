@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from neuropy.core.datawriter import DataWriter
+from neuropy.utils.efficient_interval_search import determine_event_interval_is_included
 from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableObjectProtocol
 
 
@@ -243,6 +244,19 @@ class ClusterlessSpikeEvents(StartStopTimesMixin, TimeSlicableObjectProtocol, Da
         t_start, t_stop = self.safe_start_stop_times(t_start, t_stop)
         inclusion_mask = (self.spike_times_sec >= t_start) & (self.spike_times_sec <= t_stop)
         return self._copy_with_mask(inclusion_mask, t_start=t_start, t_stop=t_stop)
+
+
+    def time_sliced(self, t_start=None, t_stop=None) -> "ClusterlessSpikeEvents":
+        if np.isscalar(t_start):
+            t_start = np.array([t_start])
+        if np.isscalar(t_stop):
+            t_stop = np.array([t_stop])
+        starts = t_start
+        stops = t_stop
+        assert np.shape(starts) == np.shape(stops), f"starts and stops must be the same shape, but np.shape(starts): {np.shape(starts)} and np.shape(stops): {np.shape(stops)}"
+        start_stop_times_arr = np.hstack((np.atleast_2d(starts).T, np.atleast_2d(stops).T))
+        inclusion_mask = determine_event_interval_is_included(self.spike_times_sec, start_stop_times_arr)
+        return self._copy_with_mask(inclusion_mask, t_start=float(np.min(starts)), t_stop=float(np.max(stops)))
 
 
     def get_by_electrode(self, electrode_indices) -> "ClusterlessSpikeEvents":

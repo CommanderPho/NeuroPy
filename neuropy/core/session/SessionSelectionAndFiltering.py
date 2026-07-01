@@ -156,6 +156,7 @@ def batch_filter_session(sess, position, spikes_df, epochs, debug_print=False):
 
     # TODO: need to filter the sess.pbe by the epochs as well. sess.pbe is an Epoch type object
     filtered_pbe = sess.pbe.time_slice(epochs.starts[0], epochs.stops[-1]) if sess.pbe is not None else None # TODO: do I need to copy this object?
+    filtered_clusterless_spike_events = sess.clusterless_spike_events.time_sliced(epochs.starts, epochs.stops) if getattr(sess, 'clusterless_spike_events', None) is not None else None
     
     # .time_sliced(
     #     epochs.starts, epochs.stops
@@ -222,7 +223,8 @@ def batch_filter_session(sess, position, spikes_df, epochs, debug_print=False):
             t_start=epochs.t_start,
             metadata=sess.flattened_spiketrains.metadata,
         ),
-        pbe=filtered_pbe
+        pbe=filtered_pbe,
+        clusterless_spike_events=filtered_clusterless_spike_events,
     )  # 15.6 ms
 
     return filtered_sess

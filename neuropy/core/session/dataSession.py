@@ -187,6 +187,9 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         if copy_sess.has_replays:            
             copy_sess.replay = copy_sess.replay.time_slicer.time_slice(active_epoch_times[0], active_epoch_times[1])
 
+        if getattr(copy_sess, 'clusterless_spike_events', None) is not None:
+            copy_sess.clusterless_spike_events = copy_sess.clusterless_spike_events.time_slice(active_epoch_times[0], active_epoch_times[1])
+
         return copy_sess
     
     def get_neuron_type(self, query_neuron_type):
