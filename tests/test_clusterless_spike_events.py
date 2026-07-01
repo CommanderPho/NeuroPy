@@ -185,3 +185,72 @@ def test_bapun_optional_spike_source_loader_accepts_clusterless_without_neurons(
     assert loaded_files == [events_path]
     assert not hasattr(session, "neurons")
     assert isinstance(session.clusterless_spike_events, ClusterlessSpikeEvents)
+
+
+def _write_synthetic_phy_folder(phy_folder: Path, sample_rate_hz: float = 30000.0) -> None:
+    phy_folder.mkdir(parents=True, exist_ok=True)
+    (phy_folder / "params.py").write_text(f"sample_rate = {sample_rate_hz}\n", encoding="utf-8")
+    spike_times = np.array([int(1.0 * sample_rate_hz), int(1.001 * sample_rate_hz), int(1.002 * sample_rate_hz), int(1.5 * sample_rate_hz), int(2.0 * sample_rate_hz)], dtype=np.int64)
+    spike_templates = np.array([0, 0, 1, 1, 0], dtype=np.int64)
+    pc_feature_ind = np.array([[0, 1, -1, -1], [1, 2, -1, -1]], dtype=np.int64)
+    pc_features = np.zeros((len(spike_times), 4, 4), dtype=np.float32)
+    pc_features[0, :, 0] = np.array([1.0, 0.1, 0.2, 0.3], dtype=np.float32)
+    pc_features[1, :, 1] = np.array([2.0, 0.4, 0.5, 0.6], dtype=np.float32)
+    pc_features[2, :, 0] = np.array([3.0, 0.7, 0.8, 0.9], dtype=np.float32)
+    pc_features[3, :, 1] = np.array([4.0, 1.0, 1.1, 1.2], dtype=np.float32)
+    pc_features[4, :, 0] = np.array([5.0, 1.3, 1.4, 1.5], dtype=np.float32)
+    channel_map = np.array([0, 1, 2], dtype=np.int32)
+    np.save(phy_folder / "spike_times.npy", spike_times)
+    np.save(phy_folder / "spike_templates.npy", spike_templates)
+    np.save(phy_folder / "pc_feature_ind.npy", pc_feature_ind)
+    np.save(phy_folder / "pc_features.npy", pc_features)
+    np.save(phy_folder / "channel_map.npy", channel_map)
+
+
+def test_from_phy_folder_synthetic(tmp_path: Path):
+    phy_folder = tmp_path / "phy"
+    _write_synthetic_phy_folder(phy_folder)
+    events = ClusterlessSpikeEvents.from_phy_folder(phy_folder, t_start=1.0, t_end=2.0, electrode_mode="channel")
+    assert events.spike_times_sec.dtype == np.float32
+    assert events.electrode_indices.dtype == np.int16
+    assert events.marks.dtype == np.float32
+    assert events.marks.shape[1] == 4
+    assert len(events.spike_times_sec) == 5
+    assert np.all((events.spike_times_sec >= 1.0) & (events.spike_times_sec <= 2.0))
+    assert events.source_phy_path == str(phy_folder)
+
+
+def test_build_clusterless_spikes_from_phy_creates_npz(tmp_path: Path):
+    from neuropy.core.session.init_from_raw_data import RawDataInitializationMixin
+
+    session_name = "Synthetic"
+    phy_folder = tmp_path / "phy"
+    _write_synthetic_phy_folder(phy_folder)
+    sess = SimpleNamespace(name=session_name, filePrefix=tmp_path / session_name, config=SimpleNamespace(session_name=session_name))
+    clusterless_save_path = tmp_path / f"{session_name}.clusterless_spikes.npz"
+    assert not clusterless_save_path.exists()
+
+    result = RawDataInitializationMixin.build_clusterless_spikes_from_phy(sess, basedir=tmp_path, phy_folder=phy_folder)
+
+    assert result is not None
+    assert clusterless_save_path.exists()
+    assert isinstance(sess.clusterless_spike_events, ClusterlessSpikeEvents)
+    assert sess.clusterless_spike_events.n_spikes == 5
+    loaded = load_clusterless_spike_events(clusterless_save_path)
+    assert loaded.n_spikes == 5
+
+
+def test_build_clusterless_spikes_from_phy_skips_existing(tmp_path: Path):
+    from neuropy.core.session.init_from_raw_data import RawDataInitializationMixin
+
+    session_name = "Synthetic"
+    events = _build_events()
+    clusterless_save_path = tmp_path / f"{session_name}.clusterless_spikes.npz"
+    save_clusterless_spike_events(clusterless_save_path, events)
+    sess = SimpleNamespace(name=session_name, filePrefix=tmp_path / session_name, config=SimpleNamespace(session_name=session_name))
+
+    result = RawDataInitializationMixin.build_clusterless_spikes_from_phy(sess, basedir=tmp_path, phy_folder=tmp_path / "missing_phy")
+
+    assert result is not None
+    assert isinstance(sess.clusterless_spike_events, ClusterlessSpikeEvents)
+    np.testing.assert_allclose(sess.clusterless_spike_events.spike_times_sec, events.spike_times_sec)

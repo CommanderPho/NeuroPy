@@ -26,6 +26,10 @@ class NeuronLoadConfig:
     unit_filter: str = 'prediction == "sua"'
     save_neurons: bool = True
     estimate_neuron_type: bool = True
+    build_clusterless_if_missing: bool = True
+    save_clusterless: bool = True
+    clusterless_electrode_mode: str = "channel"
+    clusterless_sampling_frequency_hz: float = 1000.0
 
 ## Neuropy Imports:
 from neuropy.io import OptitrackIO
@@ -928,6 +932,18 @@ class RawDataInitializationMixin:
 
 
     @classmethod
+    def _resolve_clusterless_phy_folder(cls, config: NeuronLoadConfig, basedir: Path, basename: str) -> Path:
+        """Resolve phy folder for clusterless extraction without requiring neuron-curation Phy files."""
+        basedir = windows_to_wsl_path_if_needed(basedir).resolve()
+        if config.run_name is not None:
+            sorting_root = basedir.joinpath("SORTING")
+            return config.phy_folder.resolve() if config.phy_folder is not None else sorting_root.joinpath(f"{config.run_name}_phy_curated").resolve()
+        if config.phy_folder is not None:
+            return windows_to_wsl_path_if_needed(config.phy_folder).resolve()
+        return basedir.joinpath("spyk-circ", basename, f"{basename}-merged.GUI").resolve()
+
+
+    @classmethod
     def _read_phy_params(cls, phy_folder: Path) -> dict[str, str]:
         params: dict[str, str] = {}
         with (phy_folder / "params.py").open("r") as f:
@@ -1078,6 +1094,73 @@ class RawDataInitializationMixin:
             print(f'WARNING: build_neurons_from_phy: failed to load neurons from {resolved_phy_folder}: {exc}')
             return None
         return cls._finalize_loaded_neurons(sess, neurons, estimate_neuron_type=config.estimate_neuron_type, save_neurons=config.save_neurons)
+
+
+    @classmethod
+    def build_clusterless_spikes_from_phy(cls, sess, basedir: Path, *, phy_folder: Optional[Path] = None, curation_review_path: Optional[Path] = None, sorting_run_name: Optional[str] = None, neuron_load_config: Optional[NeuronLoadConfig] = None):
+        """Builds or loads clusterless spike events from Phy output and saves session file.
+
+        If ``{basename}.clusterless_spikes.npz`` already exists in basedir, loads it.
+        Otherwise extracts all detected spikes from the resolved phy folder (ignores unit curation).
+
+        Modifies:
+            sess.clusterless_spike_events
+
+        Usage:
+
+            cls.build_clusterless_spikes_from_phy(sess, basedir=basedir)
+            cls.build_clusterless_spikes_from_phy(sess, basedir=basedir, phy_folder=basedir / "SORTING/folder_KS4_v1_phy_curated")
+
+        """
+        from neuropy.core.clusterless_spike_events import ClusterlessSpikeEvents, _PHY_CLUSTERLESS_REQUIRED_FILES, default_clusterless_spike_events_path, load_clusterless_spike_events, save_clusterless_spike_events
+
+        config = neuron_load_config or NeuronLoadConfig(phy_folder=Path(phy_folder) if phy_folder is not None else None, curation_review_path=Path(curation_review_path) if curation_review_path is not None else None, run_name=sorting_run_name)
+        basename = getattr(sess, "name", None) or getattr(getattr(sess, "config", None), "session_name", None)
+        if basename is None and config.phy_folder is None and config.run_name is None:
+            print('WARNING: build_clusterless_spikes_from_phy: sess must have .name when phy_folder and run_name are not set')
+            return None
+        if basename is None:
+            basename = "session"
+        clusterless_save_path: Path = default_clusterless_spike_events_path(Path(basedir), basename)
+        if clusterless_save_path.exists():
+            events: ClusterlessSpikeEvents = load_clusterless_spike_events(clusterless_save_path)
+            events.filename = clusterless_save_path
+            print(f'Loading success: {clusterless_save_path.name}.')
+            sess.clusterless_spike_events = events
+            return events
+        if not config.build_clusterless_if_missing:
+            return None
+        resolved_phy_folder = cls._resolve_clusterless_phy_folder(config, basedir=Path(basedir), basename=basename)
+        if not resolved_phy_folder.is_dir():
+            print(f'WARNING: build_clusterless_spikes_from_phy: phy_folder does not exist: {resolved_phy_folder}')
+            return None
+        missing_clusterless_files = [a_file for a_file in _PHY_CLUSTERLESS_REQUIRED_FILES if not (resolved_phy_folder / a_file).is_file()]
+        if missing_clusterless_files:
+            print(f'WARNING: build_clusterless_spikes_from_phy: phy folder missing clusterless files {missing_clusterless_files} at {resolved_phy_folder}')
+            return None
+        t_start, t_end = None, None
+        if getattr(sess, 'eegfile', None) is not None and getattr(sess.eegfile, 'duration', None) is not None:
+            t_end = sess.eegfile.duration
+        elif getattr(sess, 't_stop', None) is not None:
+            t_end = sess.t_stop
+        if getattr(sess, 't_start', None) is not None:
+            t_start = sess.t_start
+        try:
+            events = ClusterlessSpikeEvents.from_phy_folder(resolved_phy_folder, t_start=t_start, t_end=t_end, electrode_mode=config.clusterless_electrode_mode, sampling_frequency_hz=config.clusterless_sampling_frequency_hz)
+            print(f"Extracted {events.n_spikes} clusterless spikes from phy export ({resolved_phy_folder.name})")
+        except (FileNotFoundError, ValueError) as exc:
+            print(f'WARNING: build_clusterless_spikes_from_phy: failed to extract from {resolved_phy_folder}: {exc}')
+            return None
+        if config.save_clusterless:
+            try:
+                print(f'saving out to {clusterless_save_path.as_posix()}...')
+                save_clusterless_spike_events(clusterless_save_path, events)
+                print(f'\tdone.')
+            except Exception as e:
+                print(f'WARNING: build_clusterless_spikes_from_phy: failed to save clusterless spikes to "{clusterless_save_path.as_posix()}": {e}')
+        events.filename = clusterless_save_path
+        sess.clusterless_spike_events = events
+        return events
 
 
     @classmethod
@@ -1289,6 +1372,8 @@ class RawDataInitializationMixin:
 
         cls.build_neurons_from_phy(sess, basedir=basedir, phy_folder=phy_folder, curation_review_path=curation_review_path, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config)
 
+        cls.build_clusterless_spikes_from_phy(sess, basedir=basedir, phy_folder=phy_folder, curation_review_path=curation_review_path, sorting_run_name=sorting_run_name, neuron_load_config=neuron_load_config)
+
         cls.build_mua_pbe_artifact_epochs(sess)
 
 
@@ -1299,8 +1384,10 @@ class RawDataInitializationMixin:
         if (sess.paradigm is None): #  or (sess.paradigm != epochs_obj)
 
             ## Unless otherwise provided, try to get the latest common timestamp for all of the session's data fields for the t_start and the earliest for the t_stop
-            session_t_start: float = np.nanmax([sess.position.t_start, sess.neurons.t_start])
-            session_t_stop: float = np.nanmin([sess.position.t_stop, sess.neurons.t_stop])
+            spike_t_start = sess.neurons.t_start if sess.neurons is not None else (sess.clusterless_spike_events.t_start if getattr(sess, 'clusterless_spike_events', None) is not None else 0.0)
+            spike_t_stop = sess.neurons.t_stop if sess.neurons is not None else (sess.clusterless_spike_events.t_stop if getattr(sess, 'clusterless_spike_events', None) is not None else sess.eegfile.duration)
+            session_t_start: float = np.nanmax([sess.position.t_start, spike_t_start])
+            session_t_stop: float = np.nanmin([sess.position.t_stop, spike_t_stop])
             # (session_t_start, session_t_stop)
             # 0.0, 5511.2575
 
