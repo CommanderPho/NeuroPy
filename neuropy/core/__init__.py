@@ -11,3 +11,4 @@ from .animal import Animal
 # from .session.dataSession import DataSession, processDataSession
 from .laps import Laps
 from .flattened_spiketrains import FlattenedSpiketrains
+from .clusterless_spike_events import ClusterlessSpikeEvents, CLUSTERLESS_SPIKE_EVENTS_FILE_VERSION, default_clusterless_spike_events_path, load_clusterless_spike_events, save_clusterless_spike_events
