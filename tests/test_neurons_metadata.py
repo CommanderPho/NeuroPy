@@ -5,6 +5,7 @@ import pandas as pd
 
 from neuropy.core.epoch import Epoch
 from neuropy.core.flattened_spiketrains import FlattenedSpiketrains
+from neuropy.core.clusterless_spike_events import ClusterlessSpikeEvents
 from neuropy.core.neuron_identities import NeuronType
 from neuropy.core.neurons import Neurons
 from neuropy.core.session.SessionSelectionAndFiltering import batch_filter_session
@@ -103,3 +104,21 @@ def test_batch_filter_session_preserves_source_neuron_waveforms():
     assert filtered_sess.neurons.waveforms.shape[0] == filtered_sess.neurons.n_neurons
     assert source_neurons.waveforms is not None
     np.testing.assert_array_equal(filtered_sess.neurons.waveforms, source_neurons.waveforms[[0, 2]])
+
+
+def test_batch_filter_session_filters_clusterless_spike_events():
+    source_neurons = _build_source_neurons()
+    spikes_df = _build_spikes_df()
+    epochs = Epoch.from_starts_stops_arrays(starts=np.array([0.0]), stops=np.array([1.0]), labels=np.array(["maze"]))
+    clusterless_spike_events = ClusterlessSpikeEvents(spike_times_sec=np.array([0.3, 0.9, 1.2, 1.5], dtype=np.float32), electrode_indices=np.array([0, 1, 1, 2], dtype=np.int16),
+        marks=np.ones((4, 4), dtype=np.float32), sampling_frequency_hz=1000.0, electrode_mode="channel", t_start=0.0, t_stop=2.0)
+    sess = SimpleNamespace(config=None, filePrefix=None, recinfo=SimpleNamespace(dat_sampling_rate=30000), eegfile=None, datfile=None,
+        neurons=source_neurons, probegroup=None, position=_MinimalPosition(), ripple=None, mua=None, laps=None,
+        flattened_spiketrains=FlattenedSpiketrains(spikes_df, time_variable_name="t_seconds"), pbe=None, clusterless_spike_events=clusterless_spike_events)
+
+    filtered_sess = batch_filter_session(sess, sess.position, spikes_df, epochs)
+
+    assert filtered_sess.clusterless_spike_events is not None
+    np.testing.assert_allclose(filtered_sess.clusterless_spike_events.spike_times_sec, np.array([0.3, 0.9], dtype=np.float32))
+    assert filtered_sess.clusterless_spike_events.t_start == 0.0
+    assert filtered_sess.clusterless_spike_events.t_stop == 1.0
