@@ -39,6 +39,14 @@ class ClusterlessSpikeEvents(StartStopTimesMixin, TimeSlicableObjectProtocol, Da
         self.source_phy_path = source_phy_path
 
 
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
     def _validate_parallel_arrays(self) -> None:
         if self.marks.ndim != 2:
             raise ValueError(f"marks must be a 2-D array with shape (n_spikes, n_mark_dims); got shape {self.marks.shape}.")
