@@ -1122,6 +1122,23 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
             ## Load or compute flattened spikes since this format of data has the spikes ordered only by cell_id:
             ## flattened.spikes:
             active_file_suffix = '.flattened.spikes.npy'
+            session = cls._try_load_clusterless_spike_events_file(session)
+            if getattr(session, 'clusterless_spike_events', None) is not None:
+                print(f'INFO: clusterless spike events available; ignoring cached {active_file_suffix}.')
+                if getattr(session, 'neurons', None) is None:
+                    print('No neurons loaded; skipping flattened spiketrains because clusterless spike events are available.')
+                    return
+                print('Recomputing flattened spiketrains from session.neurons (not loading stale cache).')
+                session = cls._default_compute_flattened_spikes(session, spike_timestamp_column_name=cls._time_variable_name) # sets session.flattened_spiketrains
+                spikes_df = session.spikes_df
+                session, spikes_df = cls._default_compute_spike_interpolated_positions_if_needed(session, spikes_df, time_variable_name=cls._time_variable_name)
+                cls._add_missing_spikes_df_columns(spikes_df, session.neurons) # add the missing columns to the dataframe
+                session.flattened_spiketrains.filename = session.filePrefix.with_suffix(active_file_suffix) # '.flattened.spikes.npy'
+                print('\t Saving computed flattened spiketrains results to {}...'.format(session.flattened_spiketrains.filename), end='')
+                session.flattened_spiketrains.save()
+                print('\t done.\n')
+                return
+
             # active_file_suffix = '.new.flattened.spikes.npy'
             found_datafile = FlattenedSpiketrains.from_file(session.filePrefix.with_suffix(active_file_suffix))
             if found_datafile is not None:

@@ -8,7 +8,10 @@ position_df_inclusion: for a single filter/selector config, this is a pd.DataFra
     a filter excluding time ranges (such as filtering by (epochs == maze), (lap_id == lap_id), or raw time ranges.
     a filter excluding based on velocities, speeds, position values, etc.
 """
+import warnings
+
 import numpy as np
+import pandas as pd
 
 from neuropy import core
 from neuropy.core.flattened_spiketrains import FlattenedSpiketrains
@@ -157,7 +160,25 @@ def batch_filter_session(sess, position, spikes_df, epochs, debug_print=False):
     # TODO: need to filter the sess.pbe by the epochs as well. sess.pbe is an Epoch type object
     filtered_pbe = sess.pbe.time_slice(epochs.starts[0], epochs.stops[-1]) if sess.pbe is not None else None # TODO: do I need to copy this object?
     filtered_clusterless_spike_events = sess.clusterless_spike_events.time_sliced(epochs.starts, epochs.stops) if getattr(sess, 'clusterless_spike_events', None) is not None else None
-    
+    source_neurons = getattr(sess, 'neurons', None)
+    has_clusterless_spike_events = getattr(sess, 'clusterless_spike_events', None) is not None
+    flattened_spiketrains_metadata = getattr(getattr(sess, 'flattened_spiketrains', None), 'metadata', None)
+    time_variable_name = spk_df.spikes.time_variable_name
+
+    if source_neurons is not None and source_neurons.neuron_ids is not None and len(filtered_spikes_df) > 0:
+        source_neuron_ids = {int(cell_id) for cell_id in source_neurons.neuron_ids}
+        spike_neuron_ids = {int(cell_id) for cell_id in np.unique(filtered_spikes_df['aclu'].values)}
+        orphan_neuron_ids = sorted(spike_neuron_ids - source_neuron_ids)
+        if len(orphan_neuron_ids) > 0:
+            orphan_spike_count = int(np.isin(filtered_spikes_df['aclu'].values, orphan_neuron_ids).sum())
+            orphan_msg = f"Dropping {orphan_spike_count} spike(s) for aclu values not in sess.neurons: {orphan_neuron_ids}"
+            if has_clusterless_spike_events:
+                orphan_msg += " (clusterless_spike_events will be used for clusterless decoding)"
+            warnings.warn(orphan_msg, UserWarning, stacklevel=2)
+            if debug_print:
+                print(f"WARNING: {orphan_msg}")
+            filtered_spikes_df = filtered_spikes_df[filtered_spikes_df['aclu'].isin(source_neuron_ids)].copy()
+
     # .time_sliced(
     #     epochs.starts, epochs.stops
     # )
@@ -188,22 +209,15 @@ def batch_filter_session(sess, position, spikes_df, epochs, debug_print=False):
         )  # (2538347, 12)
         print(f"np.shape(filtered_pos_df):{np.shape(filtered_pos_df)}")  # (174000, 5)
 
-    # Once filtering is done, apply the grouping:
-    Neurons.initialize_missing_spikes_df_columns(filtered_spikes_df)
+    if source_neurons is None and has_clusterless_spike_events:
+        neurons_obj = None
+        filtered_spikes_df = pd.DataFrame({'aclu': pd.Series(dtype=np.int64), 't_seconds': pd.Series(dtype=np.float64), 't': pd.Series(dtype=np.float64)})
+        filtered_flattened_spiketrains = FlattenedSpiketrains(filtered_spikes_df, time_variable_name=time_variable_name, t_start=epochs.t_start, metadata=flattened_spiketrains_metadata)
+    else:
+        Neurons.initialize_missing_spikes_df_columns(filtered_spikes_df)
+        neurons_obj = Neurons.from_dataframe(filtered_spikes_df, sess.recinfo.dat_sampling_rate, time_variable_name=time_variable_name, source_neurons=source_neurons)
+        filtered_flattened_spiketrains = FlattenedSpiketrains(filtered_spikes_df, time_variable_name=time_variable_name, t_start=epochs.t_start, metadata=flattened_spiketrains_metadata)
 
-    # Group by the aclu (cluster indicator) column
-    # cell_grouped_spikes_df = filtered_spikes_df.groupby(['aclu']) # Wall time: 15.6 ms
-    # cell_spikes_dfs = [cell_grouped_spikes_df.get_group(a_neuron_id) for a_neuron_id in filtered_spikes_df.spikes.neuron_ids] # a list of dataframes for each neuron_id, Wall time: 723 ms
-
-    # Finally, make the filtered session:
-    neurons_obj = Neurons.from_dataframe(
-        filtered_spikes_df,
-        sess.recinfo.dat_sampling_rate,
-        time_variable_name=spk_df.spikes.time_variable_name,
-        source_neurons=sess.neurons,
-    )
-    # neurons_obj = None # Wait, it doesn't even set a neurons object and yet it all still works!!
-    # Doesn't mess with laps, probegroup
     filtered_sess = DataSession(
         sess.config,
         filePrefix=sess.filePrefix,
@@ -217,12 +231,7 @@ def batch_filter_session(sess, position, spikes_df, epochs, debug_print=False):
         ripple=sess.ripple,
         mua=sess.mua,
         laps=sess.laps,
-        flattened_spiketrains=FlattenedSpiketrains(
-            filtered_spikes_df,
-            time_variable_name=spk_df.spikes.time_variable_name,
-            t_start=epochs.t_start,
-            metadata=sess.flattened_spiketrains.metadata,
-        ),
+        flattened_spiketrains=filtered_flattened_spiketrains,
         pbe=filtered_pbe,
         clusterless_spike_events=filtered_clusterless_spike_events,
     )  # 15.6 ms
