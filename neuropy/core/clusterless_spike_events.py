@@ -17,150 +17,167 @@ CLUSTERLESS_SPIKE_EVENTS_FILE_VERSION: int = 1
 _PHY_CLUSTERLESS_REQUIRED_FILES = ("params.py", "spike_times.npy", "spike_templates.npy", "pc_features.npy", "pc_feature_ind.npy")
 
 
-def _read_phy_params(phy_path: Path) -> dict[str, str]:
-    params: dict[str, str] = {}
-    with (phy_path / "params.py").open("r", encoding="utf-8") as params_file:
-        for line in params_file:
-            line_values = line.replace("\n", "").replace('r"', '"').replace('"', "").split("=")
-            if len(line_values) >= 2:
-                params[line_values[0].strip()] = line_values[1].strip()
-    if "sample_rate" not in params:
-        raise ValueError(f"params.py in {phy_path} is missing sample_rate.")
-    return params
-
-
-def _parse_phy_param_float(params: dict[str, str], key: str) -> Optional[float]:
-    if key not in params:
-        return None
-    return float(params[key])
-
-
-def _resolve_phy_dat_path(phy_path: Path, params: dict[str, str]) -> Optional[Path]:
-    dat_path = params.get("dat_path")
-    if dat_path is None or dat_path in {"", "no_path.bin"}:
-        return None
-    dat_file = Path(dat_path)
-    if not dat_file.is_absolute():
-        for candidate_path in (phy_path / dat_file, phy_path.parent / dat_file, phy_path.parent.parent / dat_file):
-            if candidate_path.is_file():
-                return candidate_path.resolve()
-        return None
-    return dat_file if dat_file.is_file() else None
-
-
-def _infer_recording_duration_from_dat(params: dict[str, str], phy_path: Path, sample_rate_hz: float) -> Optional[float]:
-    dat_file = _resolve_phy_dat_path(phy_path, params)
-    if dat_file is None:
-        return None
-    n_channels = _parse_phy_param_float(params, "n_channels_dat")
-    if n_channels is None or n_channels <= 0:
-        return None
-    dtype_str = params.get("dtype", "int16")
-    byte_offset = int(_parse_phy_param_float(params, "offset") or 0.0)
-    n_bytes = dat_file.stat().st_size - byte_offset
-    if n_bytes <= 0:
-        return None
-    n_samples = n_bytes // (int(n_channels) * np.dtype(dtype_str).itemsize)
-    return float(n_samples) / sample_rate_hz
-
-
-def _infer_phy_session_times(phy_path: Path, params: dict[str, str], spike_times: np.ndarray, sample_rate_hz: float) -> Tuple[float, float]:
-    inferred_t_start = 0.0
-    for key in ("t_start", "tmin", "start_time"):
-        parsed_value = _parse_phy_param_float(params, key)
-        if parsed_value is not None:
-            inferred_t_start = parsed_value
-            break
-    inferred_t_end: Optional[float] = None
-    for key in ("t_end", "t_stop", "tmax", "duration"):
-        parsed_value = _parse_phy_param_float(params, key)
-        if parsed_value is not None:
-            inferred_t_end = parsed_value
-            break
-    if inferred_t_end is None:
-        n_samples_dat = _parse_phy_param_float(params, "n_samples_dat")
-        if n_samples_dat is not None:
-            inferred_t_end = n_samples_dat / sample_rate_hz
-    if inferred_t_end is None:
-        inferred_t_end = _infer_recording_duration_from_dat(params, phy_path, sample_rate_hz)
-    if inferred_t_end is None:
-        if len(spike_times) == 0:
-            raise ValueError(f"No spikes in Phy folder {phy_path}; cannot infer session t_end.")
-        inferred_t_end = float(np.max(spike_times)) / sample_rate_hz
-        warnings.warn(f"Could not infer recording duration for {phy_path} from params.py or dat file; using last spike time ({inferred_t_end:.6f} s) as t_end.", stacklevel=2)
-    if inferred_t_end <= inferred_t_start:
-        raise ValueError(f"Inferred invalid session time range t_start={inferred_t_start} t_end={inferred_t_end} for {phy_path}.")
-    return inferred_t_start, inferred_t_end
-
-
-def _resolve_channel_shanks(phy_path: Path) -> Optional[np.ndarray]:
-    candidate_paths = [phy_path / "channel_shanks.npy", phy_path.parent / "sorter_output" / "channel_shanks.npy"]
-    for candidate_path in candidate_paths:
-        if candidate_path.is_file():
-            return np.load(candidate_path)
-    return None
-
-
-def _get_epoch_spike_slice(spike_times: np.ndarray, sample_rate_hz: float, t_start: float, t_end: float) -> slice:
-    sample_start = int(np.floor(float(t_start) * sample_rate_hz))
-    sample_end = int(np.ceil(float(t_end) * sample_rate_hz))
-    spike_start = int(np.searchsorted(spike_times, sample_start, side="left"))
-    spike_end = int(np.searchsorted(spike_times, sample_end, side="right"))
-    return slice(spike_start, spike_end)
-
-
-def _build_channel_inverse_map(channel_map: np.ndarray) -> np.ndarray:
-    channel_map = np.asarray(channel_map, dtype=int)
-    inverse_map = np.full(int(channel_map.max()) + 1, -1, dtype=int)
-    for recording_idx, probe_channel in enumerate(channel_map):
-        inverse_map[int(probe_channel)] = int(recording_idx)
-    return inverse_map
-
-
-def _extract_peak_channel_marks(pc_features: np.ndarray, pc_feature_ind: np.ndarray, spike_templates: np.ndarray, spike_indices: np.ndarray, n_mark_dims: int = 4) -> Tuple[np.ndarray, np.ndarray]:
-    n_spikes = len(spike_indices)
-    n_slots = int(pc_features.shape[2])
-    channels = np.empty(n_spikes, dtype=int)
-    marks = np.empty((n_spikes, n_mark_dims), dtype=float)
-    for spike_offset, spike_index in enumerate(spike_indices):
-        template_index = int(spike_templates[spike_index])
-        template_channels = pc_feature_ind[template_index]
-        spike_pcs = pc_features[spike_index]
-        slot_norms = np.array([np.linalg.norm(spike_pcs[:, slot_idx]) if template_channels[slot_idx] >= 0 else -1.0 for slot_idx in range(n_slots)], dtype=float)
-        peak_slot = int(np.argmax(slot_norms))
-        channels[spike_offset] = int(template_channels[peak_slot])
-        marks[spike_offset, :] = spike_pcs[:n_mark_dims, peak_slot]
-    return channels, marks
-
-
-def _map_channels_to_electrodes(channels: np.ndarray, electrode_mode: str, channel_map: Optional[np.ndarray], channel_shanks: Optional[np.ndarray]) -> np.ndarray:
-    channels = np.asarray(channels, dtype=int)
-    if electrode_mode == "shank":
-        if channel_shanks is None:
-            raise ValueError("channel_shanks is required for electrode_mode='shank'.")
-        inverse_map = _build_channel_inverse_map(channel_map) if channel_map is not None else None
-        electrode_indices = np.empty(len(channels), dtype=int)
-        for spike_idx, probe_channel in enumerate(channels):
-            recording_idx = int(inverse_map[probe_channel]) if inverse_map is not None and probe_channel < len(inverse_map) and inverse_map[probe_channel] >= 0 else int(probe_channel)
-            electrode_indices[spike_idx] = int(channel_shanks[recording_idx])
-        return electrode_indices
-    if electrode_mode != "channel":
-        raise ValueError(f"electrode_mode must be 'shank' or 'channel'; got {electrode_mode!r}")
-    if channel_map is not None:
-        inverse_map = _build_channel_inverse_map(channel_map)
-        return np.array([int(inverse_map[probe_channel]) if probe_channel < len(inverse_map) and inverse_map[probe_channel] >= 0 else int(probe_channel) for probe_channel in channels], dtype=int)
-    return channels.astype(int, copy=False)
-
-
-def _resolve_effective_electrode_mode(phy_path: Path, electrode_mode: str, channel_shanks: Optional[np.ndarray]) -> str:
-    if electrode_mode == "shank" and (channel_shanks is None or len(np.unique(channel_shanks)) <= 1):
-        warnings.warn(f"channel_shanks missing or degenerate in {phy_path}; falling back to electrode_mode='channel'.", stacklevel=2)
-        return "channel"
-    return electrode_mode
-
-
 class ClusterlessSpikeEvents(StartStopTimesMixin, TimeSlicableObjectProtocol, DataWriter):
     """Sparse clusterless spike events for portable transfer, one row per detected spike."""
+
+    @classmethod
+    def _read_phy_params(cls, phy_path: Path) -> dict[str, str]:
+        params: dict[str, str] = {}
+        with (phy_path / "params.py").open("r", encoding="utf-8") as params_file:
+            for line in params_file:
+                line_values = line.replace("\n", "").replace('r"', '"').replace('"', "").split("=")
+                if len(line_values) >= 2:
+                    params[line_values[0].strip()] = line_values[1].strip()
+        if "sample_rate" not in params:
+            raise ValueError(f"params.py in {phy_path} is missing sample_rate.")
+        return params
+
+
+    @classmethod
+    def _parse_phy_param_float(cls, params: dict[str, str], key: str) -> Optional[float]:
+        if key not in params:
+            return None
+        return float(params[key])
+
+
+    @classmethod
+    def _resolve_phy_dat_path(cls, phy_path: Path, params: dict[str, str]) -> Optional[Path]:
+        dat_path = params.get("dat_path")
+        if dat_path is None or dat_path in {"", "no_path.bin"}:
+            return None
+        dat_file = Path(dat_path)
+        if not dat_file.is_absolute():
+            for candidate_path in (phy_path / dat_file, phy_path.parent / dat_file, phy_path.parent.parent / dat_file):
+                if candidate_path.is_file():
+                    return candidate_path.resolve()
+            return None
+        return dat_file if dat_file.is_file() else None
+
+
+    @classmethod
+    def _infer_recording_duration_from_dat(cls, params: dict[str, str], phy_path: Path, sample_rate_hz: float) -> Optional[float]:
+        dat_file = cls._resolve_phy_dat_path(phy_path, params)
+        if dat_file is None:
+            return None
+        n_channels = cls._parse_phy_param_float(params, "n_channels_dat")
+        if n_channels is None or n_channels <= 0:
+            return None
+        dtype_str = params.get("dtype", "int16")
+        byte_offset = int(cls._parse_phy_param_float(params, "offset") or 0.0)
+        n_bytes = dat_file.stat().st_size - byte_offset
+        if n_bytes <= 0:
+            return None
+        n_samples = n_bytes // (int(n_channels) * np.dtype(dtype_str).itemsize)
+        return float(n_samples) / sample_rate_hz
+
+
+    @classmethod
+    def _infer_phy_session_times(cls, phy_path: Path, params: dict[str, str], spike_times: np.ndarray, sample_rate_hz: float) -> Tuple[float, float]:
+        inferred_t_start = 0.0
+        for key in ("t_start", "tmin", "start_time"):
+            parsed_value = cls._parse_phy_param_float(params, key)
+            if parsed_value is not None:
+                inferred_t_start = parsed_value
+                break
+        inferred_t_end: Optional[float] = None
+        for key in ("t_end", "t_stop", "tmax", "duration"):
+            parsed_value = cls._parse_phy_param_float(params, key)
+            if parsed_value is not None:
+                inferred_t_end = parsed_value
+                break
+        if inferred_t_end is None:
+            n_samples_dat = cls._parse_phy_param_float(params, "n_samples_dat")
+            if n_samples_dat is not None:
+                inferred_t_end = n_samples_dat / sample_rate_hz
+        if inferred_t_end is None:
+            inferred_t_end = cls._infer_recording_duration_from_dat(params, phy_path, sample_rate_hz)
+        if inferred_t_end is None:
+            if len(spike_times) == 0:
+                raise ValueError(f"No spikes in Phy folder {phy_path}; cannot infer session t_end.")
+            inferred_t_end = float(np.max(spike_times)) / sample_rate_hz
+            warnings.warn(f"Could not infer recording duration for {phy_path} from params.py or dat file; using last spike time ({inferred_t_end:.6f} s) as t_end.", stacklevel=2)
+        if inferred_t_end <= inferred_t_start:
+            raise ValueError(f"Inferred invalid session time range t_start={inferred_t_start} t_end={inferred_t_end} for {phy_path}.")
+        return inferred_t_start, inferred_t_end
+
+
+    @classmethod
+    def _resolve_channel_shanks(cls, phy_path: Path) -> Optional[np.ndarray]:
+        candidate_paths = [phy_path / "channel_shanks.npy", phy_path.parent / "sorter_output" / "channel_shanks.npy"]
+        for candidate_path in candidate_paths:
+            if candidate_path.is_file():
+                return np.load(candidate_path)
+        return None
+
+
+    @classmethod
+    def _get_epoch_spike_slice(cls, spike_times: np.ndarray, sample_rate_hz: float, t_start: float, t_end: float) -> slice:
+        sample_start = int(np.floor(float(t_start) * sample_rate_hz))
+        sample_end = int(np.ceil(float(t_end) * sample_rate_hz))
+        spike_start = int(np.searchsorted(spike_times, sample_start, side="left"))
+        spike_end = int(np.searchsorted(spike_times, sample_end, side="right"))
+        return slice(spike_start, spike_end)
+
+
+    @classmethod
+    def _build_channel_inverse_map(cls, channel_map: np.ndarray) -> np.ndarray:
+        channel_map = np.asarray(channel_map, dtype=int)
+        inverse_map = np.full(int(channel_map.max()) + 1, -1, dtype=int)
+        for recording_idx, probe_channel in enumerate(channel_map):
+            inverse_map[int(probe_channel)] = int(recording_idx)
+        return inverse_map
+
+
+    @classmethod
+    def _extract_peak_channel_marks(cls, pc_features: np.ndarray, pc_feature_ind: np.ndarray, spike_templates: np.ndarray, spike_indices: np.ndarray, n_mark_dims: int = 4, debug_print: bool = True) -> Tuple[np.ndarray, np.ndarray]:
+        """ 
+            _extract_peak_channel_marks: pc_features.shape=(27333205, 5, 16), pc_feature_ind.shape=(264, 16), spike_templates.shape=(27333205,), spike_indices.shape=(100000,), n_mark_dims=4
+
+        """
+        if debug_print:
+            print(f"_extract_peak_channel_marks: pc_features.shape={pc_features.shape}, pc_feature_ind.shape={pc_feature_ind.shape}, spike_templates.shape={spike_templates.shape}, spike_indices.shape={spike_indices.shape}, n_mark_dims={n_mark_dims}")
+        n_spikes = len(spike_indices)
+        n_slots = int(pc_features.shape[2])
+        channels = np.empty(n_spikes, dtype=int)
+        marks = np.empty((n_spikes, n_mark_dims), dtype=float)
+        for spike_offset, spike_index in enumerate(spike_indices):
+            template_index = int(spike_templates[spike_index])
+            template_channels = pc_feature_ind[template_index]
+            spike_pcs = pc_features[spike_index]
+            slot_norms = np.array([np.linalg.norm(spike_pcs[:, slot_idx]) if template_channels[slot_idx] >= 0 else -1.0 for slot_idx in range(n_slots)], dtype=float)
+            peak_slot = int(np.argmax(slot_norms))
+            channels[spike_offset] = int(template_channels[peak_slot])
+            marks[spike_offset, :] = spike_pcs[:n_mark_dims, peak_slot] ## marks are spike_pcs, from `pc_features`
+        return channels, marks
+
+
+    @classmethod
+    def _map_channels_to_electrodes(cls, channels: np.ndarray, electrode_mode: str, channel_map: Optional[np.ndarray], channel_shanks: Optional[np.ndarray]) -> np.ndarray:
+        channels = np.asarray(channels, dtype=int)
+        if electrode_mode == "shank":
+            if channel_shanks is None:
+                raise ValueError("channel_shanks is required for electrode_mode='shank'.")
+            inverse_map = cls._build_channel_inverse_map(channel_map) if channel_map is not None else None
+            electrode_indices = np.empty(len(channels), dtype=int)
+            for spike_idx, probe_channel in enumerate(channels):
+                recording_idx = int(inverse_map[probe_channel]) if inverse_map is not None and probe_channel < len(inverse_map) and inverse_map[probe_channel] >= 0 else int(probe_channel)
+                electrode_indices[spike_idx] = int(channel_shanks[recording_idx])
+            return electrode_indices
+        if electrode_mode != "channel":
+            raise ValueError(f"electrode_mode must be 'shank' or 'channel'; got {electrode_mode!r}")
+        if channel_map is not None:
+            inverse_map = cls._build_channel_inverse_map(channel_map)
+            return np.array([int(inverse_map[probe_channel]) if probe_channel < len(inverse_map) and inverse_map[probe_channel] >= 0 else int(probe_channel) for probe_channel in channels], dtype=int)
+        return channels.astype(int, copy=False)
+
+
+    @classmethod
+    def _resolve_effective_electrode_mode(cls, phy_path: Path, electrode_mode: str, channel_shanks: Optional[np.ndarray]) -> str:
+        if electrode_mode == "shank" and (channel_shanks is None or len(np.unique(channel_shanks)) <= 1):
+            warnings.warn(f"channel_shanks missing or degenerate in {phy_path}; falling back to electrode_mode='channel'.", stacklevel=2)
+            return "channel"
+        return electrode_mode
+
 
     def __init__(self, spike_times_sec: np.ndarray, electrode_indices: np.ndarray, marks: np.ndarray, sampling_frequency_hz: float = 1000.0, electrode_mode: str = "channel", n_mark_dims: Optional[int] = None,
                 t_start: float = 0.0, t_stop: Optional[float] = None, t_end: Optional[float] = None,
@@ -299,8 +316,9 @@ class ClusterlessSpikeEvents(StartStopTimesMixin, TimeSlicableObjectProtocol, Da
         return cls.from_npz(f)
 
 
+    # @function_attributes(short_name=None, tags=['MAIN', 'load', 'folder', 'phy'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2026-07-03 13:27', related_items=[])
     @classmethod
-    def from_phy_folder(cls, phy_path: Union[str, Path], t_start: Optional[float] = None, t_end: Optional[float] = None, electrode_mode: str = "channel", n_mark_dims: int = 4, chunk_size: int = 100_000, sampling_frequency_hz: float = 1000.0) -> "ClusterlessSpikeEvents":
+    def from_phy_folder(cls, phy_path: Union[str, Path], t_start: Optional[float] = None, t_end: Optional[float] = None, electrode_mode: str = "channel", n_mark_dims: int = 4, chunk_size: int = 100_000, sampling_frequency_hz: float = 1000.0, debug_print: bool = True) -> "ClusterlessSpikeEvents":
         """Extract sparse clusterless spike events from a Phy/Kilosort folder without allocating dense multiunits.
 
         Reads all detected spikes (ignores spike_clusters). When ``t_start`` and/or ``t_end`` are omitted,
@@ -310,32 +328,32 @@ class ClusterlessSpikeEvents(StartStopTimesMixin, TimeSlicableObjectProtocol, Da
         missing_files = [a_file for a_file in _PHY_CLUSTERLESS_REQUIRED_FILES if not (phy_path / a_file).is_file()]
         if missing_files:
             raise FileNotFoundError(f"Phy folder {phy_path} is missing required files: {missing_files}")
-        phy_params = _read_phy_params(phy_path)
+        phy_params = cls._read_phy_params(phy_path)
         sample_rate_hz = float(phy_params["sample_rate"])
         spike_times = np.asarray(np.load(phy_path / "spike_times.npy", mmap_mode="r")).reshape(-1)
         spike_templates = np.asarray(np.load(phy_path / "spike_templates.npy", mmap_mode="r")).reshape(-1)
         pc_features = np.load(phy_path / "pc_features.npy", mmap_mode="r")
         pc_feature_ind = np.load(phy_path / "pc_feature_ind.npy")
         channel_map = np.load(phy_path / "channel_map.npy") if (phy_path / "channel_map.npy").is_file() else None
-        channel_shanks = _resolve_channel_shanks(phy_path)
+        channel_shanks = cls._resolve_channel_shanks(phy_path)
         if t_start is None or t_end is None:
-            inferred_t_start, inferred_t_end = _infer_phy_session_times(phy_path, phy_params, spike_times, sample_rate_hz)
+            inferred_t_start, inferred_t_end = cls._infer_phy_session_times(phy_path, phy_params, spike_times, sample_rate_hz)
             if t_start is None:
                 t_start = inferred_t_start
             if t_end is None:
                 t_end = inferred_t_end
-        epoch_slice = _get_epoch_spike_slice(spike_times, sample_rate_hz, t_start, t_end)
+        epoch_slice = cls._get_epoch_spike_slice(spike_times, sample_rate_hz, t_start, t_end)
         if epoch_slice.start >= epoch_slice.stop:
             raise ValueError(f"No spikes found in Phy folder for epoch t=[{t_start}, {t_end}] seconds.")
-        effective_electrode_mode = _resolve_effective_electrode_mode(phy_path, electrode_mode, channel_shanks)
+        effective_electrode_mode = cls._resolve_effective_electrode_mode(phy_path, electrode_mode, channel_shanks)
         spike_times_chunks: list[np.ndarray] = []
         electrode_chunks: list[np.ndarray] = []
         marks_chunks: list[np.ndarray] = []
         for chunk_start in range(epoch_slice.start, epoch_slice.stop, chunk_size):
             chunk_stop = min(chunk_start + chunk_size, epoch_slice.stop)
             spike_indices = np.arange(chunk_start, chunk_stop, dtype=int)
-            channels, marks = _extract_peak_channel_marks(pc_features, pc_feature_ind, spike_templates, spike_indices, n_mark_dims=n_mark_dims)
-            electrode_indices = _map_channels_to_electrodes(channels, effective_electrode_mode, channel_map, channel_shanks)
+            channels, marks = cls._extract_peak_channel_marks(pc_features, pc_feature_ind, spike_templates, spike_indices, n_mark_dims=n_mark_dims, debug_print=debug_print)
+            electrode_indices = cls._map_channels_to_electrodes(channels, effective_electrode_mode, channel_map, channel_shanks)
             spike_times_sec = (np.asarray(spike_times[spike_indices], dtype=np.float64) / sample_rate_hz).astype(np.float32)
             spike_times_chunks.append(spike_times_sec)
             electrode_chunks.append(electrode_indices.astype(np.int16, copy=False))
@@ -350,6 +368,83 @@ class ClusterlessSpikeEvents(StartStopTimesMixin, TimeSlicableObjectProtocol, Da
         if status_print:
             print(f"{Path(saved_path).name} saved")
         return saved_path
+
+
+    # ==================================================================================================================================================================================================================================================================================== #
+    # Plotting/Figures                                                                                                                                                                                                                                                                     #
+    # ==================================================================================================================================================================================================================================================================================== #
+
+    @classmethod
+    def plot_clusterless_spike_events(cls, events, t_start=None, t_end=None, position=None, position_time=None,
+        mark_dim_idx=0, electrode_indices=None, max_electrodes=8, figsize=None, ax=None,
+        electrode_label=None, mark_scatter_2d=False, mark_scatter_electrode=0):
+        """
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import seaborn as sns
+        from typing import Optional
+        from neuropy.core.clusterless_spike_events import ClusterlessSpikeEvents
+
+        # 30 s window inside the epoch
+        fig, axes = events.plot(t_start=t_start, t_end=t_start + 30.0, max_electrodes=5)
+
+        """
+
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        t_start = float(events.t_start if t_start is None else t_start)
+        t_end = float(events.t_end if t_end is None else t_end)
+        mask = (events.spike_times_sec >= t_start) & (events.spike_times_sec <= t_end)
+        times = events.spike_times_sec[mask]
+        electrodes = events.electrode_indices[mask]
+        marks = events.marks[mask]
+        if len(times) == 0:
+            raise ValueError(f"No spikes in window t=[{t_start}, {t_end}]")
+        unique_electrodes = np.unique(electrodes)
+        if electrode_indices is not None:
+            unique_electrodes = np.intersect1d(unique_electrodes, np.asarray(electrode_indices, dtype=int))
+        if len(unique_electrodes) > max_electrodes:
+            # keep electrodes with most spikes in window
+            counts = {e: np.sum(electrodes == e) for e in unique_electrodes}
+            unique_electrodes = np.array(sorted(counts, key=counts.get, reverse=True)[:max_electrodes], dtype=int)
+        n_electrode_axes = len(unique_electrodes)
+        n_rows = (1 if position is not None else 0) + 1 + n_electrode_axes
+        if figsize is None:
+            figsize = (12, max(4, 1.5 * n_rows))
+        if ax is None:
+            fig, axes = plt.subplots(n_rows, 1, figsize=figsize, constrained_layout=True, sharex=True)
+        else:
+            fig, axes = ax.figure, np.atleast_1d(ax)
+        row = 0
+        if position is not None:
+            pos_time = position_time if position_time is not None else np.linspace(t_start, t_end, len(position))
+            axes[row].plot(pos_time, position, linewidth=2)
+            axes[row].set_ylabel("Position")
+            row += 1
+        label = electrode_label or ("Shank" if events.electrode_mode == "shank" else "Electrode")
+        axes[row].scatter(times, electrodes + 1, color="black", s=2)
+        axes[row].set_yticks((0, int(np.max(electrodes)) + 1))
+        axes[row].set_ylabel(f"{label} index")
+        row += 1
+        for electrode_idx in unique_electrodes:
+            e_mask = electrodes == electrode_idx
+            axes[row].scatter(times[e_mask], marks[e_mask, mark_dim_idx], s=1)
+            axes[row].set_ylabel(f"{label} {electrode_idx + 1}\nmark_{mark_dim_idx}")
+            row += 1
+        axes[-1].set_xlabel("Time (s)")
+        axes[-1].set_xlim((t_start, t_end))
+        sns.despine()
+        if mark_scatter_2d and events.n_mark_dims >= 2:
+            fig2, ax2 = plt.subplots(figsize=(5, 5))
+            e_mask = electrodes == mark_scatter_electrode
+            ax2.scatter(marks[e_mask, 0], marks[e_mask, 1], s=3, alpha=0.5)
+            ax2.set_xlabel("mark_0")
+            ax2.set_ylabel("mark_1")
+            ax2.set_title(f"{label} {mark_scatter_electrode}")
+            return fig, axes, fig2
+        return fig, axes
 
 
 
