@@ -364,7 +364,7 @@ class NWBDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass):
                 decoder_building_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7', 'maze_GLOBAL'],
                 global_session_name='maze_GLOBAL',
                 non_global_activity_session_names=['maze0', 'maze1', 'maze2', 'maze3', 'maze4', 'maze5', 'maze6', 'maze7'],
-                grid_bin_bounds=maze_grid_bin_bounds,
+                grid_bin_bounds=(((41.37033775405482, 157.72257208195566), (9.76773097884994, 122.8597412183469))),
                 lap_estimation_parameters=dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration = 2.5, minimum_run_speed=10.0, merging_adjacent_max_separation_sec=6.0),
                 linearization_parameters=dict(method='track_graph', track_definition='w_maze', all_session_mazes=None),
             ),
