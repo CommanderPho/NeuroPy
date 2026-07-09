@@ -71,6 +71,16 @@ class DataSessionLoader:
         _test_session = DANDI001754NWBDataSessionFormatRegisteredClass.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
         _test_session, loaded_file_record_list = DANDI001754NWBDataSessionFormatRegisteredClass.load_session(_test_session)
         return _test_session
+
+
+    # DANDI 001695 HighDensityCrossBrain NWB Format:
+    @staticmethod
+    def dandi_nwb_001695_session(basedir=r'H:/Data/DANDI/HighDensityCrossBrain/001695/sub-M01', override_parameters_flat_keypaths_dict=None):
+        from neuropy.core.session.Formats.Specific.DANDI001695NWBDataSessionFormat import DANDI001695NWBDataSessionFormatRegisteredClass
+
+        _test_session = DANDI001695NWBDataSessionFormatRegisteredClass.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
+        _test_session, loaded_file_record_list = DANDI001695NWBDataSessionFormatRegisteredClass.load_session(_test_session)
+        return _test_session
        
 
     
