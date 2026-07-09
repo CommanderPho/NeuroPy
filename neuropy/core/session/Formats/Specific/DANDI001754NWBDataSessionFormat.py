@@ -74,9 +74,14 @@ class DANDI001754NWBDataSessionFormatRegisteredClass(NWBDataSessionFormatRegiste
     def _resolve_nwb_filename(cls, basedir, override_parameters_flat_keypaths_dict=None) -> Optional[str]:
         basedir = Path(basedir)
         if override_parameters_flat_keypaths_dict:
-            override_filename = override_parameters_flat_keypaths_dict.get("nwb.nwb_filename")
+            override_filename = override_parameters_flat_keypaths_dict.get("preprocessing.nwb.nwb_filename", None) ## try the preprocessing variable first
             if override_filename is not None:
                 return str(override_filename)
+
+            override_filename = override_parameters_flat_keypaths_dict.get("nwb.nwb_filename", None)
+            if override_filename is not None:
+                return str(override_filename)
+
         if basedir.suffix == ".nwb":
             return basedir.name
         return None
