@@ -61,6 +61,16 @@ class DataSessionLoader:
         _test_session = NWBDataSessionFormatRegisteredClass.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
         _test_session, loaded_file_record_list = NWBDataSessionFormatRegisteredClass.load_session(_test_session)
         return _test_session
+
+
+    # DANDI 001754 ThreeDimSpatial NWB Format:
+    @staticmethod
+    def dandi_nwb_001754_session(basedir=r'H:/Data/DANDI/ThreeDimSpatial/001754/sub-Rat1', override_parameters_flat_keypaths_dict=None):
+        from neuropy.core.session.Formats.Specific.DANDI001754NWBDataSessionFormat import DANDI001754NWBDataSessionFormatRegisteredClass
+
+        _test_session = DANDI001754NWBDataSessionFormatRegisteredClass.build_session(Path(basedir), override_parameters_flat_keypaths_dict=override_parameters_flat_keypaths_dict)
+        _test_session, loaded_file_record_list = DANDI001754NWBDataSessionFormatRegisteredClass.load_session(_test_session)
+        return _test_session
        
 
     
