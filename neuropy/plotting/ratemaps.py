@@ -125,6 +125,10 @@ def _plot_single_tuning_map_2D(xbin, ybin, pfmap, occupancy, final_title_str=Non
 
     Returns:
         [type]: [description]
+    
+    Usage:
+        from neuropy.plotting.ratemaps import _plot_single_tuning_map_2D
+
     """
     if plot_mode is None:
         plot_mode = enumTuningMap2DPlotMode.IMSHOW
