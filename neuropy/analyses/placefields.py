@@ -87,12 +87,16 @@ class PlacefieldComputationParameters(SimplePrintable, KeypathsAccessibleMixin, 
         self.speed_thresh = speed_thresh
         if not isinstance(grid_bin, (tuple, list)):
             grid_bin = (grid_bin, grid_bin) # make it into a 2 element tuple
+        elif len(grid_bin) == 1:
+            grid_bin = (grid_bin[0], grid_bin[0])
         self.grid_bin = grid_bin
-        if not isinstance(grid_bin_bounds, (tuple, list)):
+        if grid_bin_bounds is not None and not isinstance(grid_bin_bounds, (tuple, list)):
             grid_bin_bounds = (grid_bin_bounds, grid_bin_bounds) # make it into a 2 element tuple
         self.grid_bin_bounds = grid_bin_bounds
         if not isinstance(smooth, (tuple, list)):
             smooth = (smooth, smooth) # make it into a 2 element tuple
+        elif len(smooth) == 1:
+            smooth = (smooth, smooth)
         self.smooth = smooth
         self.frate_thresh = frate_thresh
         self.is_directional = is_directional
@@ -243,7 +247,9 @@ class PlacefieldComputationParameters(SimplePrintable, KeypathsAccessibleMixin, 
 
     
     @classmethod
-    def compute_grid_bin_bounds(cls, x, y):
+    def compute_grid_bin_bounds(cls, x, y, z=None):
+        if z is not None:
+            return compute_grid_bin_bounds(x, y, z)
         return compute_grid_bin_bounds(x, y)
 
 
@@ -896,9 +902,10 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
         # drop positions with either X or Y NA values:
 
-        if (self.ndim > 1):
+        if (self.ndim >= 3):
+            pos_non_NA_column_labels = ['x', 'y', 'z']
+        elif (self.ndim > 1):
             pos_non_NA_column_labels = ['x','y']
-            #TODO 2025-09-19 06:08: - [ ] Needs 3D ('z') added?
         else:
             pos_non_NA_column_labels = ['x']
 
@@ -961,7 +968,20 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         # Uses `self.config.grid_bin_bounds` and `self.config.grid_bin` if it exists to determine proper self.xbin, self,ybin, self.bin_info
         
         # 2022-12-09 - We want to be able to have both long/short track placefields have the same bins.
-        if (self.ndim > 1):
+        if (self.ndim == 3):
+            if self.config.grid_bin_bounds is None:
+                raise NotImplementedError(f'thrown by Pho Hale on 2025-02-12 to ensure the correct grid_bin_bounds is always retrieved and used.')
+            else:
+                if len(self.config.grid_bin_bounds) < 3 or any(a_bound is None for a_bound in self.config.grid_bin_bounds[:3]):
+                    print(f'WARN: computing pf3D with incomplete grid_bin_bounds: {self.config.grid_bin_bounds}. Recomputing from positions.')
+                    grid_bin_bounds = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), self.filtered_pos_df.y.to_numpy(), self.filtered_pos_df.z.to_numpy())
+                else:
+                    if debug_print:
+                        print(f'using self.config.grid_bin_bounds: {self.config.grid_bin_bounds}')
+                    grid_bin_bounds = self.config.grid_bin_bounds
+            x_range, y_range, z_range = grid_bin_bounds[:3]
+            self.xbin, self.ybin, self.zbin, self.bin_info = PfND._bin_pos_nD(x_range, y_range, z=z_range, bin_size=self.config.grid_bin)
+        elif (self.ndim > 1):
             if self.config.grid_bin_bounds is None:
                 raise NotImplementedError(f'thrown by Pho Hale on 2025-02-12 to ensure the correct grid_bin_bounds is always retrieved and used.')
                 # grid_bin_bounds = PlacefieldComputationParameters.compute_grid_bin_bounds(self.filtered_pos_df.x.to_numpy(), self.filtered_pos_df.y.to_numpy())
@@ -1004,9 +1024,12 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
             x_range = grid_bin_bounds_1D
             self.xbin, self.ybin, self.bin_info = PfND._bin_pos_nD(x_range, None, bin_size=self.config.grid_bin) # bin_size mode
 
-        ## Adds the 'binned_x' (and if 2D 'binned_y') columns to the position dataframe:
+        ## Adds the 'binned_x' (and if 2D 'binned_y', if 3D 'binned_z') columns to the position dataframe:
         if 'binned_x' not in self._filtered_pos_df.columns:
-            self._filtered_pos_df, _, _, _ = PfND.build_position_df_discretized_binned_positions(self._filtered_pos_df, self.config, xbin_values=self.xbin, ybin_values=self.ybin, debug_print=False)
+            if self.ndim == 3:
+                self._filtered_pos_df, _, _, _, _ = PfND.build_position_df_discretized_binned_positions(self._filtered_pos_df, self.config, xbin_values=self.xbin, ybin_values=self.ybin, zbin_values=self.zbin, debug_print=False)
+            else:
+                self._filtered_pos_df, _, _, _ = PfND.build_position_df_discretized_binned_positions(self._filtered_pos_df, self.config, xbin_values=self.xbin, ybin_values=self.ybin, debug_print=False)
 
 
     def compute(self):
@@ -1033,7 +1056,14 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
             smooth_occupancy_map = (0.0, 0.0)
         else:
             smooth_occupancy_map = self.config.smooth
-        if (self.ndim > 1):
+        if self.ndim == 3:
+            smooth_3d = tuple(smooth_occupancy_map)
+            if len(smooth_3d) < 3:
+                smooth_3d = (smooth_3d + (smooth_3d[-1],))[:3]
+            pos_xyz = np.column_stack([self.x, self.y, self.filtered_pos_df.z.to_numpy()])
+            bins = [self.xbin, self.ybin, self.zbin]
+            occupancy, unsmoothed_occupancy, _edges = PlacefieldND._compute_occupancy(pos_xyz, bins, self.position_srate, smooth_3d)
+        elif (self.ndim > 1):
             occupancy, unsmoothed_occupancy, xedges, yedges = Pf2D._compute_occupancy(self.x, self.y, self.xbin, self.ybin, self.position_srate, smooth_occupancy_map)
         else:
             occupancy, unsmoothed_occupancy, xedges = Pf1D._compute_occupancy(self.x, self.xbin, self.position_srate, smooth_occupancy_map[0])
@@ -1057,7 +1087,16 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
             # update the dataframe 'x','speed' and 'y' properties:
             # cell_df.loc[:, 'x'] = spk_x
             # cell_df.loc[:, 'speed'] = spk_spd
-            if (self.ndim > 1):
+            if self.ndim == 3:
+                spk_y = np.interp(cell_spike_times, self.t, self.y)
+                spk_z = np.interp(cell_spike_times, self.t, self.z)
+                spk_pos.append([spk_x, spk_y, spk_z])
+                spikes_xyz = np.column_stack([spk_x, spk_y, spk_z])
+                smooth_3d = tuple(self.config.smooth)
+                if len(smooth_3d) < 3:
+                    smooth_3d = (smooth_3d + (smooth_3d[-1],))[:3]
+                curr_cell_tuning_map, curr_cell_never_smoothed_tuning_map, curr_cell_spikes_map, curr_cell_unsmoothed_spikes_map = PlacefieldND._compute_tuning_map(spikes_xyz, [self.xbin, self.ybin, self.zbin], occupancy, smooth_3d, should_also_return_intermediate_spikes_map=self._save_intermediate_spikes_maps)
+            elif (self.ndim > 1):
                 spk_y = np.interp(cell_spike_times, self.t, self.y) # TODO: shouldn't we already have interpolated spike times for all spikes in the dataframe?
                 # cell_df.loc[:, 'y'] = spk_y
                 spk_pos.append([spk_x, spk_y])
@@ -1085,7 +1124,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         filtered_neuron_ids = self._peak_frate_filter_function(self.filtered_spikes_df.spikes.neuron_ids) 
         filtered_tuple_neuron_ids = self._peak_frate_filter_function(self.filtered_spikes_df.spikes.neuron_probe_tuple_ids) # the (shank, probe) tuples corresponding to neuron_ids
 
-        self._ratemap = Ratemap(filtered_tuning_maps, unsmoothed_tuning_maps=filtered_unsmoothed_tuning_maps, spikes_maps=filtered_spikes_maps, xbin=self.xbin, ybin=self.ybin, neuron_ids=filtered_neuron_ids, occupancy=occupancy, neuron_extended_ids=filtered_tuple_neuron_ids)
+        self._ratemap = Ratemap(filtered_tuning_maps, unsmoothed_tuning_maps=filtered_unsmoothed_tuning_maps, spikes_maps=filtered_spikes_maps, xbin=self.xbin, ybin=self.ybin, zbin=(self.zbin if self.ndim == 3 else None), neuron_ids=filtered_neuron_ids, occupancy=occupancy, neuron_extended_ids=filtered_tuple_neuron_ids)
         self.ratemap_spiketrains = self._peak_frate_filter_function(spk_t)
         self.ratemap_spiketrains_pos = self._peak_frate_filter_function(spk_pos)
 
@@ -1119,6 +1158,16 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
             return self.filtered_pos_df.y.to_numpy()
         else:
             return None
+
+
+    @property
+    def z(self) -> Optional[NDArray]:
+        """The position z property."""
+        if (self.ndim >= 3):
+            return self.filtered_pos_df.z.to_numpy()
+        else:
+            return None
+
     @property
     def speed(self) -> NDArray:
         """The position timestamps property."""
@@ -1134,6 +1183,11 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
     @property
     def ybin_centers(self):
         return self.ybin[:-1] + np.diff(self.ybin) / 2
+
+
+    @property
+    def zbin_centers(self):
+        return self.zbin[:-1] + np.diff(self.zbin) / 2
 
     @property
     def filtered_spikes_df(self):
@@ -1269,7 +1323,9 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
     @property
     def _position_variable_names(self):
         """The names of the position variables as determined by self.ndim."""
-        if (self.ndim > 1):
+        if (self.ndim >= 3):
+            return ['x', 'y', 'z']
+        elif (self.ndim > 1):
             return ['x', 'y']
         else:
             return ['x']
@@ -1504,7 +1560,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         return included_thresh_neurons_indx, filter_function
 
     @staticmethod
-    def _bin_pos_nD(x: np.ndarray, y: np.ndarray, num_bins=None, bin_size=None):
+    def _bin_pos_nD(x: np.ndarray, y: np.ndarray = None, z: np.ndarray = None, num_bins=None, bin_size=None):
         """ Spatially bins the provided x and y vectors into position bins based on either the specified num_bins or the specified bin_size
         Usage:
             ## Binning with Fixed Number of Bins:
@@ -1516,43 +1572,49 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
         TODO: 2022-04-22 - Note that I discovered that the bins generated here might cause an error when used with Pandas .cut function, which does not include the left (most minimum) values by default. This would cause the minimumal values not to be included.
         """
+        if z is not None:
+            return bin_pos_nD(x, y, num_bins=num_bins, bin_size=bin_size, z=z)
         return bin_pos_nD(x, y, num_bins=num_bins, bin_size=bin_size)
 
 
     ## Binned Position Columns:
     @staticmethod
-    def build_position_df_discretized_binned_positions(active_pos_df, active_computation_config, xbin_values=None, ybin_values=None, debug_print=False):
+    def build_position_df_discretized_binned_positions(active_pos_df, active_computation_config, xbin_values=None, ybin_values=None, zbin_values=None, debug_print=False):
         """ Adds the 'binned_x' and 'binned_y' columns to the position dataframe
 
         Assumes either 1D or 2D positions dependent on whether the 'y' column exists in active_pos_df.columns.
         Wraps the build_df_discretized_binned_position_columns and appropriately unwraps the result for compatibility with previous implementations.
 
         """
-        # If xbin_values is not None and ybin_values is None, assume 1D
-        # if xbin_values is not None and ybin_values is None:
-        if 'y' not in active_pos_df.columns:
-            # Assume 1D:
+        if zbin_values is not None:
+            ndim = 3
+            pos_col_names = ('x', 'y', 'z')
+            binned_col_names = ('binned_x', 'binned_y', 'binned_z')
+            bin_values = (xbin_values, ybin_values, zbin_values)
+        elif 'y' not in active_pos_df.columns:
             ndim = 1
             pos_col_names = ('x',)
             binned_col_names = ('binned_x',)
             bin_values = (xbin_values,)
         else:
-            # otherwise assume 2D:
             ndim = 2
             pos_col_names = ('x', 'y')
             binned_col_names = ('binned_x', 'binned_y')
             bin_values = (xbin_values, ybin_values)
 
-        # bin the dataframe's x and y positions into bins, with binned_x and binned_y containing the index of the bin that the given position is contained within.
         active_pos_df, out_bins, bin_info = build_df_discretized_binned_position_columns(active_pos_df, bin_values=bin_values, position_column_names=pos_col_names, binned_column_names=binned_col_names, active_computation_config=active_computation_config, force_recompute=False, debug_print=debug_print)
 
         if ndim == 1:
-            # Assume 1D:
             xbin = out_bins[0]
-            ybin = None
-        else:
+            ybin, zbin = None, None
+        elif ndim == 2:
             (xbin, ybin) = out_bins
+            zbin = None
+        else:
+            (xbin, ybin, zbin) = out_bins
 
+        if ndim == 3:
+            return active_pos_df, xbin, ybin, zbin, bin_info
         return active_pos_df, xbin, ybin, bin_info
 
     def computing_3d_occupancy_map(self, n_x_bins=50, n_y_bins=50, n_dir_bins=8):
@@ -1577,7 +1639,9 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         pf._filtered_pos_df.dropna(axis=0, how='any', subset=[*pf._position_variable_names], inplace=True) # dropped NaN values
         
         if 'binned_x' in pf._filtered_pos_df:
-            if (pf.position.ndim > 1):
+            if (pf.position.ndim >= 3):
+                pf._filtered_pos_df.dropna(axis=0, how='any', subset=['binned_x', 'binned_y', 'binned_z'], inplace=True)
+            elif (pf.position.ndim > 1):
                 pf._filtered_pos_df.dropna(axis=0, how='any', subset=['binned_x', 'binned_y'], inplace=True) # dropped NaN values
             else:
                 pf._filtered_pos_df.dropna(axis=0, how='any', subset=['binned_x'], inplace=True) # dropped NaN values
@@ -2123,6 +2187,20 @@ def perform_compute_placefields(active_session_spikes_df, active_pos, computatio
         progress_logger('active_epoch_placefields2D already exists, reusing it.')
 
     return active_epoch_placefields1D, active_epoch_placefields2D
+
+
+def perform_compute_placefields_3d(active_session_spikes_df, active_pos, computation_config: PlacefieldComputationParameters, active_epoch_placefields3D=None, included_epochs=None, should_force_recompute_placefields=True, progress_logger=None):
+    """Compute volumetric (x,y,z) placefields only; skips 1D linearization and 2D projection."""
+    if progress_logger is None:
+        progress_logger = lambda x, end='\n': print(x, end=end)
+    if (active_epoch_placefields3D is None) or should_force_recompute_placefields:
+        progress_logger('Recomputing active_epoch_placefields3D...', end=' ')
+        spikes_df = deepcopy(active_session_spikes_df).spikes.sliced_by_neuron_type('PYRAMIDAL')
+        active_epoch_placefields3D = PfND.from_config_values(spikes_df, position=deepcopy(active_pos), epochs=included_epochs, speed_thresh=computation_config.speed_thresh, frate_thresh=computation_config.frate_thresh, grid_bin=computation_config.grid_bin, grid_bin_bounds=computation_config.grid_bin_bounds, smooth=computation_config.smooth)
+        progress_logger('\t done.')
+    else:
+        progress_logger('active_epoch_placefields3D already exists, reusing it.')
+    return active_epoch_placefields3D
 
 
 def compute_placefields_masked_by_epochs(sess, active_config, included_epochs=None, should_display_2D_plots=False):

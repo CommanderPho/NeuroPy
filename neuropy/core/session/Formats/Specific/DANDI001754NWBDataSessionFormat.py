@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from neuropy.core import Epoch, Neurons, Position
+from neuropy.analyses.placefields import PlacefieldComputationParameters
 from neuropy.core.session.Formats.BaseDataSessionFormats import HardcodedProcessingParameters
 from neuropy.core.session.Formats.Specific.NWBDataSessionFormat import NWBDataSessionFormatRegisteredClass
 from neuropy.core.session.Formats.SessionSpecifications import SessionConfig
@@ -127,9 +128,10 @@ class DANDI001754NWBDataSessionFormatRegisteredClass(NWBDataSessionFormatRegiste
 
     @classmethod
     def _get_session_specific_parameters(cls, session_context: IdentifyingContext) -> HardcodedProcessingParameters:
-        default_grid_bin_bounds = (((0.0, 255.0), (0.0, 255.0)))
+        default_grid_bin_bounds = (((0.0, 255.0), (0.0, 255.0), (0.0, 255.0)))
         default_lap_params = dict(reward_zones=None, custom_lap_estimation_fn=None, use_full_2D_lap_estimation=True, minimum_epoch_duration=2.5, minimum_run_speed=5.0, merging_adjacent_max_separation_sec=6.0)
         default_decoder_names = ['ES0', 'MC0', 'task_GLOBAL']
+        default_3d_params = dict(spatial_dimensionality=3, skip_1d_placefields=True, skip_1d_decoders=True, linearization_parameters=dict(method='none'))
         the_dict: Dict[IdentifyingContext, HardcodedProcessingParameters] = {
             IdentifyingContext(format_name='dandi_nwb_001754', animal='Rat1', exper_name='001754'): HardcodedProcessingParameters(
                 decoder_building_session_names=default_decoder_names,
@@ -137,7 +139,7 @@ class DANDI001754NWBDataSessionFormatRegisteredClass(NWBDataSessionFormatRegiste
                 non_global_activity_session_names=['ES0', 'MC0'],
                 grid_bin_bounds=default_grid_bin_bounds,
                 lap_estimation_parameters=default_lap_params,
-                linearization_parameters=dict(method='umap', all_session_mazes=None),
+                **default_3d_params,
             ),
             IdentifyingContext(format_name='dandi_nwb_001754', exper_name='001754'): HardcodedProcessingParameters(
                 decoder_building_session_names=default_decoder_names,
@@ -145,7 +147,7 @@ class DANDI001754NWBDataSessionFormatRegisteredClass(NWBDataSessionFormatRegiste
                 non_global_activity_session_names=['ES0', 'MC0'],
                 grid_bin_bounds=default_grid_bin_bounds,
                 lap_estimation_parameters=default_lap_params,
-                linearization_parameters=dict(method='umap', all_session_mazes=None),
+                **default_3d_params,
             ),
             IdentifyingContext(format_name='dandi_nwb_001754'): HardcodedProcessingParameters(
                 decoder_building_session_names=default_decoder_names,
@@ -153,7 +155,7 @@ class DANDI001754NWBDataSessionFormatRegisteredClass(NWBDataSessionFormatRegiste
                 non_global_activity_session_names=['ES0', 'MC0'],
                 grid_bin_bounds=default_grid_bin_bounds,
                 lap_estimation_parameters=default_lap_params,
-                linearization_parameters=dict(method='umap', all_session_mazes=None),
+                **default_3d_params,
             ),
         }
         best_match = IdentifyingContext.matching(the_dict, criteria=session_context.get_subset(subset_includelist=cls._session_basepath_to_context_parsing_keys).to_dict())
@@ -337,6 +339,56 @@ class DANDI001754NWBDataSessionFormatRegisteredClass(NWBDataSessionFormatRegiste
             raise ValueError(f"No units matched location filter {unit_location_filter!r}")
         neuron_type = np.array(["pyr"] * len(neuron_ids))
         return Neurons(np.array(spiketrains, dtype=object), t_stop=t_stop, t_start=0.0, neuron_ids=neuron_ids, shank_ids=np.array(shank_ids, dtype=np.int64), neuron_type=neuron_type)
+
+    @classmethod
+    def _load_position_from_nwb(cls, nwbf, timestamps, t0):
+        spatial_series = cls._get_position_spatial_series(nwbf)
+        t_rel = timestamps - t0
+        xyz = np.asarray(spatial_series.data[:], dtype=float)
+        if xyz.ndim != 2 or xyz.shape[1] < 3:
+            nwb_identifier = getattr(nwbf, 'identifier', 'unknown NWB file')
+            raise ValueError(f"DANDI 001754 sessions require N×3 spatial_series data (x,y,z) but got shape {getattr(xyz, 'shape', None)} in {nwb_identifier}. Update the NWB file to include z and delete stale .position.npy cache files.")
+        return Position.from_separate_arrays(t_rel, xyz[:, 0], xyz[:, 1], z=xyz[:, 2])
+
+
+    @classmethod
+    def load_session(cls, session, debug_print=False):
+        loaded_file_record_list = []
+        session = cls._fallback_recinfo(None, session)
+        cache_paths = cls._build_cache_paths(session)
+        cache_is_valid = cls._core_cache_exists(cache_paths)
+        if cache_is_valid:
+            if debug_print:
+                print(f"Loading NWB DataSession cache from {session.filePrefix.parent}")
+            session = cls._load_core_cache_files(session, cache_paths)
+            if session.position.ndim < 3:
+                if debug_print:
+                    print(f"Stale 2D position cache at {cache_paths['position']}; reloading from NWB.")
+                cache_is_valid = False
+            else:
+                loaded_file_record_list.extend([cache_paths["neurons"], cache_paths["position"], cache_paths["paradigm"]])
+        if not cache_is_valid:
+            if debug_print:
+                print(f"NWB cache missing or stale. Loading source NWB from {session.basepath}")
+            session = cls._load_session_from_nwb(session)
+            cls._save_core_cache_files(session, cache_paths)
+            loaded_file_record_list.append(cls.find_nwb_file(session.basepath, nwb_filename=cls._get_nwb_parameters(session).nwb_filename))
+        session = cls._load_or_compute_flattened_spikes(session, cache_paths)
+        session, _spikes_df = cls._default_compute_spike_interpolated_positions_if_needed(session, session.spikes_df, time_variable_name=cls._time_variable_name, force_recompute=False)
+        cls._ensure_flattened_spikes_df_columns_unique(session, save_if_changed=True)
+        spikes_df = session.spikes_df
+        cls._add_missing_spikes_df_columns(spikes_df, session.neurons)
+        session = cls._default_extended_postload(session.filePrefix, session)
+        return session, loaded_file_record_list
+
+
+    @classmethod
+    def build_active_computation_configs(cls, sess, **kwargs):
+        hardcoded_params = cls._get_session_specific_parameters(session_context=sess.get_context())
+        grid_bin = cls.compute_position_grid_bin_size(sess.position.x, sess.position.y, z=sess.position.z, num_bins=(32, 32, 32))
+        pf_params = PlacefieldComputationParameters(speed_thresh=10.0, grid_bin=grid_bin, grid_bin_bounds=hardcoded_params.grid_bin_bounds, smooth=(2.0, 2.0, 2.0), frate_thresh=1.0, time_bin_size=0.1, computation_epochs=None)
+        return cls.build_default_computation_configs(sess, pf_params=pf_params, **kwargs)
+
 
     @classmethod
     def _resolve_track_definition_for_session(cls, session) -> Optional[object]:

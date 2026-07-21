@@ -96,6 +96,9 @@ class HardcodedProcessingParameters(HDF_SerializationMixin, AttrsBasedClassHelpe
     grid_bin_bounds: Optional[List] = non_serialized_field(default=Factory(list))
     lap_estimation_parameters: Optional[Dict] = non_serialized_field(default=Factory(dict))
     linearization_parameters: Optional[Dict] = non_serialized_field(default=Factory(dict))
+    spatial_dimensionality: Optional[int] = non_serialized_field(default=None)
+    skip_1d_placefields: bool = non_serialized_field(default=False)
+    skip_1d_decoders: bool = non_serialized_field(default=False)
     
     # HDFMixin Conformances ______________________________________________________________________________________________ #
     def to_hdf(self, file_path, key: str, **kwargs):
@@ -307,6 +310,17 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
         
         # """
         # return HardcodedProcessingParameters()
+
+
+    @classmethod
+    def get_spatial_dimensionality(cls, sess) -> int:
+        try:
+            hardcoded_params = cls._get_session_specific_parameters(session_context=sess.get_context())
+            if hardcoded_params.spatial_dimensionality is not None:
+                return int(hardcoded_params.spatial_dimensionality)
+        except NotImplementedError:
+            pass
+        return int(sess.position.ndim)
 
 
     @classmethod
@@ -594,12 +608,16 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
     #######################################################
             
     @classmethod
-    def compute_position_grid_bin_size(cls, x, y, num_bins=(64,64), debug_print=False):
+    def compute_position_grid_bin_size(cls, x, y, z=None, num_bins=(64, 64), debug_print=False):
         """ Compute Required Bin size given a desired number of bins in each dimension
         Usage:
             active_grid_bin = compute_position_grid_bin_size(curr_kdiba_pipeline.sess.position.x, curr_kdiba_pipeline.sess.position.y, num_bins=(64, 64)
         """
-        out_grid_bin_size, out_bins, out_bins_infos = compute_position_grid_size(x, y, num_bins=num_bins)
+        if z is not None:
+            num_bins_3 = num_bins if len(num_bins) >= 3 else (num_bins[0], num_bins[1], num_bins[0])
+            out_grid_bin_size, out_bins, out_bins_infos = compute_position_grid_size(x, y, z, num_bins=num_bins_3)
+        else:
+            out_grid_bin_size, out_bins, out_bins_infos = compute_position_grid_size(x, y, num_bins=num_bins)
         active_grid_bin = tuple(out_grid_bin_size)
         if debug_print:
             print(f'active_grid_bin: {active_grid_bin}') # (3.776841861770752, 1.043326930905373)
@@ -627,7 +645,8 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
                     lin_pos = session.position.linear_pos
                 else:
                     lin_pos = None
-                spikes_df = FlattenedSpiketrains.interpolate_spike_positions(spikes_df, session.position.time, session.position.x, session.position.y, position_linear_pos=lin_pos, position_speeds=session.position.speed, spike_timestamp_column_name=time_variable_name)
+                position_additional_variables_dict = {'z': session.position.z} if getattr(session.position, 'ndim', 0) == 3 else {}
+                spikes_df = FlattenedSpiketrains.interpolate_spike_positions(spikes_df, session.position.time, session.position.x, session.position.y, position_linear_pos=lin_pos, position_speeds=session.position.speed, spike_timestamp_column_name=time_variable_name, **position_additional_variables_dict)
                 session.flattened_spiketrains = FlattenedSpiketrains(spikes_df, time_variable_name=time_variable_name, t_start=0.0)
             
             session.flattened_spiketrains.filename = session.filePrefix.with_suffix(active_file_suffix)

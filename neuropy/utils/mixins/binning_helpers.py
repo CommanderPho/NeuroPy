@@ -695,7 +695,7 @@ class BinnedPositionsMixin(GridBinDebuggableMixin):
     
 
 
-def bin_pos_nD(x: NDArray, y: NDArray, num_bins=None, bin_size=None):
+def bin_pos_nD(x: NDArray, y: NDArray = None, num_bins=None, bin_size=None, z: NDArray = None):
         """ Spatially bins the provided x and y vectors into position bins based on either the specified num_bins or the specified bin_size
         Usage:
             ## Binning with Fixed Number of Bins:    
@@ -715,6 +715,7 @@ def bin_pos_nD(x: NDArray, y: NDArray, num_bins=None, bin_size=None):
         assert (num_bins is not None) or (bin_size is not None), 'You must specify either the num_bins XOR the bin_size.'
         
         bin_info_out_dict = dict()
+        ybin, zbin = None, None
         
         if num_bins is not None:
             ## Binning with Fixed Number of Bins:
@@ -727,7 +728,10 @@ def bin_pos_nD(x: NDArray, y: NDArray, num_bins=None, bin_size=None):
 
             if y is not None:
                 ynum_bins = num_bins[1]
-                ybin, ystep = np.linspace(np.nanmin(y), np.nanmax(y), num=ynum_bins, retstep=True)  # binning of y position       
+                ybin, ystep = np.linspace(np.nanmin(y), np.nanmax(y), num=ynum_bins, retstep=True)  # binning of y position
+            if z is not None:
+                znum_bins = num_bins[2] if len(num_bins) > 2 else num_bins[-1]
+                zbin, zstep = np.linspace(np.nanmin(z), np.nanmax(z), num=znum_bins, retstep=True)
                 
         elif bin_size is not None:
             ## Binning with Fixed Bin Sizes:
@@ -744,6 +748,10 @@ def bin_pos_nD(x: NDArray, y: NDArray, num_bins=None, bin_size=None):
                 ystep = bin_size[1]
                 ybin = np.arange(np.nanmin(y), (np.nanmax(y) + ystep), ystep)  # binning of y position
                 ynum_bins = len(ybin)
+            if z is not None:
+                zstep = bin_size[2] if len(bin_size) > 2 else bin_size[-1]
+                zbin = np.arange(np.nanmin(z), (np.nanmax(z) + zstep), zstep)
+                znum_bins = len(zbin)
                 
         # print('xbin: {}'.format(xbin))
         # print('ybin: {}'.format(ybin))
@@ -753,8 +761,14 @@ def bin_pos_nD(x: NDArray, y: NDArray, num_bins=None, bin_size=None):
             bin_info_out_dict['ystep'], bin_info_out_dict['ynum_bins'] = ystep, ynum_bins
         else:
             ybin = None
-            
-        return xbin, ybin, bin_info_out_dict # {'mode':mode, 'xstep':xstep, 'ystep':ystep, 'xnum_bins':xnum_bins, 'ynum_bins':ynum_bins}
+        if z is not None:
+            bin_info_out_dict['zstep'], bin_info_out_dict['znum_bins'] = zstep, znum_bins
+        else:
+            zbin = None
+
+        if z is not None:
+            return xbin, ybin, zbin, bin_info_out_dict
+        return xbin, ybin, bin_info_out_dict
 
 
 def safe_limit_num_grid_bin_values(fixed_grid_bin_bounds: Tuple[Tuple[float, float], Tuple[float, float]], desired_grid_bin_sizes: Tuple[float, float], max_allowed_num_bins: Optional[Tuple[int, int]]=None, debug_print:bool=True) -> Tuple[Tuple[float, float], Tuple[int, int]]:
