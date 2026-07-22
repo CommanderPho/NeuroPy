@@ -119,10 +119,13 @@ class TrackDefinition:
         """
         import matplotlib.pyplot as plt
         from track_linearization import plot_track_graph
+        from neuropy.utils.matplotlib_helpers import FormattedFigureText
 
         fig, ax = plt.subplots(figsize=(8, 8))
         plot_track_graph(w_maze.track, ax=ax, node_size=500)
-        ax.set_title("W-Track (2D View)", fontsize=14, fontweight='bold')
+        # ax.set_title("W-Track (2D View)", fontsize=14, fontweight='bold')
+        text_formatter = FormattedFigureText(fig=fig)
+        text_formatter.set_title("<size:22>W-Track (2D View)</>", fig=fig)
         ax.set_xlabel("X position (cm)")
         ax.set_ylabel("Y position (cm)")
         ax.set_aspect('equal')
@@ -143,10 +146,25 @@ class TrackDefinition:
         """ Visualize the linearized representation """
         import matplotlib.pyplot as plt
         from track_linearization import plot_graph_as_1D
+        from neuropy.utils.matplotlib_helpers import FormattedFigureText
+
 
         fig, ax = plt.subplots(figsize=(14, 4))
         plot_graph_as_1D(w_maze.track, edge_order=w_maze.edge_order, ax=ax)
-        ax.set_title("W-Track Linearized (1D View)")
+
+        # `flexitext` version:
+        text_formatter = FormattedFigureText(fig=fig)
+        # plt.title('')
+        # plt.suptitle('')
+        # text_formatter.setup_margins(fig)
+
+        # ## Need to extract the track name ('maze1') for the title in this plot. 
+        # track_name = active_context.get_description(subset_includelist=['filter_name'], separator=' | ') # 'maze1'
+        # # TODO: do we want to convert this into "long" or "short"?
+        # header_text_obj = flexitext(text_formatter.left_margin, text_formatter.top_margin, f'<size:22><weight:bold>{track_name}</> replay|laps <weight:bold>firing rate</></>', va="bottom", xycoords="figure fraction")
+        # footer_text_obj = flexitext((text_formatter.left_margin*0.1), (text_formatter.bottom_margin*0.25), text_formatter._build_footer_string(active_context=active_context), va="top", xycoords="figure fraction")
+        text_formatter.set_title("<size:22>W-Track Linearized (1D View)</>", fig=fig)
+        # ax.set_title("W-Track Linearized (1D View)")
         ax.set_xlabel("Linear position (cm)")
         plt.tight_layout()
         plt.show()
