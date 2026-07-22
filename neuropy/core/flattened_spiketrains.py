@@ -15,7 +15,8 @@ from copy import deepcopy
 
 
 from neuropy.core.neuron_identities import NeuronExtendedIdentity, NeuronType
-from neuropy.utils.mixins.binning_helpers import BinningInfo # for add_binned_time_column
+from neuropy.utils.mixins.binning_helpers import BinnedPositionComputingMixin, BinningInfo  # for add_binned_time_column
+
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter
 from .datawriter import DataWriter
 from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableObjectProtocol, TimeSlicableIndiciesMixin, TimeSlicedMixin, TimePointEventAccessor
@@ -29,7 +30,7 @@ _REQUIRE_FLAT_SPIKE_INDEX_COLUMN: bool = False
 
 
 @pd.api.extensions.register_dataframe_accessor("spikes")
-class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
+class SpikesAccessor(BinnedPositionComputingMixin, TimeSlicedMixin, TimePointEventAccessor):
     """ Part of the December 2021 Rewrite of the neuropy.core classes to be Pandas DataFrame based and easily manipulatable """
     __time_variable_name = 't_rel_seconds' # currently hardcoded
     
@@ -230,6 +231,17 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
                 self._obj[a_var_name] = np.interp(self._obj[spike_timestamp_column_name], position_sampled_times, a_var_arr)
         return self._obj
     
+    
+    def adding_binned_position_columns(self, xbin_edges=None, ybin_edges=None, active_computation_config=None, debug_print:bool=False, **kwargs) -> pd.DataFrame:
+        """ adds a one or more binned position columns (depending on whether 2D position is available) - given the `xbin_edges` and (optionally `ybin_edges`) or a `active_computation_config` config provided 
+        `active_computation_config` is not used/needed if the appropriate xbin_edges/ybin_edges are provided.
+        Internally uses: `cls.perform_add_binned_position_columns(...)`
+        """
+        self._obj = self.perform_add_binned_position_columns(pos_df=self._obj, xbin_edges=xbin_edges, ybin_edges=ybin_edges, active_computation_config=active_computation_config, debug_print=debug_print, **kwargs)
+        return self._obj
+
+
+
     def add_same_cell_ISI_column(self):
         """ Compute the inter-spike-intervals (ISIs) for each cell/unit separately. Meaning the list should be the difference from the current spike to the last spike of the previous unit.
             spikes: curr_active_pipeline.sess.spikes_df
@@ -312,6 +324,7 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
             print("\t set self._obj['neuron_IDX']")
             print("\t done updating 'fragile_linear_neuron_IDX' and 'neuron_IDX'.")
         return self._obj
+
 
     def add_binned_time_column(self, time_window_edges: NDArray, time_window_edges_binning_info:BinningInfo, debug_print:bool=False): ## CONFORMANCE: TimePointEventAccessor
         """ adds a 'binned_time' column to spikes_df given the time_window_edges and time_window_edges_binning_info provided 
