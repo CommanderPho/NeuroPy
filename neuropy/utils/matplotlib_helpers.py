@@ -1018,11 +1018,37 @@ class FormattedFigureText:
         footer_text_obj = flexitext((text_formatter.left_margin*0.1), (text_formatter.bottom_margin*0.25), text_formatter._build_footer_string(active_context=active_context), va="top", xycoords="figure fraction")
 
 
+    Usage 2:
+        import matplotlib.pyplot as plt
+        from track_linearization import plot_graph_as_1D
+        from neuropy.utils.matplotlib_helpers import FormattedFigureText
+
+
+        fig, ax = plt.subplots(figsize=(14, 4))
+        plot_graph_as_1D(w_maze.track, edge_order=w_maze.edge_order, ax=ax)
+
+        # `flexitext` version:
+        text_formatter = FormattedFigureText(fig=fig)
+        # plt.title('')
+        # plt.suptitle('')
+        # text_formatter.setup_margins(fig)
+
+        # ## Need to extract the track name ('maze1') for the title in this plot. 
+        # track_name = active_context.get_description(subset_includelist=['filter_name'], separator=' | ') # 'maze1'
+        # # TODO: do we want to convert this into "long" or "short"?
+        # header_text_obj = flexitext(text_formatter.left_margin, text_formatter.top_margin, f'<size:22><weight:bold>{track_name}</> replay|laps <weight:bold>firing rate</></>', va="bottom", xycoords="figure fraction")
+        # footer_text_obj = flexitext((text_formatter.left_margin*0.1), (text_formatter.bottom_margin*0.25), text_formatter._build_footer_string(active_context=active_context), va="top", xycoords="figure fraction")
+        text_formatter.set_title("W-Track Linearized (1D View)")
+        # ax.set_title("W-Track Linearized (1D View)")
+        ax.set_xlabel("Linear position (cm)")
+        plt.tight_layout()
+        plt.show()
 
     """
     # fig.subplots_adjust(top=top_margin, left=left_margin, bottom=bottom_margin)
 
     margins: FigureMargins = field(factory=FigureMargins)
+    fig: Optional[Any] = field(default=None)
 
     @property
     def top_margin(self):
@@ -1054,7 +1080,7 @@ class FormattedFigureText:
 
 
     @classmethod
-    def init_from_margins(cls, top_margin=None, left_margin=None, right_margin=None, bottom_margin=None) -> "FormattedFigureText":
+    def init_from_margins(cls, top_margin=None, left_margin=None, right_margin=None, bottom_margin=None, fig=None) -> "FormattedFigureText":
         """ allows initializing while overriding specific margins 
         
         text_formatter = FormattedFigureText.init_from_margins(left_margin=0.01)
@@ -1068,7 +1094,7 @@ class FormattedFigureText:
                 
         
         """
-        _obj = cls()
+        _obj = cls(fig=fig)
         if top_margin is not None:
             _obj.top_margin = top_margin
         if left_margin is not None:
@@ -1105,6 +1131,8 @@ class FormattedFigureText:
 
     def setup_margins(self, fig, **kwargs):
         top_margin, left_margin, right_margin, bottom_margin = kwargs.get('top_margin', self.top_margin), kwargs.get('left_margin', self.left_margin), kwargs.get('right_margin', self.right_margin), kwargs.get('bottom_margin', self.bottom_margin)
+        if self.fig is None:
+            self.fig = fig ## store a reference to this fig
 
         layout_engine = fig.get_layout_engine()
         if (layout_engine is None) or (fig.get_layout_engine().adjust_compatible):
@@ -1127,6 +1155,37 @@ class FormattedFigureText:
         title_text_obj = flexitext(left_margin, top_margin, 'long ($L$)|short($S$) firing rate indices', va="bottom", xycoords="figure fraction")
         footer_text_obj = flexitext((self.left_margin*0.1), (self.bottom_margin*0.25), self._build_footer_string(active_context=active_context), va="top", xycoords="figure fraction")
         return title_text_obj, footer_text_obj
+
+
+    # ==================================================================================================================================================================================================================================================================================== #
+    # more programmatic methods                                                                                                                                                                                                                                                            #
+    # ==================================================================================================================================================================================================================================================================================== #
+    def set_title(self, title: Optional[str]=None, fig=None, **kwargs):
+        if fig is None:
+            assert self.fig is not None
+            fig = self.fig
+
+        self.clear_basic_titles(fig=fig)
+        self.setup_margins(fig, **kwargs)
+        # Add flexitext
+        top_margin, left_margin, bottom_margin = kwargs.get('top_margin', self.top_margin), kwargs.get('left_margin', self.left_margin), kwargs.get('bottom_margin', self.bottom_margin)
+        title_text_obj = flexitext(left_margin, top_margin, title, va="bottom", xycoords="figure fraction")
+        return title_text_obj
+
+    def set_footer(self, footer_str: Optional[str]=None, active_context: Optional[IdentifyingContext]=None, fig=None, **kwargs):
+        if fig is None:
+            assert self.fig is not None
+            fig = self.fig
+        self.setup_margins(fig, **kwargs)
+        # Add flexitext
+        top_margin, left_margin, bottom_margin = kwargs.get('top_margin', self.top_margin), kwargs.get('left_margin', self.left_margin), kwargs.get('bottom_margin', self.bottom_margin)
+        if footer_str is None:
+            footer_str = self._build_footer_string(active_context=active_context)
+
+        footer_text_obj = flexitext((self.left_margin*0.1), (self.bottom_margin*0.25), footer_str, va="top", xycoords="figure fraction")
+        return footer_text_obj
+
+
 
 
     @classmethod
