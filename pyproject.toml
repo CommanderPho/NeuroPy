@@ -49,6 +49,7 @@ dependencies = [
     "build>=1.4.4",
     "twine>=6.2.0",
     "cupy-cuda13x>=13.6.0",
+    "polars>=1.36.1",
 ]
 
 [project.optional-dependencies]
