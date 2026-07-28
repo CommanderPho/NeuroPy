@@ -326,6 +326,25 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
 
 
     @classmethod
+    def uses_3d_placefields_only(cls, sess) -> bool:
+        """True only when HardcodedProcessingParameters explicitly request 3D-only placefields/decoders.
+
+        Does NOT treat bare `position.ndim == 3` as 3D-placefields-only (Bapun open-field often has z).
+        """
+        try:
+            session_context = sess.get_context() if hasattr(sess, 'get_context') else None
+            hardcoded_params = cls._get_session_specific_parameters(session_context=session_context)
+        except (NotImplementedError, AttributeError, TypeError):
+            return False
+        if hardcoded_params is None:
+            return False
+        if getattr(hardcoded_params, 'skip_1d_placefields', False) or getattr(hardcoded_params, 'skip_1d_decoders', False):
+            return True
+        spatial_dimensionality = getattr(hardcoded_params, 'spatial_dimensionality', None)
+        return spatial_dimensionality is not None and int(spatial_dimensionality) == 3
+
+
+    @classmethod
     def build_default_preprocessing_parameters(cls, **kwargs) -> ParametersContainer:
         """ builds the pre-processing parameters. Could get session_spec, basedir, or other info from the caller but usually not a session itself because this is used to build the config prior to the session loading. 
         
