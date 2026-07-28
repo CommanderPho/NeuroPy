@@ -295,7 +295,7 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
         raise NotImplementedError(f'Needs overriding in inheriting class, no values provided by default. Minimal override is just returning `HardcodedProcessingParameters()` but consider where this error is occuring and how it is used.')
         # """ A proper override looks like this:
         
-        # 	return IdentifyingContext.matching({ #  Dict[IdentifyingContext, HardcodedProcessingParameters] 
+        # 	the_dict = { #  Dict[IdentifyingContext, HardcodedProcessingParameters] 
         # 		IdentifyingContext(format_name= 'bapun', animal= 'RatN', session_name= 'Day4OpenField'): HardcodedProcessingParameters(decoder_building_session_names=['roam', 'sprinkle', 'maze_GLOBAL'],
         # 																															global_session_name='maze_GLOBAL',
         # 																															),
@@ -306,7 +306,9 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
         # 		IdentifyingContext(format_name= 'bapun'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze_GLOBAL'],
         # 			global_session_name='maze_GLOBAL',
         # 		),									
-        # 	}, criteria=session_context.get_subset(subset_includelist=session_context._get_session_context_keys()).to_dict())
+        # 	}
+        # 	best_match = IdentifyingContext.matching(the_dict, criteria=session_context.get_subset(subset_includelist=cls._session_basepath_to_context_parsing_keys).to_dict())
+        # 	return list(best_match.values())[0] ## return the first match
         
         # """
         # return HardcodedProcessingParameters()
@@ -318,7 +320,7 @@ class DataSessionFormatBaseRegisteredClass(metaclass=DataSessionFormatRegistryHo
             hardcoded_params = cls._get_session_specific_parameters(session_context=sess.get_context())
             if hardcoded_params.spatial_dimensionality is not None:
                 return int(hardcoded_params.spatial_dimensionality)
-        except NotImplementedError:
+        except (NotImplementedError, AttributeError, TypeError):
             pass
         return int(sess.position.ndim)
 

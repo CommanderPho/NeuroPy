@@ -136,12 +136,21 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
          
         #TODO 2025-09-20 19:26: - [ ] Is this redudndant with preprocessing parameters?
         """
-        return IdentifyingContext.matching({ #  Dict[IdentifyingContext, HardcodedProcessingParameters] 
+        the_dict: Dict[IdentifyingContext, HardcodedProcessingParameters] = { #  
             ## Fallback defaults:
             IdentifyingContext(format_name= 'kdiba'): HardcodedProcessingParameters(decoder_building_session_names=['maze1', 'maze2', 'maze'],
                 global_session_name='maze',
             ),									
-        }, criteria=session_context.get_subset(subset_includelist=session_context._get_session_context_keys()).to_dict())
+        }
+
+        best_match = IdentifyingContext.matching(the_dict, criteria=session_context.get_subset(subset_includelist=cls._session_basepath_to_context_parsing_keys).to_dict())
+        if len(list(best_match.values())) > 0:
+            return list(best_match.values())[0] ## return the first match
+        else:
+            # Try more relaxed approach the best match (format-only fallback keys lack animal/exper/session)
+            best_match, max_num_matching_context_attributes = IdentifyingContext.find_best_matching_context(session_context.get_subset(subset_includelist=cls._session_basepath_to_context_parsing_keys), context_iterable=the_dict)
+            best_match_value = the_dict[best_match] ## the value of the best match
+            return best_match_value
 
 
     @classmethod
