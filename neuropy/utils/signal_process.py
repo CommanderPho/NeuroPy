@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -219,7 +219,7 @@ class SpectrogramBands:
 @dataclass
 class wavelet_decomp:
     lfp: np.array
-    freqs: np.array = np.arange(1, 20)
+    freqs: np.array = field(default_factory=lambda: np.arange(1, 20))
     sampfreq: int = 1250
 
     def colgin2009(self):
