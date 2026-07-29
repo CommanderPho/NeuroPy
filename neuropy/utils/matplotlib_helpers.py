@@ -260,15 +260,17 @@ def _determine_best_placefield_2D_layout(xbin, ybin, included_unit_indicies, sub
         
     return nfigures, num_pages, included_combined_indicies_pages, page_grid_sizes, data_aspect_ratio, page_figure_sizes
 
-def _scale_current_placefield_to_acceptable_range(image, occupancy, drop_below_threshold: float=0.0000001):
+def _scale_current_placefield_to_acceptable_range(image, occupancy, drop_below_threshold: float=0.0000001, normalize: bool=True):
     """ Universally used to prepare the pfmap to be displayed (across every plot time)
     
-    Regardless of `occupancy` and `drop_below_threshold`, the image is rescaled to fill its dynamic range by its maximum (meaning the output will be normalized between zero and one).
+    When `normalize=True` (default), the image is rescaled to fill its dynamic range by its maximum (output in [0, 1]).
+    When `normalize=False`, raw values are kept (e.g. spike counts or Hz) so matplotlib cursor readouts report real units; imshow still auto-scales color via vmin/vmax.
     `occupancy` is not used unless `drop_below_threshold` is non-None
     
 
     Input:
         drop_below_threshold: if None, no indicies are dropped. Otherwise, values of occupancy less than the threshold specified are used to build a mask, which is subtracted from the returned image (the image is NaN'ed out in these places).
+        normalize: if True, divide by nanmax so values are in [0, 1]. If False, only apply occupancy masking.
 
     Known Uses:
             NeuroPy.neuropy.plotting.ratemaps.plot_single_tuning_map_2D(...)
@@ -278,7 +280,9 @@ def _scale_current_placefield_to_acceptable_range(image, occupancy, drop_below_t
     """
     # Pre-filter the data:
     with np.errstate(divide='ignore', invalid='ignore'):
-        image = np.array(image.copy()) / np.nanmax(image) # note scaling by maximum here!
+        image = np.array(image.copy())
+        if normalize:
+            image = image / np.nanmax(image) # note scaling by maximum here!
         if (drop_below_threshold is not None) and (occupancy is not None):
             image[np.where(occupancy < drop_below_threshold)] = np.nan # null out the occupancy
         return image # return the modified and masked image

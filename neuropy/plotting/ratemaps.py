@@ -112,7 +112,7 @@ def _help_plot_ratemap_neuronIDs(ratemap: Ratemap, included_unit_indicies=None, 
 
 
 def _plot_single_tuning_map_2D(xbin, ybin, pfmap, occupancy, final_title_str=None, drop_below_threshold: float=0.0000001,
-                              plot_mode: enumTuningMap2DPlotMode=None, ax=None, brev_mode=PlotStringBrevityModeEnum.CONCISE, max_value_formatter=None, use_special_overlayed_title:bool=True, bg_rendering_mode=BackgroundRenderingOptions.PATTERN_CHECKERBOARD):
+                              plot_mode: enumTuningMap2DPlotMode=None, ax=None, brev_mode=PlotStringBrevityModeEnum.CONCISE, max_value_formatter=None, use_special_overlayed_title:bool=True, bg_rendering_mode=BackgroundRenderingOptions.PATTERN_CHECKERBOARD, normalize: bool=True):
     """Plots a single tuning curve Heatmap using matplotlib
 
     Args:
@@ -142,7 +142,7 @@ def _plot_single_tuning_map_2D(xbin, ybin, pfmap, occupancy, final_title_str=Non
     if ax is None:
         ax = plt.gca()
             
-    curr_pfmap = _scale_current_placefield_to_acceptable_range(pfmap, occupancy=occupancy, drop_below_threshold=drop_below_threshold)     
+    curr_pfmap = _scale_current_placefield_to_acceptable_range(pfmap, occupancy=occupancy, drop_below_threshold=drop_below_threshold, normalize=normalize)
     
     ## Seems to work:
     curr_pfmap = np.rot90(curr_pfmap, k=-1)
@@ -380,8 +380,9 @@ def plot_ratemap_2D(ratemap: Ratemap, computation_config=None, included_unit_ind
             curr_ax = active_page_grid[curr_page_relative_linear_index]
             
             ## Plot the main heatmap for this pfmap:
+            _should_normalize = (plot_variable.name != enumTuningMap2DPlotVariables.SPIKES_MAPS.name)
             curr_im, curr_title_anchored_text = _plot_single_tuning_map_2D(ratemap.xbin, ratemap.ybin, pfmap, ratemap.occupancy, final_title_str=final_title_str, drop_below_threshold=drop_below_threshold, brev_mode=brev_mode, plot_mode=plot_mode,
-                                            ax=curr_ax, max_value_formatter=max_value_formatter, use_special_overlayed_title=use_special_overlayed_title, bg_rendering_mode=bg_rendering_mode)
+                                            ax=curr_ax, max_value_formatter=max_value_formatter, use_special_overlayed_title=use_special_overlayed_title, bg_rendering_mode=bg_rendering_mode, normalize=_should_normalize)
             
             active_graphics_obj_dict[curr_neuron_ID] = {'axs': [curr_ax], 'image': curr_im, 'title_obj': curr_title_anchored_text}
 
@@ -414,6 +415,7 @@ def plot_ratemap_2D(ratemap: Ratemap, computation_config=None, included_unit_ind
                         
                                 
                 if enable_spike_overlay:
+                    assert spike_overlay_spikes is not None, f"spike_overlay_spikes must be provided and non-None to plot the overlay spikes."
                     spike_overlay_points, spike_overlay_sc = _add_points_to_plot(curr_ax, spike_overlay_spikes[curr_ratemap_relative_neuron_IDX], plot_opts={'markersize': 2, 'marker': ',', 'markeredgecolor': 'red', 'linestyle': 'none', 'markerfacecolor': 'red', 'alpha': 0.1, 'label': 'spike_overlay_points'},
                                                                                 scatter_opts={'s': 2, 'c': 'white', 'alpha': 0.1, 'marker': ',', 'label': 'spike_overlay_sc'})
                     active_graphics_obj_dict[curr_neuron_ID] = active_graphics_obj_dict[curr_neuron_ID] | {'spike_overlay_points': spike_overlay_points, 'spike_overlay_sc': spike_overlay_sc} # Add in the spike_overlay_points and spike_overlay_sc
