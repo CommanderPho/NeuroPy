@@ -247,6 +247,7 @@ class AttrsBasedClassHelperMixin:
         self.adding_default_values_for_missing_fields()
         
         """
+        import attrs
         if excluded_keys is None:
             excluded_keys = [] ## empty list
             
@@ -255,9 +256,18 @@ class AttrsBasedClassHelperMixin:
         
         for an_attr in obj_field_attributes:
             if (not hasattr(self, an_attr.name)) and (an_attr.name not in excluded_keys):
+                if an_attr.default is attrs.NOTHING:
+                    continue
+                default_val = an_attr.default
+                if isinstance(default_val, Factory):
+                    if default_val.takes_self:
+                        default_val = default_val.factory(self)
+                    else:
+                        default_val = default_val.factory()
                 if debug_print:
-                    print(f'instance is missing attribute: "{an_attr}", default: {an_attr.default}')
-                setattr(self, an_attr.name, an_attr.default) ## assign the default value of the missing attribute to the instance's attribute field.
+                    print(f'instance is missing attribute: "{an_attr.name}", default: {default_val}')
+                setattr(self, an_attr.name, default_val) ## assign the default value of the missing attribute to the instance's attribute field.
+        ## END for an_attr in obj_field_attributes...
 
         return self
 
@@ -785,6 +795,7 @@ class BaseAttrsParameterizedParameters(BaseConfig, param.Parameterized):
         
          Restore instance attributes and update child fields if needed. """
         # Handle legacy format
+        import attrs
 
         loaded_keys: List[str] = list(state.keys())
         modern_keys: List[str] = [a.name for a in self.__class__.__attrs_attrs__]
@@ -800,14 +811,17 @@ class BaseAttrsParameterizedParameters(BaseConfig, param.Parameterized):
             # Update missing attributes based on the current class definition
             for a in self.__class__.__attrs_attrs__:  # Access current class attributes
                 attr_name: str = a.name
-                # attr_field = a.field
                 if attr_name in added_keys:
                     # Use the default factory if available, otherwise set the default value
-                    if a.default is not None:
+                    if a.default is not attrs.NOTHING:
                         print(f'\t\tadding key: {attr_name}')
-                        self.__dict__[attr_name] = a.default
-                    # elif a.factory is not None:
-                    #     self.__dict__[attr_name] = a.factory()
+                        default_val = a.default
+                        if isinstance(default_val, Factory):
+                            if default_val.takes_self:
+                                default_val = default_val.factory(self)
+                            else:
+                                default_val = default_val.factory()
+                        self.__dict__[attr_name] = default_val
         # # Update missing attributes based on the current class definition
         # for a in self.__class__.__attrs_attrs__:  # Access current class attributes
         #     attr_name: str = a.name
