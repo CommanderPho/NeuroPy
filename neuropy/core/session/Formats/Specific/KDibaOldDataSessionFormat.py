@@ -4,7 +4,6 @@ import pandas as pd
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
-from neuropy.analyses.placefields import PlacefieldComputationParameters
 from neuropy.core.epoch import NamedTimerange
 from neuropy.core.session.Formats.BaseDataSessionFormats import DataSessionFormatBaseRegisteredClass, find_local_session_paths
 from neuropy.core.session.KnownDataSessionTypeProperties import KnownDataSessionTypeProperties
@@ -14,11 +13,8 @@ from neuropy.core.session.Formats.SessionSpecifications import SessionFolderSpec
 # For specific load functions:
 from neuropy.core import DataWriter, NeuronType, Neurons, BinnedSpiketrain, Mua, ProbeGroup, Position, Epoch, Signal, Laps, FlattenedSpiketrains
 from neuropy.core.laps import LapsAccessor
-from neuropy.utils.load_exported import import_mat_file
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter, SimplePrintable, OrderedMeta
 
-from neuropy.analyses.laps import estimate_session_laps, build_lap_computation_epochs # for estimation_session_laps
-from neuropy.utils.efficient_interval_search import get_non_overlapping_epochs, drop_overlapping # Used for adding laps in KDiba mode
 from neuropy.utils.dynamic_container import DynamicContainer
 from neuropy.utils.result_context import IdentifyingContext
 from neuropy.core.user_annotations import UserAnnotationsManager
@@ -307,6 +303,8 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         Calls `build_lap_computation_epochs(...)`
 
         """
+        from neuropy.analyses.laps import build_lap_computation_epochs
+
         active_session_computation_configs = DataSessionFormatBaseRegisteredClass.build_default_computation_configs(sess, **kwargs)
         
         # Need one computation config for each lap (even/odd)
@@ -1026,6 +1024,8 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
         """ Loads the *.epochs_info.mat & *.position_info.mat files that are exported by Pho Hale's 2021-11-28 Matlab script
             Adds the Epoch and Position information to the session, and returns the updated Session object
         """
+        from neuropy.utils.load_exported import import_mat_file
+
         # Loads a IIdata.mat file that contains position and epoch information for the session
                 
         # parent_dir = Path(basepath).parent() # the directory above the individual session folder
@@ -1105,6 +1105,8 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
     @classmethod
     def _default_kdiba_pho_exported_spikeII_load_mat(cls, sess, timestamp_scale_factor=1):
         """ loads the spikes from the .mat exported by the script: `IIDataMat_Export_ToPython_2022_08_01.m` """
+        from neuropy.utils.load_exported import import_mat_file
+
         spike_mat_file = Path(sess.basepath).joinpath('{}.spikes.mat'.format(sess.session_name))
         if not spike_mat_file.is_file():
             print('ERROR: file {} does not exist!'.format(spike_mat_file))
@@ -1146,6 +1148,8 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
             sess, laps_df = __default_kdiba_spikeII_load_laps_vars(sess, time_variable_name=time_variable_name)
             laps_df
         """
+        from neuropy.utils.load_exported import import_mat_file
+
         ## Get laps in/out
         override_laps_df: Optional[pd.DataFrame] = UserAnnotationsManager.get_hardcoded_laps_override_dict().get(session.get_context(), None)
         if override_laps_df is not None:
@@ -1201,6 +1205,8 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
             2023-04-26 - Added: ('file_version'), Removed: ('replay_epoch_ids', 'epoch_rel_replay_ids', 'replay_start_stop_rel_sec')
                 Translates to removing: ('epoch_id','rel_id') from replay dataframe
         """
+        from neuropy.utils.load_exported import import_mat_file
+
         ## Get Replay Events
         session_replay_mat_file_path = Path(session.basepath).joinpath('{}.replay_info.mat'.format(session.name))
         replay_mat_file = import_mat_file(mat_import_file=session_replay_mat_file_path)
@@ -1236,6 +1242,8 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
 
     @classmethod
     def _default_kdiba_spikeII_load_mat(cls, sess, timestamp_scale_factor=(1/1E4)):
+        from neuropy.utils.load_exported import import_mat_file
+
         spike_mat_file = Path(sess.basepath).joinpath('{}.spikeII.mat'.format(sess.session_name))
         if not spike_mat_file.is_file():
             print('ERROR: file {} does not exist!'.format(spike_mat_file))
@@ -1414,6 +1422,8 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
     @classmethod
     def _default_kdiba_RippleDatabase_load_mat(cls, session):
         """ UNUSED """
+        from neuropy.utils.load_exported import import_mat_file
+
         ## Get laps in/out
         session_ripple_mat_file_path = Path(session.basepath).joinpath('{}.RippleDatabase.mat'.format(session.name))
         ripple_mat_file = import_mat_file(mat_import_file=session_ripple_mat_file_path)
