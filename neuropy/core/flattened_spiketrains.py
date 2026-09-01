@@ -140,7 +140,7 @@ class SpikesAccessor(TimeSlicedMixin, TimePointEventAccessor):
         
     def get_unit_spiketrains(self, included_neuron_ids=None) -> NDArray:
         """ returns an array of the spiketrains (an array of the times that each spike occured) for each unit """
-        return np.asarray([a_unit_spikes_df[self.time_variable_name].to_numpy() for a_unit_spikes_df in self.get_split_by_unit(included_neuron_ids=included_neuron_ids)])
+        return np.asarray([a_unit_spikes_df[self.time_variable_name].to_numpy() for a_unit_spikes_df in self.get_split_by_unit(included_neuron_ids=included_neuron_ids)], dtype=object)
         
     def sliced_by_neuron_type(self, query_neuron_type) -> pd.DataFrame:
         """ returns a copy of self._obj filtered by the specified query_neuron_type, only returning neurons that match.
