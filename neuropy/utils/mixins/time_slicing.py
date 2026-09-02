@@ -694,35 +694,35 @@ class TimePointEventAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtoc
 
 
 
-# @function_attributes(short_name=None, tags=['UNUSED'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2026-09-02 14:47', related_items=[])
-def _compute_time_point_event_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoch_label_column_name=None, no_interval_fill_value=np.nan, override_time_variable_name=None, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL, debug_print=False):
-    """ Computes the appropriate IDs from provided_epochs_df for each spikes to be added as an identities column to spikes_df
+# # @function_attributes(short_name=None, tags=['UNUSED'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2026-09-02 14:47', related_items=[])
+# def _compute_time_point_event_arbitrary_provided_epoch_ids(spk_df, provided_epochs_df, epoch_label_column_name=None, no_interval_fill_value=np.nan, override_time_variable_name=None, overlap_behavior=OverlappingIntervalsFallbackBehavior.ASSERT_FAIL, debug_print=False):
+#     """ Computes the appropriate IDs from provided_epochs_df for each spikes to be added as an identities column to spikes_df
     
-    overlap_behavior: OverlappingIntervalsFallbackBehavior - If ASSERT_FAIL, an AssertionError will be thrown in the case that any of the intervals in provided_epochs_df overlap each other. Otherwise, if FALLBACK_TO_SLOW_SEARCH, a much slower search will be performed that will still work.
+#     overlap_behavior: OverlappingIntervalsFallbackBehavior - If ASSERT_FAIL, an AssertionError will be thrown in the case that any of the intervals in provided_epochs_df overlap each other. Otherwise, if FALLBACK_TO_SLOW_SEARCH, a much slower search will be performed that will still work.
 
 
-    #TODO 2026-09-02 14:48: - [ ] NOTE: commented out just because it was unused.
+#     #TODO 2026-09-02 14:48: - [ ] NOTE: commented out just because it was unused.
 
-    Example:
-        # np.shape(spk_times_arr): (16318817,), p.shape(pbe_start_stop_arr): (10960, 2), p.shape(pbe_identity_label): (10960,)
-        spike_pbe_identity_arr # Elapsed Time (seconds) = 90.92654037475586, 93.46184754371643, 90.16610431671143 
-    """
-    active_time_variable_name: str = (override_time_variable_name or spk_df.spikes.time_variable_name) # by default use spk_df.spikes.time_variable_name, but an optional override can be provided (to ensure compatibility with PBEs)
-    # active_time_variable_name: str = (override_time_variable_name or spk_df.time_point_event.time_variable_name) # #TODO 2026-09-02 14:41: - [ ] BUG - overriden for Bapun sessions I believe but broke KDiba sessions (each epoch had zero spikes)
-    if (active_time_variable_name not in spk_df.columns) and (spk_df.time_point_event.time_variable_name in spk_df.columns):
-        active_time_variable_name = spk_df.time_point_event.time_variable_name
+#     Example:
+#         # np.shape(spk_times_arr): (16318817,), p.shape(pbe_start_stop_arr): (10960, 2), p.shape(pbe_identity_label): (10960,)
+#         spike_pbe_identity_arr # Elapsed Time (seconds) = 90.92654037475586, 93.46184754371643, 90.16610431671143 
+#     """
+#     active_time_variable_name: str = (override_time_variable_name or spk_df.spikes.time_variable_name) # by default use spk_df.spikes.time_variable_name, but an optional override can be provided (to ensure compatibility with PBEs)
+#     # active_time_variable_name: str = (override_time_variable_name or spk_df.time_point_event.time_variable_name) # #TODO 2026-09-02 14:41: - [ ] BUG - overriden for Bapun sessions I believe but broke KDiba sessions (each epoch had zero spikes)
+#     if (active_time_variable_name not in spk_df.columns) and (spk_df.time_point_event.time_variable_name in spk_df.columns):
+#         active_time_variable_name = spk_df.time_point_event.time_variable_name
 
-    spk_times_arr = spk_df[active_time_variable_name].to_numpy()
-    curr_epochs_start_stop_arr = provided_epochs_df[['start','stop']].to_numpy()
-    if epoch_label_column_name is None:
-        curr_epoch_identity_labels = provided_epochs_df.index.to_numpy() # currently using the index instead of the label.
-    else:
-        assert epoch_label_column_name in provided_epochs_df.columns, f"if epoch_label_column_name is specified (not None) than the column {epoch_label_column_name} must exist in the provided_epochs_df, but provided_epochs_df.columns: {list(provided_epochs_df.columns)}!"
-        selected_spikes = active_spikes_df.groupby(['Probe_Epoch_id', 'aclu'])[active_spikes_df.spikes.time_variable_name].first() # first spikes
+#     spk_times_arr = spk_df[active_time_variable_name].to_numpy()
+#     curr_epochs_start_stop_arr = provided_epochs_df[['start','stop']].to_numpy()
+#     if epoch_label_column_name is None:
+#         curr_epoch_identity_labels = provided_epochs_df.index.to_numpy() # currently using the index instead of the label.
+#     else:
+#         assert epoch_label_column_name in provided_epochs_df.columns, f"if epoch_label_column_name is specified (not None) than the column {epoch_label_column_name} must exist in the provided_epochs_df, but provided_epochs_df.columns: {list(provided_epochs_df.columns)}!"
+#         selected_spikes = active_spikes_df.groupby(['Probe_Epoch_id', 'aclu'])[active_spikes_df.spikes.time_variable_name].first() # first spikes
     
-    spike_epoch_identity_arr = determine_event_interval_identity(spk_df, epochs_df, epoch_label_column_name=epoch_label_column_name, override_time_variable_name=override_time_variable_name, no_interval_fill_value=no_interval_fill_value, overlap_behavior=overlap_behavior)
-    spk_df[epoch_id_key_name] = spike_epoch_identity_arr
-    return spk_df
+#     spike_epoch_identity_arr = determine_event_interval_identity(spk_df, epochs_df, epoch_label_column_name=epoch_label_column_name, override_time_variable_name=override_time_variable_name, no_interval_fill_value=no_interval_fill_value, overlap_behavior=overlap_behavior)
+#     spk_df[epoch_id_key_name] = spike_epoch_identity_arr
+#     return spk_df
 
 
     
