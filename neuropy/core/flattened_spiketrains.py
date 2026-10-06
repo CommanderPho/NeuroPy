@@ -19,7 +19,7 @@ from neuropy.utils.mixins.binning_helpers import BinnedPositionComputingMixin, B
 
 from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter
 from .datawriter import DataWriter
-from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableObjectProtocol, TimeSlicableIndiciesMixin, TimeSlicedMixin, TimePointEventAccessor
+from neuropy.utils.mixins.time_slicing import StartStopTimesMixin, TimeSlicableObjectProtocol, TimeSlicableIndiciesMixin, TimeSlicedMixin, TimePointEventAccessor, TimeColumnAliasesProtocol
 from neuropy.utils.mixins.unit_slicing import NeuronUnitSlicableObjectProtocol
 from neuropy.utils.mixins.concatenatable import ConcatenationInitializable
 from neuropy.utils.mixins.AttrsClassHelpers import AttrsBasedClassHelperMixin, serialized_field, serialized_attribute_field, non_serialized_field
@@ -340,6 +340,34 @@ class SpikesAccessor(BinnedPositionComputingMixin, TimeSlicedMixin, TimePointEve
         bin_labels = time_window_edges_binning_info.bin_indicies[1:] # edge bin indicies: [0,     1,     2, ..., 11878, 11879, 11880][1:] -> [ 1,     2, ..., 11878, 11879, 11880]
         self._obj['binned_time'] = pd.cut(self._obj[spike_timestamp_column_name].to_numpy(), bins=time_window_edges, include_lowest=True, labels=bin_labels) # same shape as the input data (time_binned_self._obj: (69142,))
         return self._obj
+
+    # ==================================================================================================================================================================================================================================================================================== #
+    # TimeColumnAliasesProtocol conformances/override                                                                                                                                                                                                                                      #
+    # ==================================================================================================================================================================================================================================================================================== #
+    def fixing_time_column(self, time_col_names = ['t', 't_rel_seconds', 't_seconds'], target_time_col_name: str = 't', backup_target_time_col_name: str = '_t_BAK', debug_print: bool = False, **kwargs) -> pd.DataFrame:
+        """ sets the 't' column (which has been defined as the default `active_spikes_df.spikes.time_variable_name` for compatibility with Bapun data to the values in the 't_rel_seconds' column.
+        This is proper for KDiba-type sessions.
+
+        time_col_names = ['t', 't_rel_seconds', 't_seconds'] ## this order needs to be right so 't_rel_seconds' is chosen over 't_seconds'
+        target_time_col_name: str = 't'
+        backup_target_time_col_name: str = '_t_BAK'
+
+        Usage:
+            from neuropy.utils.mixins.time_slicing import TimeColumnAliasesProtocol
+            from neuropy.core.flattened_spiketrains import SpikesAccessor
+
+            active_spikes_df = deepcopy(curr_active_pipeline.sess.spikes_df)
+            active_spikes_df.spikes.set_time_variable_name('t_rel_seconds')
+            print(f'\tactive_spikes_df.spikes.time_variable_name: {active_spikes_df.spikes.time_variable_name}')
+            active_spikes_df
+            active_spikes_df: pd.DataFrame = active_spikes_df.spikes.fixing_time_column()
+            active_spikes_df
+
+        """
+        return TimeColumnAliasesProtocol.fixup_time_column(df=self._obj, time_col_names=time_col_names, target_time_col_name=target_time_col_name, backup_target_time_col_name=backup_target_time_col_name,
+                                                            debug_print=debug_print, **kwargs)
+
+
 
 
     # @function_attributes(short_name=None, tags=['time-binning'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2025-03-10 10:13', related_items=[])

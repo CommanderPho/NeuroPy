@@ -1,5 +1,5 @@
 from __future__ import annotations # prevents having to specify types for typehinting as strings
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Dict, List, Tuple, Optional, Callable, Union, Any
 
 if TYPE_CHECKING:
     ## typehinting only imports here
@@ -70,9 +70,9 @@ class TimeSlicedMixin:
 
 class TimeColumnAliasesProtocol:
     """ allows time columns to be access by aliases for interoperatability """
-    _time_column_name_synonyms = {"start":{'begin','start_t'},
+    _time_column_name_synonyms = {"start":['begin','start_t'],
         "stop":['end','stop_t'],
-        "label":['name', 'id', 'flat_replay_idx']
+        "label":['name', 'id', 'flat_replay_idx'],
     }
 
     @classmethod
@@ -96,12 +96,13 @@ class TimeColumnAliasesProtocol:
         ## otherwise try synonyms for that column
         assert col_connonical_name in required_columns_synonym_dict, f"col_connonical_name: '{col_connonical_name}' is missing from required_columns_synonym_dict: {required_columns_synonym_dict}"
         synonym_columns_list = required_columns_synonym_dict[col_connonical_name]
-        
+        assert not isinstance(synonym_columns_list, set), f"synonym_columns_list: {synonym_columns_list} is a set, which will have lost its order so if this is important in the calling context, convert it to a list to avoid unexpected results!!"
+
         # try to rename based on synonyms
         for a_synonym in synonym_columns_list:
-            if a_synonym in df.columns:
+            if (a_synonym in df.columns):
                 return a_synonym # return the found column synonym
-                    
+
         ## must be in there by the time that you're done.
         if should_raise_exception_on_fail:
             raise AttributeError(f"Failed to find synonym for the col_connonical_name: '{col_connonical_name}'.")
@@ -136,7 +137,88 @@ class TimeColumnAliasesProtocol:
         return df # important! Must return the modified obj to be assigned (since its columns were altered by renaming
 
 
+    # @function_attributes(short_name=None, tags=['fix', 'time_variable_name', 'kdiba', 't_rel_seconds'], input_requires=[], output_provides=[], uses=[], used_by=[], creation_date='2026-10-06 13:59', related_items=[])
+    @classmethod
+    def fixup_time_column(cls, df: pd.DataFrame, time_col_names = ['t', 't_rel_seconds', 't_seconds'], target_time_col_name: str = 't', backup_target_time_col_name: str = '_t_BAK', debug_print: bool = False) -> pd.DataFrame:
+        """ sets the 't' column (which has been defined as the default `active_spikes_df.spikes.time_variable_name` for compatibility with Bapun data to the values in the 't_rel_seconds' column.
+        This is proper for KDiba-type sessions.
 
+        time_col_names = ['t', 't_rel_seconds', 't_seconds'] ## this order needs to be right so 't_rel_seconds' is chosen over 't_seconds'
+        target_time_col_name: str = 't'
+        backup_target_time_col_name: str = '_t_BAK'
+
+        Usage:
+            from neuropy.utils.mixins.time_slicing import TimeColumnAliasesProtocol
+
+            active_spikes_df = deepcopy(curr_active_pipeline.sess.spikes_df)
+            active_spikes_df.spikes.set_time_variable_name('t_rel_seconds')
+            print(f'\tactive_spikes_df.spikes.time_variable_name: {active_spikes_df.spikes.time_variable_name}')
+            active_spikes_df
+
+            ## this order needs to be right so 't_rel_seconds' is chosen over 't_seconds'
+            active_spikes_df: pd.DataFrame = TimeColumnAliasesProtocol.fixup_time_column(df=active_spikes_df)
+            active_spikes_df
+
+
+        """
+        from pyphocorehelpers.indexing_helpers import reorder_columns, reorder_columns_relative
+        
+
+        non_target_time_col_names = [k for k in time_col_names if k != target_time_col_name]
+        needs_fix: bool = (backup_target_time_col_name not in df.columns) #  or (active_spikes_df['t_rel_seconds'] != active_spikes_df['t'])
+
+        if df.attrs is None:
+            df.attrs = {}
+
+        time_column_alias_renaming_operation: Optional[Dict] = df.attrs.get('time_column_alias_renaming_operation', None)
+        if time_column_alias_renaming_operation is not None:
+            _prev_target_time_col_name = time_column_alias_renaming_operation.get('target_time_col_name', None)
+            # _prev_target_time_col_name = time_column_alias_renaming_operation.get('target_time_col_name', None)
+            needs_fix = needs_fix or (_prev_target_time_col_name != target_time_col_name)
+        else:
+            time_column_alias_renaming_operation = {} ## empty
+
+        if needs_fix:
+            if debug_print:
+                print(f'\tnon_target_time_col_names: {non_target_time_col_names}')
+
+            if (backup_target_time_col_name not in df.columns):
+                ## only allow once:
+                if debug_print:
+                    print(f'\trenaming "t" -> "_t_BAK"...')
+                # active_spikes_df = active_spikes_df.rename(columns={'t': backup_target_time_col_name}, inplace=False) ## rename 't' to '_t_BAK'
+                df.rename(columns={'t': backup_target_time_col_name}, inplace=True) ## rename 't' to '_t_BAK'
+
+            source_time_col_name: str = cls.find_first_extant_suitable_columns_name(df, col_connonical_name=target_time_col_name, required_columns_synonym_dict={target_time_col_name:non_target_time_col_names}, should_raise_exception_on_fail=False)
+            if debug_print:
+                print(f'source_time_col_name: "{source_time_col_name}"')
+
+            if debug_print:
+                print(f'\tcopying active_spikes_df["{target_time_col_name}"] = active_spikes_df["{source_time_col_name}"]...')
+            df[target_time_col_name] = df[source_time_col_name] # active_spikes_df['t'] = active_spikes_df['t_rel_seconds']
+            
+            if debug_print:
+                print(f'\tactive_spikes_df.columns: {list(df.columns)}')
+            # active_spikes_df = active_spikes_df.drop(columns=non_target_time_col_names, inplace=False) ## drop the old columns
+            df.drop(columns=non_target_time_col_names, inplace=True) ## drop the old columns
+            ## Move the "height" columns to the end
+            df = reorder_columns_relative(df, column_names=['t'], relative_mode='start')
+            
+            if debug_print:
+                print(f'\tactive_spikes_df.columns: {list(df.columns)}')
+            df.spikes.set_time_variable_name(target_time_col_name) ## assumes it has everything needed for '.spikes' access
+            if debug_print:
+                print(f'\tactive_spikes_df.spikes.time_variable_name: {df.spikes.time_variable_name}')
+            time_column_alias_renaming_operation['target_time_col_name'] = target_time_col_name
+            time_column_alias_renaming_operation['backup_target_time_col_name'] = backup_target_time_col_name
+            time_column_alias_renaming_operation['source_time_col_name'] = source_time_col_name
+            df.attrs['time_column_alias_renaming_operation'] = time_column_alias_renaming_operation
+
+        else:
+            if debug_print:
+                print(f'\tno time column fix needed')
+
+        return df
 
 
 @pd.api.extensions.register_dataframe_accessor("time_slicer")
