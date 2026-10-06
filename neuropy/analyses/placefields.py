@@ -786,7 +786,64 @@ class MissingGridBinBoundsError(Exception):
     # this can be done by either binning (lumping close position points together based on a standardized grid), neighborhooding, or continuous smearing.
 
 from neuropy.utils.mixins.time_slicing import TimeColumnAliasesProtocol
-        
+
+
+def _qclu_values_aligned_to_neuron_ids(neuron_ids: NDArray, neuron_extended_ids=None, spikes_df: Optional[pd.DataFrame] = None) -> NDArray:
+    """ One qclu value per ratemap neuron, in `neuron_ids` order.
+
+    Uses `neuron_extended_ids` when its aclus already match `neuron_ids`. Otherwise maps `spikes_df['qclu']` by aclu.
+    """
+    neuron_ids = np.asarray(neuron_ids)
+    if (neuron_extended_ids is not None) and (len(neuron_extended_ids) == len(neuron_ids)):
+        extended_aclus = np.asarray([getattr(an_identity, 'aclu', getattr(an_identity, 'id', np.nan)) for an_identity in neuron_extended_ids])
+        if np.array_equal(extended_aclus, neuron_ids):
+            extended_qclu = [getattr(an_identity, 'qclu', np.nan) for an_identity in neuron_extended_ids]
+            return pd.to_numeric(pd.Series(extended_qclu), errors='coerce').to_numpy(dtype=float)
+
+    if spikes_df is None:
+        raise ValueError("qclu filter requires neuron_extended_ids aligned to neuron_ids, or a spikes_df with a 'qclu' column")
+    if 'qclu' not in spikes_df.columns:
+        raise ValueError(f"spikes_df is missing the 'qclu' column. columns: {list(spikes_df.columns)}")
+    if 'aclu' not in spikes_df.columns:
+        raise ValueError(f"spikes_df is missing the 'aclu' column. columns: {list(spikes_df.columns)}")
+
+    pair_df = spikes_df.loc[:, ['aclu', 'qclu']].copy()
+    pair_df['qclu_numeric'] = pd.to_numeric(pair_df['qclu'], errors='coerce')
+    distinct_qclu_counts = pair_df.groupby('aclu', sort=False)['qclu_numeric'].nunique(dropna=False)
+    conflicting_aclus = distinct_qclu_counts[distinct_qclu_counts > 1].index.to_numpy()
+    if len(conflicting_aclus) > 0:
+        raise ValueError(f"aclus have more than one distinct qclu: {conflicting_aclus.tolist()}")
+    qclu_by_aclu = pair_df.groupby('aclu', sort=False)['qclu_numeric'].first()
+    qclu_lookup = {an_aclu: a_qclu for an_aclu, a_qclu in zip(qclu_by_aclu.index.to_numpy(), qclu_by_aclu.to_numpy())}
+    aligned_qclu = np.array([qclu_lookup.get(an_aclu, np.nan) for an_aclu in neuron_ids], dtype=float)
+    return aligned_qclu
+
+
+def filter_neuron_ids_by_frate_and_qclu(neuron_ids, peak_frate_Hz, minimum_inclusion_fr_Hz: Optional[float] = None, included_qclu_values: Optional[List] = None, neuron_extended_ids=None, spikes_df: Optional[pd.DataFrame] = None) -> NDArray:
+    """ Keeps ratemap neuron_ids whose unsmoothed peak firing rate and qclu pass the inclusion cuts. Returned ids stay in ratemap order.
+
+    `minimum_inclusion_fr_Hz` of None or <= 0 leaves the rate cut off.
+    When `included_qclu_values` is set, NaN qclu and the -1 missing-qclu sentinel are excluded.
+    qclu [6, 7] are the double-field clusters callers typically exclude.
+    """
+    neuron_ids = np.asarray(neuron_ids)
+    peak_frate_Hz = np.asarray(peak_frate_Hz, dtype=float)
+    if neuron_ids.ndim > 1:
+        neuron_ids = neuron_ids.reshape(-1)
+    if peak_frate_Hz.ndim > 1:
+        peak_frate_Hz = peak_frate_Hz.reshape(-1)
+    if peak_frate_Hz.shape[0] != neuron_ids.shape[0]:
+        raise ValueError(f"peak_frate_Hz length {peak_frate_Hz.shape[0]} != neuron_ids length {neuron_ids.shape[0]}")
+
+    keep = np.ones(neuron_ids.shape[0], dtype=bool)
+    if (minimum_inclusion_fr_Hz is not None) and (minimum_inclusion_fr_Hz > 0.0):
+        keep &= np.isfinite(peak_frate_Hz) & (peak_frate_Hz >= minimum_inclusion_fr_Hz)
+    if included_qclu_values is not None:
+        qclu = _qclu_values_aligned_to_neuron_ids(neuron_ids, neuron_extended_ids=neuron_extended_ids, spikes_df=spikes_df)
+        keep &= np.isfinite(qclu) & np.isin(qclu, included_qclu_values) # drop [6, 7], which are said to have double fields - 80 remain
+    return neuron_ids[keep]
+
+
 @define(slots=False)
 class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresentingMixin, PeakLocationRepresentingMixin, NeuronUnitSlicableObjectProtocol, BinnedPositionsMixin, PfnConfigMixin, PfnDMixin, PfnDPlottingMixin):
     """Represents a collection of placefields over binned,  N-dimensional space. 
@@ -2072,26 +2129,14 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
             
         """
         # original_neuron_ids_list = [a_decoder.ratemap.neuron_ids for a_decoder in (long_LR_decoder, long_RL_decoder, short_LR_decoder, short_RL_decoder)]
-        original_neuron_ids_dict = {a_decoder_name:deepcopy(a_decoder.ratemap.neuron_ids) for a_decoder_name, a_decoder in pf_dict.items()}
-        if (minimum_inclusion_fr_Hz is not None) and (minimum_inclusion_fr_Hz > 0.0):
-            modified_neuron_ids_dict = {a_decoder_name:np.array(a_decoder.ratemap.neuron_ids)[a_decoder.ratemap.tuning_curve_unsmoothed_peak_firing_rates >= minimum_inclusion_fr_Hz] for a_decoder_name, a_decoder in pf_dict.items()}
-        else:            
-            modified_neuron_ids_dict = {a_decoder_name:deepcopy(a_decoder_neuron_ids) for a_decoder_name, a_decoder_neuron_ids in original_neuron_ids_dict.items()}
-        
-        if included_qclu_values is not None:
-            # filter by included_qclu_values
-            for a_decoder_name, a_decoder in pf_dict.items():
-                # a_decoder.spikes_df
-                neuron_identities: pd.DataFrame = deepcopy(a_decoder.filtered_spikes_df).spikes.extract_unique_neuron_identities()
-                # filtered_neuron_identities: pd.DataFrame = neuron_identities[neuron_identities.neuron_type == NeuronType.PYRAMIDAL]
-                filtered_neuron_identities: pd.DataFrame = deepcopy(neuron_identities)
-                filtered_neuron_identities = filtered_neuron_identities[['aclu', 'shank', 'cluster', 'qclu']]
-                # filtered_neuron_identities = filtered_neuron_identities[np.isin(filtered_neuron_identities.aclu, original_neuron_ids_dict[a_decoder_name])]
-                filtered_neuron_identities = filtered_neuron_identities[np.isin(filtered_neuron_identities.aclu, modified_neuron_ids_dict[a_decoder_name])] # require to match to decoders
-                filtered_neuron_identities = filtered_neuron_identities[np.isin(filtered_neuron_identities.qclu, included_qclu_values)] # drop [6, 7], which are said to have double fields - 80 remain
-                final_included_aclus = filtered_neuron_identities['aclu'].to_numpy()
-                modified_neuron_ids_dict[a_decoder_name] = deepcopy(final_included_aclus) #.tolist()
-                
+        modified_neuron_ids_dict = {}
+        for a_decoder_name, a_decoder in pf_dict.items():
+            # a_decoder.spikes_df
+            a_ratemap = a_decoder.ratemap
+            # drop [6, 7], which are said to have double fields - 80 remain
+            modified_neuron_ids_dict[a_decoder_name] = filter_neuron_ids_by_frate_and_qclu(neuron_ids=a_ratemap.neuron_ids, peak_frate_Hz=a_ratemap.tuning_curve_unsmoothed_peak_firing_rates, minimum_inclusion_fr_Hz=minimum_inclusion_fr_Hz, included_qclu_values=included_qclu_values, neuron_extended_ids=getattr(a_ratemap, 'neuron_extended_ids', None), spikes_df=a_decoder.filtered_spikes_df)
+        ## END for a_decoder_name, a_decoder in pf_dict.items()....
+
         return modified_neuron_ids_dict
                                                                 
             
