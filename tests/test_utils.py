@@ -108,10 +108,36 @@ class TestUtilityMethods(unittest.TestCase):
     #         split_array(arr, sub_element_lengths)
 
 
+    def test_bounded(self):
+        from neuropy.utils.mathutil import bounded
+        import numpy as np
+
+        # Test scalar happy path
+        self.assertEqual(bounded(5, 0, 10), 5)
+        self.assertEqual(bounded(-5, 0, 10), 0)
+        self.assertEqual(bounded(15, 0, 10), 10)
+
+        # Test scalar edge cases (NaN)
+        self.assertTrue(np.isnan(bounded(np.nan, 0, 10)))
+
+        # Test array-like happy path
+        arr = [-150, -65, -0.9, 0, 0.9, 65, 150]
+        np.testing.assert_array_equal(bounded(arr, 0.0, 1.0), np.array([0., 0., 0., 0., 0.9, 1., 1.]))
+        np.testing.assert_array_equal(bounded(arr, -1.0, 1.0), np.array([-1., -1., -0.9, 0., 0.9, 1., 1.]))
+
+        # Test array-like edge cases (NaN)
+        arr_with_nan = [-1.5, np.nan, 1.5]
+        res = bounded(arr_with_nan, -1.0, 1.0)
+        np.testing.assert_array_equal(res[~np.isnan(res)], np.array([-1.0, 1.0]))
+        self.assertTrue(np.isnan(res[1]))
+
+        # Test array with default args
+        np.testing.assert_array_equal(bounded([-np.inf, 0, np.inf]), np.array([-np.inf, 0, np.inf]))
+        self.assertEqual(bounded(-np.inf), -np.inf)
+        self.assertEqual(bounded(np.inf), np.inf)
+
 
 from neuropy.utils.indexing_helpers import find_nearest_time
-
-
 
 if __name__ == '__main__':
     unittest.main()
