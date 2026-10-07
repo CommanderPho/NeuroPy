@@ -253,10 +253,14 @@ class PfND_TimeDependent(PfND):
         """The ratemap property is computed only as needed. Note, this might be the slowest way to get this data, it's like this just for compatibility with the other display functions."""
         # return Ratemap(self.curr_occupancy_weighted_tuning_maps_matrix, spikes_maps=self.curr_spikes_maps_matrix, xbin=self.xbin, ybin=self.ybin, neuron_ids=self.included_neuron_IDs, occupancy=self.curr_seconds_occupancy, neuron_extended_ids=self.frate_filter_fcn(self.all_time_filtered_spikes_df.spikes.neuron_probe_tuple_ids))
         # DO I need neuron_ids=self.frate_filter_fcn(self.included_neuron_IDs)?
-        return Ratemap(self.curr_occupancy_weighted_tuning_maps_matrix[self._included_thresh_neurons_indx], spikes_maps=self.curr_spikes_maps_matrix[self._included_thresh_neurons_indx],
-                       xbin=self.xbin, ybin=self.ybin, neuron_ids=self.included_neuron_IDs, occupancy=self.curr_seconds_occupancy, neuron_extended_ids=self.frate_filter_fcn(self.all_time_filtered_spikes_df.spikes.neuron_probe_tuple_ids))
 
-        ## Passes self.included_neuron_IDs explicitly
+        # We must use `self._filtered_spikes_df.spikes.neuron_ids[self.included_neuron_IDXs]` instead of `self.included_neuron_IDs`
+        # to avoid infinite recursion with the superclass `included_neuron_IDs` calling `ratemap.neuron_ids`.
+        actual_included_neuron_ids = self._filtered_spikes_df.spikes.neuron_ids[self.included_neuron_IDXs]
+        return Ratemap(self.curr_occupancy_weighted_tuning_maps_matrix[self._included_thresh_neurons_indx], spikes_maps=self.curr_spikes_maps_matrix[self._included_thresh_neurons_indx],
+                       xbin=self.xbin, ybin=self.ybin, neuron_ids=actual_included_neuron_ids, occupancy=self.curr_seconds_occupancy, neuron_extended_ids=self.frate_filter_fcn(self.all_time_filtered_spikes_df.spikes.neuron_probe_tuple_ids))
+
+        ## Passes actual_included_neuron_ids explicitly
 
 
     def __repr__(self):

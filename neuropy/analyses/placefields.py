@@ -1151,7 +1151,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 	@property
 	def included_neuron_IDs(self):
 		"""The neuron IDs ('aclu' values) that were included after filtering by frate and etc. """
-		return self._filtered_spikes_df.spikes.neuron_ids[self.included_neuron_IDXs] ## TODO: these are basically wrong, we should use self.ratemap.neuron_IDs instead!
+		return self.ratemap.neuron_ids
 
 	
 		
