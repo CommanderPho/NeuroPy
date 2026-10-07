@@ -838,7 +838,7 @@ class NamedTimerange(SimplePrintable, metaclass=OrderedMeta):
 class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataframeMetadataProtocol):
     """ A Pandas pd.DataFrame representation of [start, stop, label] epoch intervals """
     
-    _time_column_name_synonyms = {"start":{'begin','start_t'},
+    _time_column_name_synonyms = {"start":['begin','start_t'],
             "stop":['end','stop_t'],
             "label":['name', 'id', 'flat_replay_idx','lap_id']
         }

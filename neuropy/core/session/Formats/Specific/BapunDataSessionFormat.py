@@ -730,7 +730,7 @@ class BapunDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredClass
         curr_paradigm_df[duration_col_name] = curr_paradigm_df[stop_col] - curr_paradigm_df[start_col]
 
         curr_paradigm_df = curr_paradigm_df.reset_index(drop=True, inplace=False)
-        # _time_column_name_synonyms = {"start":{'begin','start','start_t'},
+        # _time_column_name_synonyms = {"start":['begin','start','start_t'],
         #     'stop':['end','stop','stop_t'],
         #     "t_duration":['duration'],
         # }

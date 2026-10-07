@@ -942,8 +942,8 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
         target_time_variable_name: str = deepcopy(spk_df.spikes.time_variable_name)
         if target_time_variable_name not in spk_df.columns:    
-            # t_col_name: str = TimeColumnAliasesProtocol.find_first_extant_suitable_columns_name(spk_df, col_connonical_name=target_time_variable_name, required_columns_synonym_dict={target_time_variable_name:{'t','t_seconds',"t_rel_seconds"}}, should_raise_exception_on_fail=False)
-            spk_df = TimeColumnAliasesProtocol.renaming_synonym_columns_if_needed(spk_df, required_columns_synonym_dict={target_time_variable_name:{'t','t_seconds',"t_rel_seconds"}}) #.drop_duplicates(column='t_rel_seconds', inplace=False)
+            # t_col_name: str = TimeColumnAliasesProtocol.find_first_extant_suitable_columns_name(spk_df, col_connonical_name=target_time_variable_name, required_columns_synonym_dict={target_time_variable_name:["t_rel_seconds", 't_seconds', 't']}, should_raise_exception_on_fail=False)
+            spk_df = TimeColumnAliasesProtocol.renaming_synonym_columns_if_needed(spk_df, required_columns_synonym_dict={target_time_variable_name:["t_rel_seconds", 't_seconds', 't']}) #.drop_duplicates(column='t_rel_seconds', inplace=False)
             assert target_time_variable_name in spk_df.columns, f"target t col name ('{target_time_variable_name}') still not in list(spk_df.columns): {list(spk_df.columns)}"
 
         # filtering: _________________________________________________________________________________________________________ #

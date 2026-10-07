@@ -82,7 +82,7 @@ class TimeColumnAliasesProtocol:
         Usage:
             from neuropy.utils.mixins.time_slicing import TimeColumnAliasesProtocol
 
-            start_col_name: str = TimeColumnAliasesProtocol.find_first_extant_suitable_columns_name(df, col_connonical_name='start', required_columns_synonym_dict={"start":{'begin','start_t','ripple_start_t'}, "stop":['end','stop_t']}, should_raise_exception_on_fail=False)
+            start_col_name: str = TimeColumnAliasesProtocol.find_first_extant_suitable_columns_name(df, col_connonical_name='start', required_columns_synonym_dict={"start":['begin','start_t','ripple_start_t'], "stop":['end','stop_t']}, should_raise_exception_on_fail=False)
 
         """
         if required_columns_synonym_dict is None:
@@ -115,7 +115,7 @@ class TimeColumnAliasesProtocol:
         """ if the required columns (as specified in _time_column_name_synonyms's keys are missing, search for synonyms and replace the synonym columns with the preferred column name.
 
         Usage:
-            obj = cls.renaming_synonym_columns_if_needed(obj, required_columns_synonym_dict={"start":{'begin','start_t'}, "stop":['end','stop_t']})
+            obj = cls.renaming_synonym_columns_if_needed(obj, required_columns_synonym_dict={"start":['begin','start_t'], "stop":['end','stop_t']})
 
         """
         if required_columns_synonym_dict is None:
@@ -226,7 +226,7 @@ class TimeSliceAccessor(TimeColumnAliasesProtocol, TimeSlicableObjectProtocol, D
     """ Allows general epochs represented as Pandas DataFrames to be easily time-sliced and manipulated along with their accompanying data without making a custom class. """
 
     def __init__(self, pandas_obj):
-        pandas_obj = self.renaming_synonym_columns_if_needed(pandas_obj, required_columns_synonym_dict={"start":{'begin','start_t'}, "stop":['end','stop_t']}) # @IgnoreException 
+        pandas_obj = self.renaming_synonym_columns_if_needed(pandas_obj, required_columns_synonym_dict={"start":['begin','start_t'], "stop":['end','stop_t']}) # @IgnoreException 
         self._validate(pandas_obj)
         self._obj = pandas_obj
 
