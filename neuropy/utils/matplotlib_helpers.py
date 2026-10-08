@@ -482,14 +482,18 @@ def add_inner_title(ax, title, loc, strokewidth=3, stroke_foreground='w', stroke
         **{k: kwargs.pop(k) for k in text_pop_key_name_list if k in kwargs}
     )
 
+    # Allow callers (e.g. OverlayLabels with borderpad=0) to override; default matches prior hardcode.
+    borderpad = kwargs.pop('borderpad', 0.5)
+    pad = kwargs.pop('pad', 0.)
+
     # Create the AnchoredText object with the specified properties
     if use_AnchoredCustomText:
-        at = AnchoredCustomText(title, loc=loc, prop=text_prop_kwargs, pad=0., borderpad=0.5, frameon=False, **kwargs)
+        at = AnchoredCustomText(title, loc=loc, prop=text_prop_kwargs, pad=pad, borderpad=borderpad, frameon=False, **kwargs)
     else:
         ## cannot have custom_value_formatter
         custom_value_formatter = kwargs.pop('custom_value_formatter', None)
         assert custom_value_formatter is None, f"custom_value_formatter should be None for non-custom anchored text but custom_value_formatter: {custom_value_formatter}"
-        at = AnchoredText(title, loc=loc, prop=text_prop_kwargs, pad=0., borderpad=0.5, frameon=False, **kwargs)
+        at = AnchoredText(title, loc=loc, prop=text_prop_kwargs, pad=pad, borderpad=borderpad, frameon=False, **kwargs)
 
     ax.add_artist(at)
 
