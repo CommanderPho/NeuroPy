@@ -982,7 +982,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         if use_modern_speed_threshold_filtering_preserving_occupancy:
             # 2023-11-14 - Modern Occupancy-safe speed filtering:
             epochs_df = deepcopy(epochs.to_dataframe())
-            speed_filtered_epochs_df = PfND.filtered_by_speed(epochs_df, position_df=self._filtered_pos_df, speed_thresh=self.config.speed_thresh, speed_column_override_name=speed_column_name, debug_print=False)
+            speed_filtered_epochs_df = PfND.filtered_by_speed(epochs_df, position_df=self._filtered_pos_df, minimum_speed_thresh=self.config.speed_thresh, speed_column_override_name=speed_column_name, debug_print=False)
             if speed_filtered_epochs_df is not None:
                 # filter the spikes_df:
                 self._filtered_spikes_df = spk_df.spikes.time_sliced(speed_filtered_epochs_df.epochs.starts, speed_filtered_epochs_df.epochs.stops)
@@ -1484,15 +1484,18 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
 
     @classmethod
-    def filtered_by_speed(cls, epochs_df: pd.DataFrame, position_df: pd.DataFrame, speed_thresh: Optional[float], speed_column_override_name:Optional[str]=None, debug_print:bool=False):
-        """ Filters the position_df by speed and epoch_df correctly, so we can get actual occupancy.
-        2023-11-14 - 
-        
-        
-        speed_thresh = a_decoder.config.speed_thresh # 10.0
+    def filtered_by_speed(cls, epochs_df: pd.DataFrame, position_df: pd.DataFrame, minimum_speed_thresh: Optional[float], speed_column_override_name:Optional[str]=None, debug_print:bool=False):
+        """ Keep contiguous runs of in-epoch position samples at or above `minimum_speed_thresh` so occupancy matches the running-speed cut.
+        2023-11-14 -
+
+        Returns one [start, stop] interval per contiguous run of passing samples inside each input epoch.
+        `minimum_speed_thresh is None` skips the speed cut (every in-epoch sample passes).
+        `minimum_speed_thresh == 0` keeps every non-negative sample (speed is non-negative).
+
+        minimum_speed_thresh = a_decoder.config.speed_thresh # 10.0
         position_df = a_decoder.position.to_dataframe()
-        
-        
+
+
         """
         from neuropy.utils.mixins.time_slicing import add_epochs_id_identity
 
@@ -1502,32 +1505,47 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
 
         epoch_id_string: str = f'decoder_epoch_id'
         position_df = add_epochs_id_identity(position_df, epochs_df, epoch_id_key_name=epoch_id_string, epoch_label_column_name=None, no_interval_fill_value=-1, override_time_variable_name='t')
-        # drop the -1 indicies because they are below the speed:
-        position_df = position_df[position_df[epoch_id_string] != -1] # Drop all non-included spikes
+        # drop the -1 indicies because they fall outside the provided epochs:
+        position_df = position_df[position_df[epoch_id_string] != -1] # Drop samples that are not inside any input epoch
                 
         if debug_print:
             n_pre_filtered_samples = len(position_df)
             print(f'n_pre_filtered_samples: {n_pre_filtered_samples}')
 
-        if speed_thresh is not None:
+        if minimum_speed_thresh is not None:
             if speed_column_override_name is None:
                 speed_column_name = 'speed'
             else:
                 speed_column_name = speed_column_override_name
-            position_df = position_df[position_df[speed_column_name] < speed_thresh] # filter the samples by speed_thresh
         else:
-            pass # position_df is just itself
-        # Performed 3 aggregations grouped on column: 'decoder_epoch_id'
-        speed_filtered_epochs_df = position_df.groupby(['decoder_epoch_id']).agg(t_first=('t', 'first'), t_last=('t', 'last'), t_count=('t', 'count')).reset_index()
-        # Rename column 't_first' to 'start'
-        speed_filtered_epochs_df = speed_filtered_epochs_df.rename(columns={'t_first': 'start'})
-        # Rename column 't_last' to 'stop'
-        speed_filtered_epochs_df = speed_filtered_epochs_df.rename(columns={'t_last': 'stop'})
-        # Rename column 'decoder_epoch_id' to 'label'
-        speed_filtered_epochs_df = speed_filtered_epochs_df.rename(columns={'decoder_epoch_id': 'label'})
-        # Rename column 't_count' to 'n_samples'
-        speed_filtered_epochs_df = speed_filtered_epochs_df.rename(columns={'t_count': 'n_samples'})
-        speed_filtered_epochs_df['duration'] = speed_filtered_epochs_df['stop'] - speed_filtered_epochs_df['start']
+            speed_column_name = None # no speed cut; every in-epoch sample is a passing sample
+
+        # One [start, stop] per contiguous run of samples at or above minimum_speed_thresh, inside each input epoch.
+        # start/stop are the first and last passing sample times, so gaps below the threshold are not filled back in.
+        run_rows = []
+        grouped_position_df = position_df.groupby(epoch_id_string, sort=False)
+        for epoch_id, epoch_pos_df in grouped_position_df:
+            epoch_pos_df = epoch_pos_df.sort_values('t')
+            if speed_column_name is None:
+                is_passing = np.ones(len(epoch_pos_df), dtype=bool)
+            else:
+                is_passing = np.asarray(epoch_pos_df[speed_column_name]) >= minimum_speed_thresh # minimum running speed; minimum_speed_thresh == 0 keeps every non-negative sample
+            if not np.any(is_passing):
+                continue
+            sample_times = epoch_pos_df['t'].to_numpy()
+            padded_passing = np.concatenate(([False], np.asarray(is_passing, dtype=bool), [False]))
+            passing_edges = np.diff(padded_passing.astype(np.int8))
+            run_start_indicies = np.flatnonzero(passing_edges == 1)
+            run_stop_indicies = np.flatnonzero(passing_edges == -1) - 1 # last passing sample, not the first failing sample
+            for run_start_index, run_stop_index in zip(run_start_indicies, run_stop_indicies):
+                run_start_t = float(sample_times[run_start_index])
+                run_stop_t = float(sample_times[run_stop_index])
+                run_rows.append({'start': run_start_t, 'stop': run_stop_t, 'label': epoch_id, 'n_samples': int(run_stop_index - run_start_index + 1), 'duration': (run_stop_t - run_start_t)})
+            ## END for run_start_index, run_stop_index in zip(run_start_indicies, run_stop_indicies)....
+
+        ## END for epoch_id, epoch_pos_df in grouped_position_df....
+
+        speed_filtered_epochs_df = pd.DataFrame(run_rows, columns=['start', 'stop', 'label', 'duration', 'n_samples'])
         
         if debug_print:    
             post_filtering_duration = speed_filtered_epochs_df.duration.sum()
