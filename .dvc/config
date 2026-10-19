@@ -4,3 +4,4 @@
 ['remote "pho_shared_gdrive"']
     url = gdrive://1A5KUQRjGYsvfvhbbvNERlAHXR0F069P7/dvcstore
     gdrive_acknowledge_abuse = true
+    gdrive_use_service_account = true
