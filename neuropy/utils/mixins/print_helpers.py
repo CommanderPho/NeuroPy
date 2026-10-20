@@ -1,7 +1,10 @@
 # print_helpers.py
 import builtins
+import logging
+import time
 from collections import defaultdict
-from typing import Callable, List, Dict, Tuple, Optional, OrderedDict  # for OrderedMeta
+from datetime import datetime
+from typing import Callable, List, Dict, Tuple, Optional, OrderedDict, Union  # for OrderedMeta
 from contextlib import contextmanager
 import numpy as np # for build_formatted_str_from_properties_dict
 from neuropy.utils.misc import is_iterable
@@ -133,15 +136,23 @@ def print_file_progress_message(filepath, action: str, contents_description: str
 
     out_string = f"{out_string}..."
     if enable_print:
-        print(out_string, end=print_line_ending) # always print
+        try:
+            print(out_string, end=print_line_ending, flush=True) # always print; flush so Slurm logs show start before long ops
+        except Exception:
+            pass
         
     if returns_string:
         return f'{out_string}{print_line_ending}'
     else:
         return None
-    
+
+
 class ProgressMessagePrinter(object):
-    """ a context-handler that wraps an action such as loading/saving a file or a computation and prints (optionally properlly indendented) messages at its start and completion. 
+    """ a context-handler that wraps an action such as loading/saving a file or a computation and prints (optionally properlly indendented) messages at its start and completion.
+
+    When enable_timing=True (default), also emits newline-terminated [TIMING START]/[TIMING END] lines with
+    wall-clock stamps and perf_counter elapsed duration. All print/log I/O is best-effort and never raises into
+    the caller (safe for headless Slurm).
         
     Usage:
         from neuropy.utils.mixins.print_helpers import ProgressMessagePrinter
@@ -150,33 +161,108 @@ class ProgressMessagePrinter(object):
             flattened_spike_identities = np.concatenate([np.full((active_session.neurons.n_spikes[i],), active_session.neurons.neuron_ids[i]) for i in np.arange(active_session.neurons.n_neurons)]) # repeat the neuron_id for each spike that belongs to that neuron
     
     """
-    
-    def __init__(self, filepath, action: str, contents_description: str, print_line_ending:str=' ', finished_message:str='done.', returns_string:bool=False, enable_print:bool=True):
+
+    @classmethod
+    def _format_elapsed_seconds(cls, elapsed_s: float) -> str:
+        """Human-readable elapsed duration for timing log lines."""
+        try:
+            if elapsed_s >= 60.0:
+                return f'{elapsed_s:.1f}s ({elapsed_s / 60.0:.1f}m)'
+            return f'{elapsed_s:.1f}s'
+        except Exception:
+            return f'{elapsed_s!r}s'
+
+
+    @classmethod
+    def _safe_progress_emit(cls, msg: str, *, flush: bool = False, logger: Optional[logging.Logger] = None) -> None:
+        """Best-effort stdout + optional logger emit. Never raises (Slurm-safe)."""
+        try:
+            print(msg, flush=flush)
+        except Exception:
+            pass
+        if logger is not None:
+            try:
+                logger.info(msg)
+            except Exception:
+                pass
+
+
+    @classmethod
+    def _progress_path_str(cls, filepath) -> str:
+        """Best-effort posix path string for timing lines. Never raises."""
+        try:
+            if filepath is None:
+                return ''
+            if hasattr(filepath, 'as_posix'):
+                return str(filepath.as_posix())
+            return str(filepath)
+        except Exception:
+            return ''
+
+
+    def __init__(self, filepath, action: str, contents_description: str, print_line_ending:str=' ', finished_message:str='done.', returns_string:bool=False, enable_print:bool=True, enable_timing:bool=True, logger: Optional[logging.Logger]=None):
         self.filepath = filepath
         self.action = action
         self.contents_description = contents_description
-        self.print_line_ending = print_line_ending
+        # Timed mode uses newlines so Slurm/logger capture complete lines and avoid end=' ' buffering silence
+        self.print_line_ending = '\n' if enable_timing else print_line_ending
         self.finished_message = finished_message
         
         self.returns_string = returns_string
         self.enable_print = enable_print
+        self.enable_timing = enable_timing
+        self.logger = logger
+        self._t0: Optional[float] = None
+        self._timing_label: str = f'{action} {contents_description}'.strip()
         if self.returns_string:
             self.returned_string = ''
         else:
-            self.returned_string = None    
-        
-        
+            self.returned_string = None
+
+
     def __enter__(self):
-        self.returned_string = print_file_progress_message(self.filepath, self.action, self.contents_description, self.print_line_ending, returns_string=self.returns_string, enable_print=self.enable_print)
-        
-  
-    def __exit__(self, *args):
-        if self.enable_print:
-            print(self.finished_message)        
+        self._t0 = time.perf_counter()
+        if self.enable_timing and self.enable_print:
+            try:
+                wall = datetime.now().isoformat(timespec='seconds')
+            except Exception:
+                wall = '?'
+            path_s = self._progress_path_str(self.filepath)
+            path_part = f' path="{path_s}"' if path_s else ''
+            start_msg = f'[TIMING START] {self._timing_label} @ {wall}{path_part}'
+            self._safe_progress_emit(start_msg, flush=True, logger=self.logger)
+            if self.returns_string:
+                self.returned_string = f'{start_msg}\n'
+        progress_msg = print_file_progress_message(self.filepath, self.action, self.contents_description, self.print_line_ending, returns_string=self.returns_string, enable_print=self.enable_print)
         if self.returns_string:
-            self.returned_string = f'{self.returned_string}{self.finished_message}\n'
-            
-            
+            if self.returned_string:
+                self.returned_string = f'{self.returned_string}{progress_msg or ""}'
+            else:
+                self.returned_string = progress_msg
+        return self
+
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        status = 'error' if exc_type is not None else 'ok'
+        if self.enable_timing and self.enable_print:
+            try:
+                elapsed_s = (time.perf_counter() - self._t0) if (self._t0 is not None) else float('nan')
+            except Exception:
+                elapsed_s = float('nan')
+            end_msg = f'[TIMING END] {self._timing_label} elapsed={self._format_elapsed_seconds(elapsed_s)} status={status}'
+            self._safe_progress_emit(end_msg, flush=True, logger=self.logger)
+            if self.returns_string:
+                self.returned_string = f'{self.returned_string or ""}{end_msg}\n'
+        if self.enable_print:
+            try:
+                print(self.finished_message, flush=True)
+            except Exception:
+                pass
+        if self.returns_string:
+            self.returned_string = f'{self.returned_string or ""}{self.finished_message}\n'
+        return False  # never suppress exceptions from the wrapped block
+
+
 
 def build_formatted_str_from_properties_dict(dict_items, param_sep_char=', ', key_val_sep_char=':', subset_includelist:Optional[list]=None, subset_excludelist:Optional[list]=None, float_precision:int=3, array_items_threshold:int=5) -> str:
     """ Builds a formatted output string from a dictionary of key:value pairs
