@@ -1,5 +1,6 @@
 from copy import deepcopy
 from typing import Union, Tuple, List, Dict, Set, Any, Optional, OrderedDict  # for OrderedMeta
+import inspect
 import nptyping as ND
 from nptyping import NDArray
 from contextlib import contextmanager, ContextDecorator
@@ -1325,6 +1326,81 @@ class PandasHelpers:
             out_concat_df = None # empty df would be better
         return out_concat_df
 
+
+    @classmethod
+    def safe_merge(cls, left: Union[pd.DataFrame, pd.Series], right: Union[pd.DataFrame, pd.Series], how: str = 'inner',
+                   on=None, left_on=None, right_on=None, left_index: bool = False, right_index: bool = False,
+                   sort: bool = False, suffixes=('_x', '_y'), copy: bool = True, indicator: Union[bool, str] = False, validate: Optional[str] = None, **kwargs) -> pd.DataFrame:
+        """ Drop-in replacement for :func:`pandas.merge` / :meth:`pandas.DataFrame.merge` that restores ``DataFrame.attrs``.
+
+        pandas ``merge`` constructs a new frame and drops ``attrs``. This wrapper forwards every ``pd.merge``
+        argument unchanged (same names, defaults, positional order, and errors), then sets:
+
+            result.attrs = {**right.attrs, **left.attrs}
+
+        so left-frame metadata wins on key collisions and right-only keys are filled in. Source objects are not mutated.
+
+        Parameters
+        ----------
+        left : DataFrame or named Series
+            Left operand (same as ``pd.merge``).
+        right : DataFrame or named Series
+            Right operand (same as ``pd.merge``). A named Series is treated as a one-column DataFrame.
+        how : {'left', 'right', 'outer', 'inner', 'cross'}, default 'inner'
+            Type of merge to be performed. Same as ``pd.merge``.
+        on : label or list, optional
+            Column or index level names to join on. Must exist in both. If None and not merging on
+            indexes, defaults to the intersection of columns.
+        left_on, right_on : label or list or array-like, optional
+            Join keys in the left / right operand. Arrays of the operand length are treated as columns.
+        left_index, right_index : bool, default False
+            Use the left / right index as join key(s).
+        sort : bool, default False
+            Sort join keys lexicographically. False preserves left-key order for inner/left joins.
+        suffixes : tuple of (str, str), default ('_x', '_y')
+            Suffixes for overlapping column names.
+        copy : bool, default True
+            Copy data from inputs. Forwarded only when this pandas version's ``pd.merge`` accepts ``copy``.
+        indicator : bool or str, default False
+            Add a ``_merge`` column (or the given name) with merge source: 'left_only', 'right_only', 'both'.
+        validate : str, optional
+            Check merge keys uniqueness: 'one_to_one', 'one_to_many', 'many_to_one', 'many_to_many'.
+        **kwargs
+            Any additional ``pd.merge`` keyword added in a newer pandas. Unknown names raise ``TypeError``
+            from pandas, matching ``pd.merge``.
+
+        Returns
+        -------
+        DataFrame
+            Merge result with preserved ``attrs``.
+
+        Usage
+        -----
+            from neuropy.utils.indexing_helpers import PandasHelpers
+
+            out_df = PandasHelpers.safe_merge(left, right, how='left', on=['session_name', 'label'])
+            out_df = PandasHelpers.safe_merge(left, right, 'left', 'key')  # same positional args as pd.merge
+            out_df = left.neuropy.safe_merge(right, how='left', on='key')  # DataFrame.merge-style
+        """
+        call_kwargs: Dict[str, Any] = dict(how=how, on=on, left_on=left_on, right_on=right_on, left_index=left_index, right_index=right_index, sort=sort, suffixes=suffixes, copy=copy, indicator=indicator, validate=validate)
+        call_kwargs.update(kwargs)
+        pd_merge_param_names = set(inspect.signature(pd.merge).parameters.keys())
+        mirrored_default_names = {'how', 'on', 'left_on', 'right_on', 'left_index', 'right_index', 'sort', 'suffixes', 'copy', 'indicator', 'validate'}
+        forwarded_kwargs: Dict[str, Any] = {}
+        for a_name, a_value in call_kwargs.items():
+            if (a_name in pd_merge_param_names) or (a_name not in mirrored_default_names):
+                forwarded_kwargs[a_name] = a_value
+        ## END for a_name, a_value in call_kwargs.items()...
+
+        left_attrs = deepcopy(dict(getattr(left, 'attrs', None) or {}))
+        right_attrs = deepcopy(dict(getattr(right, 'attrs', None) or {}))
+        incoming_attrs = deepcopy(right_attrs)
+        incoming_attrs.update(left_attrs)  # left wins on key collision
+        out_df: pd.DataFrame = pd.merge(left, right, **forwarded_kwargs)
+        out_df.attrs = incoming_attrs
+        return out_df
+
+
     @classmethod
     def convert_dataframe_columns_to_datatype_if_possible(cls, df: pd.DataFrame, datatype_str_column_names_list_dict, debug_print=False):
         """ If the columns specified in datatype_str_column_names_list_dict exist in the dataframe df, their type is changed to the key of the dict. See usage example below:
@@ -1377,7 +1453,7 @@ class PandasHelpers:
         subset_neurons_properties_df = lookup_properties_map_df[missing_spikes_df_columns] # get the subset dataframe with only the requested columns
         ## Merge the result:
         # df = pd.merge(subset_neurons_properties_df, df, on=join_column_name, how='outer', suffixes=('_neurons_properties', '_spikes_df'))
-        return pd.merge(df, subset_neurons_properties_df, on=join_column_name, how='left', suffixes=('_neurons_properties', '_spikes_df'), copy=False) # avoids copying if possible
+        return cls.safe_merge(df, subset_neurons_properties_df, on=join_column_name, how='left', suffixes=('_neurons_properties', '_spikes_df'), copy=False) # avoids copying if possible
 
     @classmethod
     def adding_additional_df_columns(cls, original_df: pd.DataFrame, additional_cols_df: pd.DataFrame) -> pd.DataFrame:
@@ -1577,6 +1653,17 @@ class NeuroPyDataframeAccessor:
         """ verify there is a column that identifies the spike's neuron, the type of cell of this neuron ('neuron_type'), and the timestamp at which each spike occured ('t'||'t_rel_seconds') """
         if not isinstance(obj, pd.DataFrame):
             raise ValueError(f"object must be a pandas Dataframe but is of type: {type(obj)}!\nobj: {obj}")
+
+
+    def safe_merge(self, right: Union[pd.DataFrame, pd.Series], how: str = 'inner',
+                   on=None, left_on=None, right_on=None, left_index: bool = False, right_index: bool = False,
+                   sort: bool = False, suffixes=('_x', '_y'), copy: bool = True, indicator: Union[bool, str] = False, validate: Optional[str] = None, **kwargs) -> pd.DataFrame:
+        """ Drop-in replacement for :meth:`pandas.DataFrame.merge` that preserves ``DataFrame.attrs``.
+
+        Same arguments and defaults as ``DataFrame.merge`` / ``pd.merge`` (minus ``left``, which is this frame).
+        See ``PandasHelpers.safe_merge`` for full parameter docs.
+        """
+        return PandasHelpers.safe_merge(self._df, right, how=how, on=on, left_on=left_on, right_on=right_on, left_index=left_index, right_index=right_index, sort=sort, suffixes=suffixes, copy=copy, indicator=indicator, validate=validate, **kwargs)
 
 
     def get_column_unique_values_dict(self, columns_include_subset: Optional[List[str]]=None) -> Dict[str, List]:
