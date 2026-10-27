@@ -631,7 +631,8 @@ def filter_epochs_by_speed(speed_df, *epoch_args, speed_thresh=2.0, debug_print=
 def trim_epochs_to_first_last_spikes(active_spikes_df, active_epochs, min_num_unique_aclu_inclusions=1):
     """ 2022-02-16 - Trim the active_epochs to the first and last spike times for each epoch.
 
-    2025-01-10 18:53 - Found that epochs containing only one spike resulted in zero-duration epochs after trimming, which threw 
+    2025-01-10 18:53 - Found that epochs containing only one spike resulted in zero-duration epochs after trimming, which threw
+    2026-10-27 - Also drop epochs whose first and last spike times are identical (or otherwise duration < 1e-9) and keep `epoch_split_spike_dfs` aligned. Otherwise `filtered_by_duration` shrinks the Epoch while the spike-df list is left unchanged, and the count assert fails (this blocked `long_short_fr_indicies_analyses`).
     Usage:
         from neuropy.utils.efficient_interval_search import trim_epochs_to_first_last_spikes
         spike_trimmed_active_epochs, epoch_split_spike_dfs = trim_epochs_to_first_last_spikes(active_spikes_df, active_epochs, min_num_unique_aclu_inclusions=1)
@@ -678,9 +679,23 @@ def trim_epochs_to_first_last_spikes(active_spikes_df, active_epochs, min_num_un
 
         ## Trim active_epochs to the start/end spikes within them. Most easily done by just buiilding a new Epochs object with these times and then copying the info:
         spike_trimmed_active_epochs_df = pd.DataFrame(epoch_first_last_spike_times, columns=['start', 'stop']) # when epoch_first_last_spike_times is array([], dtype=float64), encountering an error: `*** ValueError: Empty data passed with indices specified.`
-        spike_trimmed_active_epochs_df['label'] = active_epochs.labels # add the original label from the active_epochs
-        spike_trimmed_active_epochs = Epoch(epochs=spike_trimmed_active_epochs_df, metadata=active_epochs.metadata)
-        spike_trimmed_active_epochs = spike_trimmed_active_epochs.filtered_by_duration(min_duration=1e-9, max_duration=None) ## make sure there are no zero-duration items
+        spike_trimmed_active_epochs_df['label'] = np.asarray(active_epochs.labels) # add the original label from the active_epochs
+        spike_trimmed_active_epochs_df['start'] = pd.to_numeric(spike_trimmed_active_epochs_df['start'], errors='coerce')
+        spike_trimmed_active_epochs_df['stop'] = pd.to_numeric(spike_trimmed_active_epochs_df['stop'], errors='coerce')
+        trimmed_durations = spike_trimmed_active_epochs_df['stop'] - spike_trimmed_active_epochs_df['start']
+        is_valid_duration = trimmed_durations.notna() & (trimmed_durations >= 1e-9)
+        if not bool(is_valid_duration.all()):
+            n_dropped_zero_duration: int = int((~is_valid_duration).sum())
+            print(f'\ttrim_epochs_to_first_last_spikes: dropping {n_dropped_zero_duration} zero/invalid-duration epoch(s) after spike-time trim.')
+            spike_trimmed_active_epochs_df = spike_trimmed_active_epochs_df.loc[is_valid_duration].reset_index(drop=True)
+            epoch_split_spike_dfs = [v for v, is_included in zip(epoch_split_spike_dfs, is_valid_duration.to_numpy()) if is_included]
+
+        if len(epoch_split_spike_dfs) == 0:
+            spike_trimmed_active_epochs = Epoch(epochs=pd.DataFrame(columns=['start', 'stop', 'label']), metadata=active_epochs.metadata)
+            epoch_split_spike_dfs = []
+        else:
+            spike_trimmed_active_epochs = Epoch(epochs=spike_trimmed_active_epochs_df, metadata=active_epochs.metadata)
+            spike_trimmed_active_epochs = spike_trimmed_active_epochs.filtered_by_duration(min_duration=1e-9, max_duration=None) ## make sure there are no zero-duration items
         
     else:
         # Output is empty. Initializing the pd.DataFrame this way prevents  `*** ValueError: Empty data passed with indices specified.` See also # Issue: https://github.com/pandas-dev/pandas/pull/47192
