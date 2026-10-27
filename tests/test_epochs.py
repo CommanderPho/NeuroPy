@@ -76,7 +76,7 @@ def _perform_test_find_nearest_time(df: pd.DataFrame, max_allowed_deviation:floa
     # [find_nearest_time(df=df, target_time=start) for start, stop in original_epochs_df_derived_start_stop_times_arr]
     # max_allowed_deviation:float = 0.0001
     # max_allowed_deviation:float = 0.001
-    closest_epoch_info_tuples = [find_nearest_time(df=df, target_time=start, max_allowed_deviation=max_allowed_deviation)[1:] for start, stop in original_epochs_df_derived_start_stop_times_arr]
+    closest_epoch_info_tuples = [find_nearest_time(df, target_time=start, max_allowed_deviation=max_allowed_deviation)[1:] for start, stop in original_epochs_df_derived_start_stop_times_arr]
     closest_epoch_indicies = [closest_index for closest_index, closest_time, matched_time_difference in closest_epoch_info_tuples]
     closest_epoch_indicies
     # closest_index, closest_time, matched_time_difference
