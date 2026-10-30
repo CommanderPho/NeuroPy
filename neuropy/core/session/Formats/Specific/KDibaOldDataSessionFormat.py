@@ -628,21 +628,23 @@ class KDibaOldDataSessionFormatRegisteredClass(DataSessionFormatBaseRegisteredCl
             for an_experiment_name in an_experiment_names_list:
                 local_session_parent_context = local_session_root_parent_context.adding_context(collision_prefix='animal', animal=animal_name, exper_name=an_experiment_name)
                 local_session_parent_path = local_session_root_parent_path.joinpath(local_session_parent_context.animal, local_session_parent_context.exper_name)
-                local_session_paths_list, local_session_names_list =  find_local_session_paths(local_session_parent_path, exclude_list=exclude_list, debug_print=debug_print)
+                if local_session_parent_path.exists():
+                    local_session_paths_list, local_session_names_list =  find_local_session_paths(local_session_parent_path, exclude_list=exclude_list, debug_print=debug_print)
 
-                if debug_print:
-                    print(f'local_session_paths_list: {local_session_paths_list}')
-                    print(f'local_session_names_list: {local_session_names_list}')
+                    if debug_print:
+                        print(f'local_session_paths_list: {local_session_paths_list}')
+                        print(f'local_session_names_list: {local_session_names_list}')
 
-                ## Build session contexts list:
-                local_session_contexts_list = [local_session_parent_context.adding_context(collision_prefix='sess', session_name=a_name) for a_name in local_session_names_list] # [IdentifyingContext<('kdiba', 'gor01', 'one', '2006-6-07_11-26-53')>, ..., IdentifyingContext<('kdiba', 'gor01', 'one', '2006-6-13_14-42-6')>]
+                    if (local_session_names_list is not None):
+                        ## Build session contexts list:
+                        local_session_contexts_list = [local_session_parent_context.adding_context(collision_prefix='sess', session_name=a_name) for a_name in local_session_names_list] # [IdentifyingContext<('kdiba', 'gor01', 'one', '2006-6-07_11-26-53')>, ..., IdentifyingContext<('kdiba', 'gor01', 'one', '2006-6-13_14-42-6')>]
 
-                # {a_ctx:a_path for a_ctx, a_path in zip(local_session_contexts_list, local_session_paths_list if a_ctx)}
-                output_session_basedir_dict.update(dict(zip(local_session_contexts_list, local_session_paths_list)))
+                        # {a_ctx:a_path for a_ctx, a_path in zip(local_session_contexts_list, local_session_paths_list if a_ctx)}
+                        output_session_basedir_dict.update(dict(zip(local_session_contexts_list, local_session_paths_list)))
 
-                # ## Initialize `session_batch_status` with the NOT_STARTED status if it doesn't already have a different status
-                # for curr_session_basedir, curr_session_context in zip(local_session_paths_list, local_session_contexts_list):
-                # 	# basedir might be different (e.g. on different platforms), but context should be the same
+                    # ## Initialize `session_batch_status` with the NOT_STARTED status if it doesn't already have a different status
+                    # for curr_session_basedir, curr_session_context in zip(local_session_paths_list, local_session_contexts_list):
+                    # 	# basedir might be different (e.g. on different platforms), but context should be the same
                     
 
         ## end for
