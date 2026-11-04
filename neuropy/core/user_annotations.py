@@ -942,8 +942,8 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_21-16-25'), #TODO 2026-09-14 16:53: - [ ] Added back in
             IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-09_22-24-40'), #TODO 2026-09-14 16:53: - [ ] Added back in
             IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-12_16-53-46'),
-            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'),
-            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'), # 2025-08-22 - Decided to discard because the positions are shifted between 'x' and 'lin_pos', and that manifests on the pf peaks.
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'), #TODO 2026-11-04 00:42: - [ ] Added back in
+            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'), # 2025-08-22 - Decided to discard because the positions are shifted between 'x' and 'lin_pos', and that manifests on the pf peaks. #TODO 2026-11-04 00:42: - [ ] Added back in
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'), #TODO 2026-09-14 16:53: - [ ] Added back in
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), #TODO 2026-09-14 16:53: - [ ] Added back in
@@ -1029,7 +1029,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='one',session_name='2006-6-07_11-26-53'), # ONLY ONE SHORT LAP
             # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-08_21-16-25'), #TODO 2026-09-14 16:53: - [ ] Added back in
             # IdentifyingContext(format_name='kdiba',animal='gor01',exper_name='two',session_name='2006-6-09_22-24-40'), #TODO 2026-09-14 16:53: - [ ] Added back in
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'), # 2025-08-22 - Decided to discard because the positions are shifted between 'x' and 'lin_pos', and that manifests on the pf peaks.
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'), # 2025-08-22 - Decided to discard because the positions are shifted between 'x' and 'lin_pos', and that manifests on the pf peaks. #TODO 2026-11-04 00:42: - [ ] Added back in
             # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'), #TODO 2026-09-14 16:53: - [ ] Added back in
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_21-2-40'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-11_15-16-59'),
@@ -1044,7 +1044,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-26_13-22-13'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-28_12-17-27'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-28_16-48-29'),
-            IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'), #TODO 2025-07-16 17:36: - [ ] Failed Wave1 - FailedWave3 -- DO NOT USE
+            # IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-09_17-29-30'), #TODO 2025-07-16 17:36: - [ ] Failed Wave1 - FailedWave3 -- DO NOT USE #TODO 2026-11-04 00:42: - [ ] Added back in
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_19-11-57'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-12_14-59-23'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-18_15-38-2'),
