@@ -861,6 +861,45 @@ def flatten_dict(d: Dict, parent_key='', sep='/') -> Dict:
     return items
 
 
+def dict_with_renamed_keys(a_dict: Dict, rename_key_mapping: Dict) -> Dict:
+    """Return a shallow copy of ``a_dict`` with selected keys renamed.
+
+    Keys not present in ``rename_key_mapping`` are copied unchanged. Values are
+    not copied again (same object references as in ``a_dict``). If two source keys
+    map to the same new name, the later entry in ``a_dict.items()`` wins.
+
+    Parameters
+    ----------
+    a_dict : dict
+        Source mapping.
+    rename_key_mapping : dict
+        Old key to new key. Unlisted keys are kept as-is.
+
+    Returns
+    -------
+    dict
+        New dict with renamed keys.
+
+    Usage
+    -----
+    from neuropy.utils.indexing_helpers import dict_with_renamed_keys
+
+    pre_predicate_df_dict = dict_with_renamed_keys(df_filter.pre_predicate_df_dict, rename_key_mapping={'filtered_all_sessions_ripple_df': 'all_sessions_ripple_df',
+                'filtered_all_sessions_ripple_time_bin_df': 'all_sessions_ripple_time_bin_df',
+                'filtered_all_sessions_laps_df': 'all_sessions_laps_df',
+                'filtered_all_sessions_laps_time_bin_df': 'all_sessions_laps_time_bin_df'},
+            )
+
+    """
+    return {rename_key_mapping.get(k, k): v for k, v in a_dict.items()}
+
+
+
+
+
+
+
+
 # Benedict Helpers ___________________________________________________________________________________________________ #
 def get_values_from_keypaths(data, keypaths):
     """ used with benedict-dicts to get nested values from a flat list of keypaths """
