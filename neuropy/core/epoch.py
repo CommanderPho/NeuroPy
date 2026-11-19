@@ -2075,9 +2075,14 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
                Occurs because `_slice == ['lap_id']` which doesn't pass the first check because it's a list of strings not a string itself
         Example:
             Error line `laps_df[['lap_id']] = laps_df[['lap_id']].astype('int')`
+
+        Named-epoch label lookup (`epochs['maze1']`) is unchanged when the key matches `self.labels`.
+        An empty label match whose key(s) are real `_df` column names raises IndexError advising `ensure_dataframe(...)`.
         """
         if isinstance(slice_, str):
             indices = np.where(self.labels == slice_)[0]
+            if (len(indices) == 0) and (slice_ in self._df.columns):
+                raise IndexError(f"PHO: Epoch.__getitem__({slice_!r}) matched no epoch labels, but {slice_!r} is a column of the internal dataframe. You are probably treating an Epoch like a pd.DataFrame — wrap with ensure_dataframe(...), e.g. ensure_dataframe(epochs)[{slice_!r}].")
             if len(indices) > 1:
                 return np.vstack((self.starts[indices], self.stops[indices])).T
             else:
@@ -2088,8 +2093,13 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
             # IndexError: only integers, slices (`:`), ellipsis (`...`), numpy.newaxis (`None`) and integer or boolean arrays are valid indices
             #     Occurs because `_slice == ['lap_id']` which doesn't pass the first check because it's a list of strings not a string itself
             # Example:
-            #     Error line `laps_df[['lap_id']] = laps_df[['lap_id']].astype('int')`                
-            raise IndexError(f"PHO: you're probably trying to treat the epochs as if they are in the pd.DataFrame format but they are an Epoch object! Use `actual_laps_df = incorrectly_assumed_laps_df.epochs.to_dataframe()` to convert.")
+            #     Error line `laps_df[['lap_id']] = laps_df[['lap_id']].astype('int')`
+            requested = list(slice_)
+            empty_label_match: bool = all((len(np.where(self.labels == s)[0]) == 0) for s in requested)
+            all_are_columns: bool = all((s in self._df.columns) for s in requested)
+            if empty_label_match and all_are_columns:
+                raise IndexError(f"PHO: Epoch.__getitem__({requested!r}) matched no epoch labels, but those keys are columns of the internal dataframe. You are probably treating an Epoch like a pd.DataFrame — wrap with ensure_dataframe(...), e.g. ensure_dataframe(epochs)[{requested!r}].")
+            raise IndexError(f"PHO: you're probably trying to treat the epochs as if they are in the pd.DataFrame format but they are an Epoch object! Use `ensure_dataframe(...)` to convert, e.g. `actual_laps_df = ensure_dataframe(incorrectly_assumed_laps_df)`.")
             
         else:
             return np.vstack((self.starts[slice_], self.stops[slice_])).T
