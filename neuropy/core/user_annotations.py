@@ -946,6 +946,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='one',session_name='2006-4-10_12-25-50'), # 2025-08-22 - Decided to discard because the positions are shifted between 'x' and 'lin_pos', and that manifests on the pf peaks. #TODO 2026-11-04 00:42: - [ ] Added back in
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'), #TODO 2026-09-14 16:53: - [ ] Added back in
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'), #TODO 2026-09-14 16:53: - [ ] Added back in. #TODO 2026-11-20 16:37: - [ ] Was still missing
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), #TODO 2026-09-14 16:53: - [ ] Added back in
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), #TODO 2026-09-14 16:53: - [ ] Added back in
