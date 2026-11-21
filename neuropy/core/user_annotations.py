@@ -947,7 +947,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-09_16-40-54'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-10_12-58-3'), #TODO 2026-09-14 16:53: - [ ] Added back in
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'), #TODO 2026-09-14 16:53: - [ ] Added back in. #TODO 2026-11-20 16:37: - [ ] Was still missing
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), #TODO 2026-09-14 16:53: - [ ] Added back in
+            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), #TODO 2026-09-14 16:53: - [ ] Added back in. #TODO 2026-11-20 16:40: - [ ] Was still active in bad_sessions (silently filtered out of good)
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-03_12-3-25'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='fet11-01_12-58-54'), #TODO 2026-09-14 16:53: - [ ] Added back in
         ]
@@ -1053,7 +1053,7 @@ class UserAnnotationsManager(HDFMixin, AttrsBasedClassHelperMixin):
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-27_18-21-57'),
             IdentifyingContext(format_name='kdiba',animal='vvp01',exper_name='two',session_name='2006-4-28_17-6-14'),
             # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_17-46-44'), #TODO 2026-09-14 16:53: - [ ] Added back in
-            IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?!
+            # IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-02_19-28-0'), # 2024-10-04 - has long placefields outside of the possible bounds on the short track for some reason?!?! #TODO 2026-11-20 16:40: - [ ] Added back in (was still active in bad despite being listed in good)
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_12-35-59'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-2-0'),
             IdentifyingContext(format_name='kdiba',animal='pin01',exper_name='one',session_name='11-19_13-55-7'),
