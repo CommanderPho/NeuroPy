@@ -54,7 +54,7 @@ def sample_random_period_from_epoch(epoch_start: float, epoch_stop: float, train
     """
     return EpochHelpers.sample_random_period_from_epoch(epoch_start, epoch_stop, training_data_portion, *additional_lap_columns, debug_print=debug_print, debug_override_training_start_t=debug_override_training_start_t)
 
-def split_epochs_into_training_and_test(epochs_df: pd.DataFrame, training_data_portion: float=5.0/6.0, group_column_name: str='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], debug_print: bool = False):
+def split_epochs_into_training_and_test(epochs_df: pd.DataFrame, training_data_portion: float=9.0/10.0, group_column_name: str='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], debug_print: bool = False):
     """DEPRECATED: Use EpochHelpers.split_epochs_into_training_and_test instead.
     
     This is a compatibility wrapper that delegates to EpochHelpers.split_epochs_into_training_and_test.
@@ -634,7 +634,7 @@ class EpochHelpers:
 
 
     @classmethod
-    def split_epochs_into_training_and_test(cls, epochs_df: pd.DataFrame, training_data_portion: float=5.0/6.0, group_column_name: str='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], debug_print: bool = False):
+    def split_epochs_into_training_and_test(cls, epochs_df: pd.DataFrame, training_data_portion: float=9.0/10.0, group_column_name: str='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], debug_print: bool = False):
         """ Splits laps into separate training and test sections
         
         Usage:
@@ -642,8 +642,8 @@ class EpochHelpers:
             from neuropy.core.epoch import EpochHelpers
 
             ### Get the laps to train on
-            training_data_portion: float = 5.0/6.0
-            test_data_portion: float = 1.0 - training_data_portion # test data portion is 1/6 of the total duration
+            training_data_portion: float = 9.0/10.0
+            test_data_portion: float = 1.0 - training_data_portion # test data portion is 1/10 of the total duration
 
             print(f'training_data_portion: {training_data_portion}, test_data_portion: {test_data_portion}')
 
@@ -1640,14 +1640,14 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             return epochs_df[epochs_df[is_in_key]].drop(columns=[is_in_key], inplace=False)
 
 
-    def split_into_training_and_test(self, training_data_portion: float=5.0/6.0, group_column_name: str='label', additional_epoch_identity_column_names:List[str]=['label'], skip_get_non_overlapping:bool=False, debug_print: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def split_into_training_and_test(self, training_data_portion: float=9.0/10.0, group_column_name: str='label', additional_epoch_identity_column_names:List[str]=['label'], skip_get_non_overlapping:bool=False, debug_print: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Splits laps into separate training and test sections
         
         Usage:
 
             ### Get the laps to train on
-            training_data_portion: float = 5.0/6.0
-            test_data_portion: float = 1.0 - training_data_portion # test data portion is 1/6 of the total duration
+            training_data_portion: float = 9.0/10.0
+            test_data_portion: float = 1.0 - training_data_portion # test data portion is 1/10 of the total duration
 
             print(f'training_data_portion: {training_data_portion}, test_data_portion: {test_data_portion}')
 
@@ -1659,7 +1659,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             laps_test_df 
             
         Usage 2:
-            training_data_portion: float = 5.0/6.0
+            training_data_portion: float = 9.0/10.0
             a_new_training_df, a_new_test_df = global_epoch_only_non_PBE_epoch_df.epochs.split_into_training_and_test(training_data_portion=training_data_portion, group_column_name ='label', additional_epoch_identity_column_names=['label'], skip_get_non_overlapping=False, debug_print=False) # a_laps_training_df, a_laps_test_df both comeback good here.
 
             a_new_training_df
@@ -2424,14 +2424,14 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
         return Epoch(epochs=self._df.epochs.subtracting(other_epochs_df=other_epochs_df, skip_get_overlapping=skip_get_non_overlapping), metadata=self.metadata)
         
 
-    def split_into_training_and_test(self, training_data_portion: float=5.0/6.0, group_column_name: str='label', additional_epoch_identity_column_names:List[str]=['label'], skip_get_non_overlapping:bool=False, debug_print: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def split_into_training_and_test(self, training_data_portion: float=9.0/10.0, group_column_name: str='label', additional_epoch_identity_column_names:List[str]=['label'], skip_get_non_overlapping:bool=False, debug_print: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Splits laps into separate training and test sections
         
         Usage:
 
             ### Get the laps to train on
-            training_data_portion: float = 5.0/6.0
-            test_data_portion: float = 1.0 - training_data_portion # test data portion is 1/6 of the total duration
+            training_data_portion: float = 9.0/10.0
+            test_data_portion: float = 1.0 - training_data_portion # test data portion is 1/10 of the total duration
 
             print(f'training_data_portion: {training_data_portion}, test_data_portion: {test_data_portion}')
 
@@ -2443,7 +2443,7 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
             laps_test_df 
             
         Usage 2:
-            training_data_portion: float = 5.0/6.0
+            training_data_portion: float = 9.0/10.0
             a_new_training_df, a_new_test_df = global_epoch_only_non_PBE_epoch_df.epochs.split_into_training_and_test(training_data_portion=training_data_portion, group_column_name ='label', additional_epoch_identity_column_names=['label'], skip_get_non_overlapping=False, debug_print=False) # a_laps_training_df, a_laps_test_df both comeback good here.
 
             a_new_training_df
