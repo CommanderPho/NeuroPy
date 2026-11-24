@@ -209,8 +209,14 @@ class AttrsBasedClassHelperMixin:
     
 
     def to_dict(self) -> Dict:
-        # self.adding_default_values_for_missing_fields()
-        
+        ## Fill newly-added attrs fields missing on older pickled/in-memory instances, then recurse into nested attrs helpers:
+        self.adding_default_values_for_missing_fields()
+        for an_attr in fields(type(self)):
+            v = getattr(self, an_attr.name, None)
+            if (v is not None) and hasattr(v, 'adding_default_values_for_missing_fields'):
+                v.adding_default_values_for_missing_fields()
+            ## END if (v is not None) and hasattr(...)...
+        ## END for an_attr in fields(type(self))...
         return asdict(self)
     
 
