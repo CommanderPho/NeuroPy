@@ -54,12 +54,12 @@ def sample_random_period_from_epoch(epoch_start: float, epoch_stop: float, train
     """
     return EpochHelpers.sample_random_period_from_epoch(epoch_start, epoch_stop, training_data_portion, *additional_lap_columns, debug_print=debug_print, debug_override_training_start_t=debug_override_training_start_t)
 
-def split_epochs_into_training_and_test(epochs_df: pd.DataFrame, training_data_portion: float=9.0/10.0, group_column_name: str='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], debug_print: bool = False):
+def split_epochs_into_training_and_test(epochs_df: pd.DataFrame, training_data_portion: float=9.0/10.0, group_column_name: str='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], train_test_full_lap: bool = True, debug_print: bool = False):
     """DEPRECATED: Use EpochHelpers.split_epochs_into_training_and_test instead.
     
     This is a compatibility wrapper that delegates to EpochHelpers.split_epochs_into_training_and_test.
     """
-    return EpochHelpers.split_epochs_into_training_and_test(epochs_df, training_data_portion=training_data_portion, group_column_name=group_column_name, additional_epoch_identity_column_names=additional_epoch_identity_column_names, debug_print=debug_print)
+    return EpochHelpers.split_epochs_into_training_and_test(epochs_df, training_data_portion=training_data_portion, group_column_name=group_column_name, additional_epoch_identity_column_names=additional_epoch_identity_column_names, train_test_full_lap=train_test_full_lap, debug_print=debug_print)
 
 def subdivide_epochs(df: pd.DataFrame, subdivide_bin_size: float, start_col='start', stop_col='stop') -> pd.DataFrame:
     """DEPRECATED: Use EpochHelpers.subdivide_epochs instead.
@@ -634,9 +634,13 @@ class EpochHelpers:
 
 
     @classmethod
-    def split_epochs_into_training_and_test(cls, epochs_df: pd.DataFrame, training_data_portion: float=9.0/10.0, group_column_name: str='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], debug_print: bool = False):
-        """ Splits laps into separate training and test sections
-        
+    def split_epochs_into_training_and_test(cls, epochs_df: pd.DataFrame, training_data_portion: float=9.0/10.0, group_column_name: str='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], train_test_full_lap: bool = True, debug_print: bool = False):
+        """ Splits laps into separate training and test sections.
+
+        train_test_full_lap (bool):
+            True (default): hold out whole groups (e.g. entire laps). Approximately ``(1 - training_data_portion)`` of unique ``group_column_name`` values are randomly selected as test; remaining whole epochs are train.
+            False: within each group, randomly sample a contiguous train window of duration ``duration * training_data_portion``; the complement within that lap is test.
+
         Usage:
 
             from neuropy.core.epoch import EpochHelpers
@@ -649,7 +653,7 @@ class EpochHelpers:
 
             laps_df: pd.DataFrame = deepcopy(global_any_laps_epochs_obj.to_dataframe())
 
-            laps_training_df, laps_test_df = EpochHelpers.split_epochs_into_training_and_test(laps_df=laps_df, training_data_portion=training_data_portion, debug_print=False)
+            laps_training_df, laps_test_df = EpochHelpers.split_epochs_into_training_and_test(laps_df=laps_df, training_data_portion=training_data_portion, train_test_full_lap=True, debug_print=False)
 
             laps_df
             laps_training_df
@@ -659,6 +663,34 @@ class EpochHelpers:
         from neuropy.core.epoch import Epoch, ensure_dataframe
 
         # BEGIN FUNCTION BODY ________________________________________________________________________________________________ #
+        test_data_portion: float = 1.0 - training_data_portion
+
+        if train_test_full_lap:
+            ## Hold out whole groups (entire laps) as test:
+            unique_group_ids = pd.unique(epochs_df[group_column_name])
+            n_groups: int = len(unique_group_ids)
+            if n_groups <= 1:
+                if debug_print:
+                    print(f'train_test_full_lap=True but only n_groups={n_groups}; assigning all to train (empty test).')
+                epochs_training_df = epochs_df.copy().reset_index(drop=True)
+                epochs_test_df = epochs_df.iloc[0:0].copy().reset_index(drop=True)
+            else:
+                n_test: int = int(np.round(n_groups * test_data_portion))
+                n_test = min(max(n_test, 1), n_groups - 1)  # at least 1 test and 1 train when possible
+                test_group_ids = np.random.choice(unique_group_ids, size=n_test, replace=False)
+                test_mask = epochs_df[group_column_name].isin(test_group_ids)
+                epochs_test_df = epochs_df.loc[test_mask].copy().reset_index(drop=True)
+                epochs_training_df = epochs_df.loc[~test_mask].copy().reset_index(drop=True)
+                if debug_print:
+                    print(f'train_test_full_lap=True: n_groups={n_groups}, n_test={n_test}, n_train={n_groups - n_test}, test_group_ids={list(test_group_ids)}')
+            ## END if n_groups <= 1...
+
+            for _df in (epochs_training_df, epochs_test_df):
+                if (len(_df) > 0) and ('duration' not in _df.columns):
+                    _df['duration'] = _df['stop'] - _df['start']
+            ## END for _df in (epochs_training_df, epochs_test_df)...
+
+            return epochs_training_df, epochs_test_df
 
         # Randomly sample a portion of each lap. Draw a random period of duration (duration[i] * training_data_portion) from the lap.
         train_rows = []
@@ -682,6 +714,7 @@ class EpochHelpers:
             for an_epoch_start_stop_tuple in epoch_start_stop_tuple_list:
                 a_combined_intervals = a_combined_intervals.union(P.closed(an_epoch_start_stop_tuple[0], an_epoch_start_stop_tuple[1]))
                 train_rows.append(an_epoch_start_stop_tuple)
+            ## END for an_epoch_start_stop_tuple in epoch_start_stop_tuple_list...
             
             # Calculate the difference between the period and the combined interval
             complement_intervals = curr_lap_period.difference(a_combined_intervals)
@@ -694,6 +727,7 @@ class EpochHelpers:
             all_train_durations: float = np.sum(a_train_durations)
             all_test_durations: float = _temp_test_epochs_df['duration'].sum()
             assert np.isclose(curr_lap_duration, (all_train_durations+all_test_durations)), f"(all_train_durations: {all_train_durations} + all_test_durations: {all_test_durations}) should equal curr_lap_duration: {curr_lap_duration}, but instead it equals {(all_train_durations+all_test_durations)}"
+        ## END for epoch_id, group in epochs_df.groupby(group_column_name)...
 
 
         ## INPUTS: laps_df, laps_df
@@ -1640,8 +1674,10 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             return epochs_df[epochs_df[is_in_key]].drop(columns=[is_in_key], inplace=False)
 
 
-    def split_into_training_and_test(self, training_data_portion: float=9.0/10.0, group_column_name: str='label', additional_epoch_identity_column_names:List[str]=['label'], skip_get_non_overlapping:bool=False, debug_print: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """ Splits laps into separate training and test sections
+    def split_into_training_and_test(self, training_data_portion: float=9.0/10.0, group_column_name: str='label', additional_epoch_identity_column_names:List[str]=['label'], skip_get_non_overlapping:bool=False, train_test_full_lap: bool = True, debug_print: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """ Splits laps into separate training and test sections.
+
+        train_test_full_lap: if True (default), hold out whole groups as test; if False, leave out a temporal fraction within each group.
         
         Usage:
 
@@ -1652,7 +1688,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
             print(f'training_data_portion: {training_data_portion}, test_data_portion: {test_data_portion}')
 
             a_laps_df: pd.DataFrame = ensure_dataframe(deepcopy(a_config['pf_params'].computation_epochs))
-            a_laps_training_df, a_laps_test_df = a_laps_df.epochs.split_into_training_and_test(training_data_portion=training_data_portion, group_column_name ='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], skip_get_non_overlapping=False, debug_print=False) # a_laps_training_df, a_laps_test_df both comeback good here.
+            a_laps_training_df, a_laps_test_df = a_laps_df.epochs.split_into_training_and_test(training_data_portion=training_data_portion, group_column_name ='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], skip_get_non_overlapping=False, train_test_full_lap=True, debug_print=False) # a_laps_training_df, a_laps_test_df both comeback good here.
 
             laps_df
             laps_training_df
@@ -1673,7 +1709,7 @@ class EpochsAccessor(TimeColumnAliasesProtocol, TimeSlicedMixin, StartStopTimesM
         else:
             epochs_df: pd.DataFrame = self.get_valid_df()        
 
-        return EpochHelpers.split_epochs_into_training_and_test(epochs_df=epochs_df, training_data_portion=training_data_portion, group_column_name=group_column_name, additional_epoch_identity_column_names=additional_epoch_identity_column_names, debug_print=debug_print)
+        return EpochHelpers.split_epochs_into_training_and_test(epochs_df=epochs_df, training_data_portion=training_data_portion, group_column_name=group_column_name, additional_epoch_identity_column_names=additional_epoch_identity_column_names, train_test_full_lap=train_test_full_lap, debug_print=debug_print)
 
     
     # Column Adding/Updating Methods _____________________________________________________________________________________ #
@@ -2424,8 +2460,10 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
         return Epoch(epochs=self._df.epochs.subtracting(other_epochs_df=other_epochs_df, skip_get_overlapping=skip_get_non_overlapping), metadata=self.metadata)
         
 
-    def split_into_training_and_test(self, training_data_portion: float=9.0/10.0, group_column_name: str='label', additional_epoch_identity_column_names:List[str]=['label'], skip_get_non_overlapping:bool=False, debug_print: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def split_into_training_and_test(self, training_data_portion: float=9.0/10.0, group_column_name: str='label', additional_epoch_identity_column_names:List[str]=['label'], skip_get_non_overlapping:bool=False, train_test_full_lap: bool = True, debug_print: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Splits laps into separate training and test sections
+
+        train_test_full_lap: if True (default), hold out whole groups as test; if False, leave out a temporal fraction within each group.
         
         Usage:
 
@@ -2436,7 +2474,7 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
             print(f'training_data_portion: {training_data_portion}, test_data_portion: {test_data_portion}')
 
             a_laps_df: pd.DataFrame = ensure_dataframe(deepcopy(a_config['pf_params'].computation_epochs))
-            a_laps_training_df, a_laps_test_df = a_laps_df.epochs.split_into_training_and_test(training_data_portion=training_data_portion, group_column_name ='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], skip_get_non_overlapping=False, debug_print=False) # a_laps_training_df, a_laps_test_df both comeback good here.
+            a_laps_training_df, a_laps_test_df = a_laps_df.epochs.split_into_training_and_test(training_data_portion=training_data_portion, group_column_name ='lap_id', additional_epoch_identity_column_names=['label', 'lap_id', 'lap_dir'], skip_get_non_overlapping=False, train_test_full_lap=True, debug_print=False) # a_laps_training_df, a_laps_test_df both comeback good here.
 
             laps_df
             laps_training_df
@@ -2450,7 +2488,7 @@ class Epoch(HDFMixin, StartStopTimesMixin, TimeSlicableObjectProtocol, DataFrame
             a_new_test_df
 
         """
-        return Epoch(epochs=self._df.epochs.split_into_training_and_test(training_data_portion=training_data_portion, group_column_name=group_column_name, additional_epoch_identity_column_names=additional_epoch_identity_column_names, skip_get_overlapping=skip_get_non_overlapping, debug_print=debug_print), metadata=self.metadata)
+        return Epoch(epochs=self._df.epochs.split_into_training_and_test(training_data_portion=training_data_portion, group_column_name=group_column_name, additional_epoch_identity_column_names=additional_epoch_identity_column_names, skip_get_overlapping=skip_get_non_overlapping, train_test_full_lap=train_test_full_lap, debug_print=debug_print), metadata=self.metadata)
 
 
     # HDF5 Serialization _________________________________________________________________________________________________ #
