@@ -5,7 +5,7 @@ from attrs import define, field, Factory, fields, filters, asdict, astuple
 import h5py
 import time
 import matplotlib.pyplot as plt
-from typing import Dict, List, Tuple, Optional, Callable, Union, Any
+from typing import Dict, List, Tuple, Sequence, Optional, Callable, Union, Any
 from typing_extensions import TypeAlias
 import nptyping as ND
 from nptyping import NDArray
@@ -16,6 +16,7 @@ import pandas as pd
 from scipy.ndimage import gaussian_filter, gaussian_filter1d, interpolation
 from neuropy.core.epoch import Epoch, ensure_dataframe
 from neuropy.core.neurons import Neurons
+from neuropy.core.neuron_identities import NeuronExtendedIdentity
 from neuropy.core.position import Position
 from neuropy.core.ratemap import Ratemap
 from neuropy.core.flattened_spiketrains import SpikesAccessor # allows placefields to be sliced by neuron ids
@@ -1089,7 +1090,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
                 self._filtered_pos_df, _, _, _ = PfND.build_position_df_discretized_binned_positions(self._filtered_pos_df, self.config, xbin_values=self.xbin, ybin_values=self.ybin, debug_print=False)
 
 
-    def compute(self):
+    def compute(self, exact_neuron_ids: Optional[NDArray] = None, exact_neuron_extended_ids: Optional[Sequence] = None):
         """ actually compute the placefields after self.setup(...) is complete.
 
 
@@ -1128,25 +1129,33 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         # Output lists, for compatibility with Pf1D and Pf2D:
         spk_pos, spk_t, spikes_maps, tuning_maps, unsmoothed_tuning_maps = [], [], [], [], []
 
-        # Once filtering and binning is done, apply the grouping:
-        # Group by the aclu (cluster indicator) column
-        cell_grouped_spikes_df = self.filtered_spikes_df.groupby(['aclu'])
-        cell_spikes_dfs = [cell_grouped_spikes_df.get_group(a_neuron_id) for a_neuron_id in self.filtered_spikes_df.spikes.neuron_ids] # a list of dataframes for each neuron_id
+        if exact_neuron_ids is not None:
+            target_neuron_ids = np.atleast_1d(np.asarray(exact_neuron_ids))
+            if (self._filtered_spikes_df is not None) and ('aclu' in self._filtered_spikes_df.columns):
+                self._filtered_spikes_df = self._filtered_spikes_df[np.isin(self._filtered_spikes_df['aclu'].to_numpy(), target_neuron_ids)]
+            time_col_name: str = self.filtered_spikes_df.spikes.time_variable_name
+            grouped_by_aclu = {a_nid: grp for a_nid, grp in self.filtered_spikes_df.groupby('aclu')} if (len(self.filtered_spikes_df) > 0) else {}
+            cell_spike_times_list = [grouped_by_aclu[a_neuron_id][time_col_name].to_numpy() if (a_neuron_id in grouped_by_aclu) else np.empty((0,), dtype=float) for a_neuron_id in target_neuron_ids]
+        else:
+            # Once filtering and binning is done, apply the grouping:
+            # Group by the aclu (cluster indicator) column
+            cell_grouped_spikes_df = self.filtered_spikes_df.groupby(['aclu'])
+            cell_spikes_dfs = [cell_grouped_spikes_df.get_group(a_neuron_id) for a_neuron_id in self.filtered_spikes_df.spikes.neuron_ids] # a list of dataframes for each neuron_id
+            cell_spike_times_list = [cell_df[self.filtered_spikes_df.spikes.time_variable_name].to_numpy() for cell_df in cell_spikes_dfs]
 
         # NOTE: regardless of whether should_smooth_final_tuning_map is true or not, we must pass in the actual smooth value to the _compute_tuning_map(...) function so it can choose to filter its firing map or not. Only if should_smooth_final_tuning_map is enabled will the final product be smoothed.
 
         # re-interpolate given the updated spks
-        for cell_df in cell_spikes_dfs:
+        for cell_spike_times in cell_spike_times_list:
             # cell_spike_times = cell_df[spikes_df.spikes.time_variable_name].to_numpy()
-            cell_spike_times = cell_df[self.filtered_spikes_df.spikes.time_variable_name].to_numpy()
-            spk_x = np.interp(cell_spike_times, self.t, self.x) # TODO: shouldn't we already have interpolated spike times for all spikes in the dataframe?
+            spk_x = np.interp(cell_spike_times, self.t, self.x) if ((len(cell_spike_times) > 0) and (len(self.t) > 0)) else np.empty((0,), dtype=float) # TODO: shouldn't we already have interpolated spike times for all spikes in the dataframe?
 
             # update the dataframe 'x','speed' and 'y' properties:
             # cell_df.loc[:, 'x'] = spk_x
             # cell_df.loc[:, 'speed'] = spk_spd
             if self.ndim == 3:
-                spk_y = np.interp(cell_spike_times, self.t, self.y)
-                spk_z = np.interp(cell_spike_times, self.t, self.z)
+                spk_y = np.interp(cell_spike_times, self.t, self.y) if ((len(cell_spike_times) > 0) and (len(self.t) > 0)) else np.empty((0,), dtype=float)
+                spk_z = np.interp(cell_spike_times, self.t, self.z) if ((len(cell_spike_times) > 0) and (len(self.t) > 0)) else np.empty((0,), dtype=float)
                 spk_pos.append([spk_x, spk_y, spk_z])
                 spikes_xyz = np.column_stack([spk_x, spk_y, spk_z])
                 smooth_3d = tuple(self.config.smooth)
@@ -1154,7 +1163,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
                     smooth_3d = (smooth_3d + (smooth_3d[-1],))[:3]
                 curr_cell_tuning_map, curr_cell_never_smoothed_tuning_map, curr_cell_spikes_map, curr_cell_unsmoothed_spikes_map = PlacefieldND._compute_tuning_map(spikes_xyz, [self.xbin, self.ybin, self.zbin], occupancy, smooth_3d, should_also_return_intermediate_spikes_map=self._save_intermediate_spikes_maps)
             elif (self.ndim > 1):
-                spk_y = np.interp(cell_spike_times, self.t, self.y) # TODO: shouldn't we already have interpolated spike times for all spikes in the dataframe?
+                spk_y = np.interp(cell_spike_times, self.t, self.y) if ((len(cell_spike_times) > 0) and (len(self.t) > 0)) else np.empty((0,), dtype=float) # TODO: shouldn't we already have interpolated spike times for all spikes in the dataframe?
                 # cell_df.loc[:, 'y'] = spk_y
                 spk_pos.append([spk_x, spk_y])
                 curr_cell_tuning_map, curr_cell_never_smoothed_tuning_map, curr_cell_spikes_map, curr_cell_unsmoothed_spikes_map = Pf2D._compute_tuning_map(spk_x, spk_y, self.xbin, self.ybin, occupancy, self.config.smooth, should_also_return_intermediate_spikes_map=self._save_intermediate_spikes_maps)
@@ -1168,18 +1177,46 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
             tuning_maps.append(curr_cell_tuning_map)
             unsmoothed_tuning_maps.append(curr_cell_never_smoothed_tuning_map)
             spikes_maps.append(curr_cell_spikes_map)
+        ## END for cell_spike_times in cell_spike_times_list...
 
+        if exact_neuron_ids is not None:
+            self._included_thresh_neurons_indx = np.arange(len(target_neuron_ids), dtype=int)
+            self._peak_frate_filter_function = lambda list_to_filter: list_to_filter
+            if len(target_neuron_ids) > 0:
+                filtered_tuning_maps = np.asarray(tuning_maps)
+                filtered_unsmoothed_tuning_maps = np.asarray(unsmoothed_tuning_maps)
+                filtered_spikes_maps = spikes_maps.copy()
+            else:
+                filtered_tuning_maps = np.empty((0, *occupancy.shape), dtype=float)
+                filtered_unsmoothed_tuning_maps = np.empty((0, *occupancy.shape), dtype=float)
+                filtered_spikes_maps = np.empty((0, *occupancy.shape), dtype=float)
+            filtered_neuron_ids = target_neuron_ids.copy()
+            fallback_ext_map = {}
+            if (self.spikes_df is not None) and ('aclu' in self.spikes_df.columns) and (len(self.spikes_df) > 0):
+                for a_nid, an_ext in zip(self.spikes_df.spikes.neuron_ids, self.spikes_df.spikes.neuron_probe_tuple_ids):
+                    fallback_ext_map[a_nid] = an_ext
+                ## END for a_nid, an_ext in zip(self.spikes_df.spikes.neuron_ids, self.spikes_df.spikes.neuron_probe_tuple_ids)...
 
-        # ---- cells with peak frate abouve thresh
-        self._included_thresh_neurons_indx, self._peak_frate_filter_function = PfND._build_peak_frate_filter(tuning_maps, self.config.frate_thresh)
+            if len(self.filtered_spikes_df) > 0:
+                for a_nid, an_ext in zip(self.filtered_spikes_df.spikes.neuron_ids, self.filtered_spikes_df.spikes.neuron_probe_tuple_ids):
+                    fallback_ext_map[a_nid] = an_ext
+                ## END for a_nid, an_ext in zip(self.filtered_spikes_df.spikes.neuron_ids, self.filtered_spikes_df.spikes.neuron_probe_tuple_ids)...
 
-        # there is only one tuning_map per neuron that means the thresh_neurons_indx:
-        filtered_tuning_maps = np.asarray(self._peak_frate_filter_function(tuning_maps.copy()))
-        filtered_unsmoothed_tuning_maps = np.asarray(self._peak_frate_filter_function(unsmoothed_tuning_maps.copy()))
+            if (exact_neuron_extended_ids is not None) and (len(exact_neuron_extended_ids) == len(target_neuron_ids)):
+                filtered_tuple_neuron_ids = [an_ext if (an_ext is not None) else fallback_ext_map.get(a_nid, NeuronExtendedIdentity(-1, -1, int(a_nid), qclu=-1)) for a_nid, an_ext in zip(target_neuron_ids, exact_neuron_extended_ids)]
+            else:
+                filtered_tuple_neuron_ids = [fallback_ext_map.get(a_nid, NeuronExtendedIdentity(-1, -1, int(a_nid), qclu=-1)) for a_nid in target_neuron_ids]
+        else:
+            # ---- cells with peak frate abouve thresh
+            self._included_thresh_neurons_indx, self._peak_frate_filter_function = PfND._build_peak_frate_filter(tuning_maps, self.config.frate_thresh)
 
-        filtered_spikes_maps = self._peak_frate_filter_function(spikes_maps.copy())
-        filtered_neuron_ids = self._peak_frate_filter_function(self.filtered_spikes_df.spikes.neuron_ids) 
-        filtered_tuple_neuron_ids = self._peak_frate_filter_function(self.filtered_spikes_df.spikes.neuron_probe_tuple_ids) # the (shank, probe) tuples corresponding to neuron_ids
+            # there is only one tuning_map per neuron that means the thresh_neurons_indx:
+            filtered_tuning_maps = np.asarray(self._peak_frate_filter_function(tuning_maps.copy()))
+            filtered_unsmoothed_tuning_maps = np.asarray(self._peak_frate_filter_function(unsmoothed_tuning_maps.copy()))
+
+            filtered_spikes_maps = self._peak_frate_filter_function(spikes_maps.copy())
+            filtered_neuron_ids = self._peak_frate_filter_function(self.filtered_spikes_df.spikes.neuron_ids) 
+            filtered_tuple_neuron_ids = self._peak_frate_filter_function(self.filtered_spikes_df.spikes.neuron_probe_tuple_ids) # the (shank, probe) tuples corresponding to neuron_ids
 
         self._ratemap = Ratemap(filtered_tuning_maps, unsmoothed_tuning_maps=filtered_unsmoothed_tuning_maps, spikes_maps=filtered_spikes_maps, xbin=self.xbin, ybin=self.ybin, zbin=(self.zbin if self.ndim == 3 else None), neuron_ids=filtered_neuron_ids, occupancy=occupancy, neuron_extended_ids=filtered_tuple_neuron_ids)
         self.ratemap_spiketrains = self._peak_frate_filter_function(spk_t)
@@ -1392,10 +1429,13 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         """The neuron INDEXES, NOT IDs (not 'aclu' values) that were included after filtering by frate and etc. """
         return self._included_thresh_neurons_indx ## TODO: these are basically wrong, we should use self.ratemap.neuron_IDs instead!
 
+
     @property
     def included_neuron_IDs(self):
         """The neuron IDs ('aclu' values) that were included after filtering by frate and etc. """
-        return self._filtered_spikes_df.spikes.neuron_ids[self.included_neuron_IDXs] ## TODO: these are basically wrong, we should use self.ratemap.neuron_IDs instead!
+        if (self._ratemap is not None) and (getattr(self._ratemap, 'neuron_ids', None) is not None):
+            return np.asarray(self._ratemap.neuron_ids)
+        return self._filtered_spikes_df.spikes.neuron_ids[self.included_neuron_IDXs] ## fallback for pre-compute PfND or PfND_TimeDependent (where _ratemap is None)
 
     
         
@@ -1413,12 +1453,25 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
         return copy_pf
 
 
-    def replacing_computation_epochs(self, epochs: Union[Epoch, pd.DataFrame]) -> "PfND":
+    def replacing_computation_epochs(self, epochs: Union[Epoch, pd.DataFrame], preserve_source_neuron_IDs: bool = False, _source_neuron_ids: Optional[NDArray] = None) -> "PfND":
         """Implementors return a copy of themselves with their computation epochs replaced by the provided ones. The existing epochs are unrelated and do not need to be related to the new ones.
+            preserve_source_neuron_IDs: when False (default), refilters neuron_ids on the new epochs via self.config.frate_thresh like an initial computation. When True, preserves the exact source neuron_IDs (membership and order).
         """
         new_epochs_obj: Epoch = Epoch(ensure_dataframe(deepcopy(epochs)).epochs.get_valid_df()).get_non_overlapping()
         copy_epoch_replaced_pf1D = deepcopy(self)
-        return PfND(spikes_df=copy_epoch_replaced_pf1D.spikes_df, position=copy_epoch_replaced_pf1D.position, epochs=new_epochs_obj, config=deepcopy(copy_epoch_replaced_pf1D.config), compute_on_init=True)
+        if not preserve_source_neuron_IDs:
+            return PfND(spikes_df=copy_epoch_replaced_pf1D.spikes_df, position=copy_epoch_replaced_pf1D.position, epochs=new_epochs_obj, config=deepcopy(copy_epoch_replaced_pf1D.config), compute_on_init=True)
+        target_ids = np.atleast_1d(np.asarray(_source_neuron_ids)) if (_source_neuron_ids is not None) else np.atleast_1d(np.asarray(copy_epoch_replaced_pf1D.ratemap.neuron_ids))
+        source_ext_map = {}
+        if (copy_epoch_replaced_pf1D._ratemap is not None) and (getattr(copy_epoch_replaced_pf1D.ratemap, 'neuron_extended_ids', None) is not None):
+            for src_nid, src_ext in zip(copy_epoch_replaced_pf1D.ratemap.neuron_ids, copy_epoch_replaced_pf1D.ratemap.neuron_extended_ids):
+                source_ext_map[src_nid] = src_ext
+            ## END for src_nid, src_ext in zip(copy_epoch_replaced_pf1D.ratemap.neuron_ids, copy_epoch_replaced_pf1D.ratemap.neuron_extended_ids)...
+
+        target_ext_ids = [source_ext_map.get(a_nid, None) for a_nid in target_ids]
+        rebuilt_pf = PfND(spikes_df=copy_epoch_replaced_pf1D.spikes_df, position=copy_epoch_replaced_pf1D.position, epochs=new_epochs_obj, config=deepcopy(copy_epoch_replaced_pf1D.config), setup_on_init=True, compute_on_init=False)
+        rebuilt_pf.compute(exact_neuron_ids=target_ids, exact_neuron_extended_ids=target_ext_ids)
+        return rebuilt_pf
 
 
     
