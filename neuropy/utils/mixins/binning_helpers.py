@@ -479,9 +479,10 @@ def compute_spanning_bins(variable_values, num_bins:int=None, bin_size:float=Non
     elif bin_size is not None:
         ## Binning with Fixed Bin Sizes:
         mode = 'bin_size'
-        xstep = bin_size
-        xbin = np.arange(curr_variable_extents[0], (curr_variable_extents[1] + xstep), xstep, )  # binning of x position
-        # the interval does not include this value, except in some cases where step is not an integer and floating point round-off affects the length of out.
+        xstep = float(bin_size)
+        span = float(curr_variable_extents[1]) - float(curr_variable_extents[0])
+        n_bins = max(1, int(np.ceil((span / xstep) - 1e-9))) if (span > 0.0) else 1    # 2026-11-25 - Worked around float64 rounding issue where epochs constructed from exact integer multiples of bin_size (e.g. single/multi-bin TrainTestSplit) overshoot by +1 ULP and produce a phantom extra bin
+        xbin = float(curr_variable_extents[0]) + (np.arange(n_bins + 1, dtype=float) * xstep)  # float-safe integer-multiple bin edges (no +1 ULP overshoot)
         xnum_bins = len(xbin)
         
     else:

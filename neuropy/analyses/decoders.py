@@ -603,7 +603,7 @@ def epochs_spkcount(spikes: Union[pd.DataFrame, core.Neurons], epochs: Union[cor
                 time_bin_containers_list.append(bin_container)
             continue
 
-        if epoch_duration < bin_size:
+        if epoch_duration < (bin_size - 1e-9):    # 2026-11-25 - Worked around float64 rounding issue where epochs constructed from single time bins (e.g. bin-aligned TrainTestSplit) evaluate to bin_size - ~1 ULP and would otherwise hit the short-epoch branch
             if epoch_duration <= 0:
                 time_bin_edges = np.array([epoch.start, epoch.start + bin_size])
                 time_bin_edges_binning_info = BinningInfo(variable_extents=(epoch.start, epoch.start + bin_size), step=bin_size, num_bins=2)
