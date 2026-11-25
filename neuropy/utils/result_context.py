@@ -1370,9 +1370,10 @@ class DisplaySpecifyingIdentifyingContext(IdentifyingContext):
         
         
         """
-        if subset_excludelist is None:
-            subset_excludelist = []
-        subset_excludelist = subset_excludelist + ['display_dict', 'specific_purpose_display_dict'] # always exclude the meta properties from printing
+        if subset_includelist is None:
+            if subset_excludelist is None:
+                subset_excludelist = []
+            subset_excludelist = subset_excludelist + ['display_dict', 'specific_purpose_display_dict'] # always exclude the meta properties from printing
 
         def _get_formatted_str_value(name: str, val: Any):
             display_fn = self.display_dict.get(name, lambda n, v: str(v))
