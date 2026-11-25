@@ -1,4 +1,5 @@
 from copy import deepcopy
+from pathlib import Path
 from warnings import warn
 import numpy as np
 import pandas as pd
@@ -17,10 +18,26 @@ from neuropy.utils.mixins.unit_slicing import NeuronUnitSlicableObjectProtocol
 from neuropy.utils.mixins.HDF5_representable import HDF_DeserializationMixin, post_deserialize, HDFMixin, HDF_Converter
 from neuropy.utils.mixins.peak_location_representing import PeakLocationRepresentingMixin, ContinuousPeakLocationRepresentingMixin
 from neuropy.utils.misc import is_iterable
+from attrs import NOTHING
 from . import DataWriter
 
 
-class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, ContinuousPeakLocationRepresentingMixin, PeakLocationRepresentingMixin, NeuronUnitSlicableObjectProtocol, BinnedPositionsMixin, DataWriter):
+def _shape_only_repr(instance):
+    """Compact attrs repr for ndarray-like fields."""
+    if hasattr(instance, 'shape'):
+        return f"shape={np.shape(instance)}"
+    return repr(instance)
+
+
+def _asarray_if_not_none(value):
+    """Convert to ndarray unless value is None (preserves optional unsmoothed maps)."""
+    if value is None:
+        return None
+    return np.asarray(value)
+
+
+@custom_define(slots=False, eq=False)
+class Ratemap(HDFMixin, AttrsBasedClassHelperMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, ContinuousPeakLocationRepresentingMixin, PeakLocationRepresentingMixin, NeuronUnitSlicableObjectProtocol, BinnedPositionsMixin, DataWriter):
     """A Ratemap holds information about each unit's firing rate across binned positions. 
         In addition, it also holds (tuning curves).
         
@@ -41,41 +58,52 @@ class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, Co
         self.ybin
         
         # Other:
-        self.metadata
+        self.metadata / self._metadata
+        self._filename
         
     Args:
         NeuronIdentitiesDisplayerMixin (_type_): _description_
         RatemapPlottingMixin (_type_): _description_
         DataWriter (_type_): _description_
     """
-    def __init__(self, tuning_curves, unsmoothed_tuning_maps=None, spikes_maps=None, 
-        xbin=None, ybin=None, occupancy=None,
-        neuron_ids=None, neuron_extended_ids=None, metadata=None) -> None:
-        
-        super().__init__()
+    # Map properties (HDF handled by custom `to_hdf`)
+    tuning_curves: NDArray = serialized_field(default=NOTHING, converter=np.asarray, repr=_shape_only_repr, is_hdf_handled_custom=True, metadata={'shape': ('n_neurons', '*spatial')})
+    unsmoothed_tuning_maps: Optional[NDArray] = serialized_field(default=None, converter=_asarray_if_not_none, repr=_shape_only_repr, is_hdf_handled_custom=True, metadata={'shape': ('n_neurons', '*spatial')})
+    # Preserve historical `np.asarray(None)` behavior for omitted spikes_maps
+    spikes_maps: Optional[NDArray] = serialized_field(default=None, converter=np.asarray, repr=_shape_only_repr, is_hdf_handled_custom=True, metadata={'shape': ('n_neurons', '*spatial')})
+    xbin: Optional[NDArray] = serialized_field(default=None, repr=_shape_only_repr, is_hdf_handled_custom=True)
+    ybin: Optional[NDArray] = serialized_field(default=None, repr=_shape_only_repr, is_hdf_handled_custom=True)
+    occupancy: Optional[NDArray] = serialized_field(default=None, repr=_shape_only_repr, is_hdf_handled_custom=True, metadata={'shape': ('*spatial',)})
 
-        self.spikes_maps = np.asarray(spikes_maps)
-        self.tuning_curves = np.asarray(tuning_curves)
-        if unsmoothed_tuning_maps is not None:
-            self.unsmoothed_tuning_maps = np.asarray(unsmoothed_tuning_maps)
-        else:
-            self.unsmoothed_tuning_maps = None
-        
-        if neuron_ids is not None:
-            assert len(neuron_ids) == self.tuning_curves.shape[0]
-            self._neuron_ids = neuron_ids
-        if neuron_extended_ids is not None:
-            assert len(neuron_extended_ids) == self.tuning_curves.shape[0]
-            assert len(neuron_extended_ids) == len(self._neuron_ids)
-            # NeuronExtendedIdentity objects
-            self._neuron_extended_ids = neuron_extended_ids   
-        
-        self.xbin = xbin
-        self.ybin = ybin
-        self.occupancy = occupancy
+    # Private storage names preserved for pickle compatibility; init aliases strip leading `_`
+    _neuron_ids = serialized_field(default=None, is_hdf_handled_custom=True, metadata={'shape': ('n_neurons',)})
+    _neuron_extended_ids = serialized_field(default=None, is_hdf_handled_custom=True, metadata={'shape': ('n_neurons',)})
+    _metadata: Optional[dict] = non_serialized_field(default=None, is_computable=False)
+    _filename: Optional[Any] = non_serialized_field(default=None, init=False, is_computable=False)
 
-        self.metadata = metadata
-    
+
+    def __attrs_post_init__(self):
+        """Validate neuron-identity lengths after attrs construction."""
+        if self._neuron_ids is not None:
+            assert len(self._neuron_ids) == self.tuning_curves.shape[0]
+        if self._neuron_extended_ids is not None:
+            assert len(self._neuron_extended_ids) == self.tuning_curves.shape[0]
+            if self._neuron_ids is not None:
+                assert len(self._neuron_extended_ids) == len(self._neuron_ids)
+
+
+    def __setstate__(self, state):
+        """Migrate pre-attrs / DataWriter pickle variants into current field names."""
+        if 'metadata' in state and '_metadata' not in state:
+            state['_metadata'] = state.pop('metadata')
+        state.setdefault('_filename', None)
+        state.setdefault('unsmoothed_tuning_maps', None)
+        state.setdefault('_neuron_ids', None)
+        state.setdefault('_neuron_extended_ids', None)
+        state.setdefault('_metadata', None)
+        self.__dict__.update(state)
+
+
     # NeuronIdentitiesDisplayerMixin requirements
     @property
     def neuron_ids(self):
@@ -84,8 +112,8 @@ class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, Co
     @neuron_ids.setter
     def neuron_ids(self, value):
         self._neuron_ids = value
-       
-       
+
+
     @property
     def neuron_extended_ids(self):
         """The neuron_extended_ids property."""
@@ -93,7 +121,31 @@ class Ratemap(HDFMixin, NeuronIdentitiesDisplayerMixin, RatemapPlottingMixin, Co
     @neuron_extended_ids.setter
     def neuron_extended_ids(self, value):
         self._neuron_extended_ids = value
-     
+
+
+    # DataWriter-compatible metadata / filename (attrs owns backing fields)
+    @property
+    def filename(self):
+        return self._filename
+    @filename.setter
+    def filename(self, f):
+        assert isinstance(f, (str, Path))
+        self._filename = f
+
+
+    @property
+    def metadata(self):
+        return self._metadata
+    @metadata.setter
+    def metadata(self, d):
+        """metadata compatibility — merge dicts when both existing and new are provided."""
+        if d is not None:
+            assert isinstance(d, dict), "Only dictionary accepted"
+            if self._metadata is not None:
+                self._metadata = self._metadata | d
+            else:
+                self._metadata = d
+
 
     @property
     def n_neurons(self) -> int:
