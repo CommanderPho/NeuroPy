@@ -1439,8 +1439,9 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
     @property
     def included_neuron_IDs(self):
         """The neuron IDs ('aclu' values) that were included after filtering by frate and etc. """
-        if (self._ratemap is not None) and (getattr(self._ratemap, 'neuron_ids', None) is not None):
-            return np.asarray(self._ratemap.neuron_ids)
+        _ratemap = getattr(self, '_ratemap', None)
+        if (_ratemap is not None) and (getattr(_ratemap, 'neuron_ids', None) is not None):
+            return np.asarray(_ratemap.neuron_ids)
         return self._filtered_spikes_df.spikes.neuron_ids[self.included_neuron_IDXs] ## fallback for pre-compute PfND or PfND_TimeDependent (where _ratemap is None)
 
     
@@ -1469,7 +1470,7 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
             return PfND(spikes_df=copy_epoch_replaced_pf1D.spikes_df, position=copy_epoch_replaced_pf1D.position, epochs=new_epochs_obj, config=deepcopy(copy_epoch_replaced_pf1D.config), compute_on_init=True)
         target_ids = np.atleast_1d(np.asarray(_source_neuron_ids)) if (_source_neuron_ids is not None) else np.atleast_1d(np.asarray(copy_epoch_replaced_pf1D.ratemap.neuron_ids))
         source_ext_map = {}
-        if (copy_epoch_replaced_pf1D._ratemap is not None) and (getattr(copy_epoch_replaced_pf1D.ratemap, 'neuron_extended_ids', None) is not None):
+        if (getattr(copy_epoch_replaced_pf1D, '_ratemap', None) is not None) and (getattr(copy_epoch_replaced_pf1D.ratemap, 'neuron_extended_ids', None) is not None):
             for src_nid, src_ext in zip(copy_epoch_replaced_pf1D.ratemap.neuron_ids, copy_epoch_replaced_pf1D.ratemap.neuron_extended_ids):
                 source_ext_map[src_nid] = src_ext
             ## END for src_nid, src_ext in zip(copy_epoch_replaced_pf1D.ratemap.neuron_ids, copy_epoch_replaced_pf1D.ratemap.neuron_extended_ids)...

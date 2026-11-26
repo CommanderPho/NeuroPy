@@ -494,6 +494,12 @@ class PfND_TimeDependent(PfND):
         self.__dict__ = state # set the dict
         if not hasattr(self, 'zbin'):
             self.zbin = None # older pickles omitted zbin from to_dict()
+        if not hasattr(self, '_ratemap'):
+            self._ratemap = None # to_dict() omits _ratemap on PfND_TimeDependent
+        if not hasattr(self, '_ratemap_spiketrains'):
+            self._ratemap_spiketrains = None
+        if not hasattr(self, '_ratemap_spiketrains_pos'):
+            self._ratemap_spiketrains_pos = None
         self._save_intermediate_spikes_maps = True # False is not yet implemented
 
         # Convert back to PlacefieldSnapshot objects:
