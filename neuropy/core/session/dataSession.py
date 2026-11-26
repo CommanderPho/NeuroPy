@@ -120,10 +120,12 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
     
     @property
     def n_neurons(self):
-        return self.neurons.n_neurons
+        return self.neurons.n_neurons if self.neurons is not None else 0
     
     @property
     def spikes_df(self):
+        if self.flattened_spiketrains is None:
+            return pd.DataFrame({'aclu': pd.Series(dtype=np.int64), 't_seconds': pd.Series(dtype=np.float64), 't': pd.Series(dtype=np.float64), 't_rel_seconds': pd.Series(dtype=np.float64), 'neuron_type': pd.Series(dtype=object)})
         return self.flattened_spiketrains.spikes_df
     
     # Epochs properties __________________________________________________________________________________________________ #
@@ -168,9 +170,11 @@ class DataSession(HDF_SerializationMixin, DataSessionPanelMixin, NeuronUnitSlica
         copy_sess.epochs = copy_sess.epochs.time_slice(active_epoch_times[0], active_epoch_times[1])
         
         # update the copy_session's time_sliceable objects
-        copy_sess.neurons = copy_sess.neurons.time_slice(active_epoch_times[0], active_epoch_times[1]) # active_epoch_session_Neurons: Filter by pyramidal cells only, returns a core.
+        if copy_sess.neurons is not None:
+            copy_sess.neurons = copy_sess.neurons.time_slice(active_epoch_times[0], active_epoch_times[1]) # active_epoch_session_Neurons: Filter by pyramidal cells only, returns a core.
         copy_sess.position = copy_sess.position.time_slice(active_epoch_times[0], active_epoch_times[1]) # active_epoch_pos: active_epoch_pos's .time and start/end are all valid
-        copy_sess.flattened_spiketrains = copy_sess.flattened_spiketrains.time_slice(active_epoch_times[0], active_epoch_times[1]) # active_epoch_pos: active_epoch_pos's .time and start/end are all valid  
+        if copy_sess.flattened_spiketrains is not None:
+            copy_sess.flattened_spiketrains = copy_sess.flattened_spiketrains.time_slice(active_epoch_times[0], active_epoch_times[1]) # active_epoch_pos: active_epoch_pos's .time and start/end are all valid  
         
         if copy_sess.ripple is not None:
             copy_sess.ripple = copy_sess.ripple.time_slice(active_epoch_times[0], active_epoch_times[1]) 

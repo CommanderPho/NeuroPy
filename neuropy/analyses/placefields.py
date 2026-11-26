@@ -121,7 +121,7 @@ class PlacefieldComputationParameters(SimplePrintable, KeypathsAccessibleMixin, 
         It seems like even in 1D it's supposed to be returning a tuple (xmin, xmax), and not a float. 	
             
         """
-        if np.isscalar(self.grid_bin_bounds):
+        if self.grid_bin_bounds is None or np.isscalar(self.grid_bin_bounds):
             return self.grid_bin_bounds
         else:
             return self.grid_bin_bounds[0]
@@ -1211,8 +1211,14 @@ class PfND(HDFMixin, AttrsBasedClassHelperMixin, ContinuousPeakLocationRepresent
             self._included_thresh_neurons_indx, self._peak_frate_filter_function = PfND._build_peak_frate_filter(tuning_maps, self.config.frate_thresh)
 
             # there is only one tuning_map per neuron that means the thresh_neurons_indx:
-            filtered_tuning_maps = np.asarray(self._peak_frate_filter_function(tuning_maps.copy()))
-            filtered_unsmoothed_tuning_maps = np.asarray(self._peak_frate_filter_function(unsmoothed_tuning_maps.copy()))
+            filtered_tuning_maps_list = self._peak_frate_filter_function(tuning_maps.copy())
+            filtered_unsmoothed_tuning_maps_list = self._peak_frate_filter_function(unsmoothed_tuning_maps.copy())
+            if len(filtered_tuning_maps_list) > 0:
+                filtered_tuning_maps = np.asarray(filtered_tuning_maps_list)
+                filtered_unsmoothed_tuning_maps = np.asarray(filtered_unsmoothed_tuning_maps_list)
+            else:
+                filtered_tuning_maps = np.empty((0, *occupancy.shape), dtype=float)
+                filtered_unsmoothed_tuning_maps = np.empty((0, *occupancy.shape), dtype=float)
 
             filtered_spikes_maps = self._peak_frate_filter_function(spikes_maps.copy())
             filtered_neuron_ids = self._peak_frate_filter_function(self.filtered_spikes_df.spikes.neuron_ids) 

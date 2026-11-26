@@ -211,7 +211,7 @@ def batch_filter_session(sess, position, spikes_df, epochs, debug_print=False):
 
     if source_neurons is None and has_clusterless_spike_events:
         neurons_obj = None
-        filtered_spikes_df = pd.DataFrame({'aclu': pd.Series(dtype=np.int64), 't_seconds': pd.Series(dtype=np.float64), 't': pd.Series(dtype=np.float64)})
+        filtered_spikes_df = pd.DataFrame({'aclu': pd.Series(dtype=np.int64), 't_seconds': pd.Series(dtype=np.float64), 't': pd.Series(dtype=np.float64), 't_rel_seconds': pd.Series(dtype=np.float64), 'neuron_type': pd.Series(dtype=object)})
         filtered_flattened_spiketrains = FlattenedSpiketrains(filtered_spikes_df, time_variable_name=time_variable_name, t_start=epochs.t_start, metadata=flattened_spiketrains_metadata)
     else:
         Neurons.initialize_missing_spikes_df_columns(filtered_spikes_df)

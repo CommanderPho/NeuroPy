@@ -292,3 +292,40 @@ def test_data_session_time_slice_filters_clusterless_spike_events():
     np.testing.assert_allclose(filtered_sess.clusterless_spike_events.spike_times_sec, np.array([0.3, 0.9], dtype=np.float32))
     assert filtered_sess.clusterless_spike_events.t_start == 0.0
     assert filtered_sess.clusterless_spike_events.t_stop == 1.0
+
+
+def test_zero_neuron_data_session_time_slice_and_pfnd():
+    import pandas as pd
+    from neuropy.analyses.placefields import PfND, PlacefieldComputationParameters
+    from neuropy.core.epoch import Epoch
+    from neuropy.core.position import Position
+    from neuropy.core.session.dataSession import DataSession
+
+    events = ClusterlessSpikeEvents(spike_times_sec=np.array([0.3, 0.9, 1.2, 1.5], dtype=np.float32), electrode_indices=np.array([0, 1, 1, 2], dtype=np.int16),
+        marks=np.ones((4, 4), dtype=np.float32), sampling_frequency_hz=1000.0, electrode_mode="channel", t_start=0.0, t_stop=2.0)
+    t_vals = np.linspace(0.0, 2.0, 41)
+    position_df = pd.DataFrame({"t": t_vals, "x": np.linspace(0.0, 40.0, 41), "y": np.linspace(0.0, 60.0, 41), "lin_pos": np.linspace(0.0, 40.0, 41), "speed": np.full_like(t_vals, 10.0)})
+    paradigm = Epoch.from_starts_stops_arrays(starts=np.array([0.0]), stops=np.array([2.0]), labels=np.array(["global"]))
+    sess = DataSession(config=SimpleNamespace(session_name="zero_neuron_test"), neurons=None, position=Position(position_df), paradigm=paradigm,
+        flattened_spiketrains=None, clusterless_spike_events=events)
+
+    assert sess.n_neurons == 0
+    assert isinstance(sess.spikes_df, pd.DataFrame)
+    assert len(sess.spikes_df) == 0
+
+    sliced = sess.time_slice(0.0, 1.0, enable_debug=False)
+    assert sliced.n_neurons == 0
+    assert sliced.clusterless_spike_events is not None
+    np.testing.assert_allclose(sliced.clusterless_spike_events.spike_times_sec, np.array([0.3, 0.9], dtype=np.float32))
+
+    pf1d_cfg = PlacefieldComputationParameters(speed_thresh=0.0, grid_bin=(10.0,), smooth=(0.0,), frate_thresh=0.0)
+    pf1d = PfND(spikes_df=sess.spikes_df, position=sess.position.linear_pos_obj, epochs=paradigm, config=pf1d_cfg)
+    assert pf1d.ndim == 1
+    assert pf1d.ratemap.ndim == 1
+    assert pf1d.ratemap.n_neurons == 0
+
+    pf2d_cfg = PlacefieldComputationParameters(speed_thresh=0.0, grid_bin=(10.0, 10.0), grid_bin_bounds=((0.0, 40.0), (0.0, 60.0)), smooth=(0.0, 0.0), frate_thresh=0.0)
+    pf2d = PfND(spikes_df=sess.spikes_df, position=sess.position, epochs=paradigm, config=pf2d_cfg)
+    assert pf2d.ndim == 2
+    assert pf2d.ratemap.ndim == 2
+    assert pf2d.ratemap.n_neurons == 0
